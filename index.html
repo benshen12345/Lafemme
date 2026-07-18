@@ -684,6 +684,13 @@
     .hero-right{--hdr:70px}
   }
   @media (max-width:900px){
+    /* tablet portrait: the full nav needs ~836px, but iPad portrait is 744-834.
+       Tighten the link gaps and the logo so everything still fits on one line. */
+    .links{gap:26px}
+    .mono{height:34px}
+    .wordmark{height:24px}
+    .wrap.nav{padding-left:16px;padding-right:16px}
+    .nav{gap:10px}
     .grid{grid-template-columns:repeat(2,1fr);gap:26px 18px}
     .book-grid,.visit-grid{grid-template-columns:1fr;gap:44px}
     .book-side{margin-top:0}   /* stacked on mobile — no offset needed */
