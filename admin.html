@@ -215,7 +215,8 @@
   <p class="lede">Everything on the website right now. Edits and new pieces save straight to the site — no uploading needed. Give it a few seconds and refresh the site to see changes.</p>
   <div class="bar">
     <select id="fGender"><option value="all">All pieces</option><option value="f">Evening gowns</option><option value="m">Men suits</option></select>
-    <input type="text" id="fSearch" placeholder="Search by name…" style="min-width:180px" />
+    <select id="fColour"><option value="all">All colours</option></select>
+    <input type="text" id="fSearch" placeholder="Search name, colour, style…" style="min-width:180px" />
     <button class="btn btn-sm" id="reloadBtn">Reload</button>
     <span class="count" id="count"></span>
   </div>
@@ -523,19 +524,56 @@ async function loadList(){
   busy(false);
   if (error){ toast("Couldn't load: " + error.message, true); return; }
   PRODUCTS = data || [];
+  fillColourFilter();
   renderList();
 }
 $("reloadBtn").addEventListener("click", loadList);
 $("fGender").addEventListener("change", renderList);
+$("fColour").addEventListener("change", renderList);
 $("fSearch").addEventListener("input", renderList);
+
+/* the colour dropdown only lists families actually used by the current pieces */
+function fillColourFilter(){
+  const sel = $("fColour"); if (!sel) return;
+  const keep = sel.value || "all";
+  const used = new Set();
+  PRODUCTS.forEach(p => (p.variants || []).forEach(v => { if (v.f) used.add(v.f); }));
+  const opts = famOptions().filter(f => used.has(f[0]));
+  sel.innerHTML = `<option value="all">All colours</option>` +
+    opts.map(f => `<option value="${esc(f[0])}">${esc(f[1])}</option>`).join("");
+  sel.value = [...sel.options].some(o => o.value === keep) ? keep : "all";
+}
+
+/* everything a search box should be able to match on a piece */
+function haystack(p){
+  const vars = (p.variants || []).map(v => `${v.c || ""} ${v.d || ""} ${v.f || ""} ${v.ref || ""}`).join(" ");
+  const cats = (p.category || []).map(c => `${c} ${labelOf(CATEGORIES, c)}`).join(" ");
+  const mats = (p.material || []).map(m => `${m} ${labelOf(MATERIALS, m)}`).join(" ");
+  return `${p.name || ""} ${p.prefix || ""} ${p.id || ""} ${cats} ${mats} ${vars}`.toLowerCase();
+}
 
 function renderList(){
   const g = $("fGender").value, q = $("fSearch").value.trim().toLowerCase();
-  let rows = PRODUCTS.filter(p => (g === "all" || p.gender === g) && (!q || (p.name||"").toLowerCase().includes(q)));
+  const col = $("fColour") ? $("fColour").value : "all";
+  const toks = q ? q.split(/\s+/) : [];
+  let rows = PRODUCTS.filter(p => {
+    if (g !== "all" && p.gender !== g) return false;
+    if (col !== "all" && !(p.variants || []).some(v => v.f === col)) return false;
+    if (toks.length){ const h = haystack(p); if (!toks.every(t => h.includes(t))) return false; }
+    return true;
+  });
   $("count").textContent = rows.length + " piece" + (rows.length === 1 ? "" : "s");
   $("listEmpty").classList.toggle("hide", rows.length > 0);
   $("items").innerHTML = rows.map(p => {
-    const v = (p.variants || [])[0] || {};
+    // show the variant that matches what was searched/filtered, else the first one
+    const vs = p.variants || [];
+    let vi = 0;
+    if (col !== "all"){ const j = vs.findIndex(v => v.f === col); if (j > -1) vi = j; }
+    else if (toks.length){
+      const j = vs.findIndex(v => toks.some(t => `${v.c || ""} ${v.d || ""} ${v.f || ""}`.toLowerCase().includes(t)));
+      if (j > -1) vi = j;
+    }
+    const v = vs[vi] || {};
     const cats = (p.category || []).map(c => `<span>${labelOf(CATEGORIES,c)}</span>`).join("");
     const mats = (p.material || []).map(m => `<span class="m">${labelOf(MATERIALS,m)}</span>`).join("");
     const dots = (p.variants || []).map(x => `<i style="background:${x.h||'#ccc'}" title="${x.c||''}"></i>`).join("");
@@ -761,7 +799,7 @@ async function replaceHero(n, file){
     if (r.error) throw r.error;
     r = await sb.storage.from(BUCKET).upload("hero/cover-" + n + "-sm.webp", sm, opts);
     if (r.error) throw r.error;
-    sb.rpc("log_action", { p_action: "cover_update", p_detail: { slot: n } }).catch(()=>{});
+    logAction("cover_update", { slot: n });
     busy(false);
     toast(`Cover ${n} updated \u2014 live on the site`);
     loadHeroSlots();
@@ -785,7 +823,7 @@ function wireHeroReset(btn, n){
     try {
       const r = await sb.storage.from(BUCKET).remove(["hero/cover-" + n + ".webp", "hero/cover-" + n + "-sm.webp"]);
       if (r.error) throw r.error;
-      sb.rpc("log_action", { p_action: "cover_reset", p_detail: { slot: n } }).catch(()=>{});
+      logAction("cover_reset", { slot: n });
       busy(false);
       toast(`Cover ${n} reset to the built-in photo`);
       loadHeroSlots();
