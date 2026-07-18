@@ -98,6 +98,22 @@
   .hero-slot .hs-actions .btn{flex:1;text-align:center;padding:8px 6px;font-size:10px}
   .hero-slot .hs-file{display:none}
   .hero-slot .btn.confirming{background:var(--bad);border-color:var(--bad);color:#fff}
+  /* cover cropper */
+  .crop-wrap{position:fixed;inset:0;z-index:120;background:rgba(22,18,14,.72);display:flex;align-items:center;justify-content:center;padding:16px}
+  .crop-box{background:#fff;border:1px solid var(--hairline);padding:22px;width:100%;max-width:460px;max-height:94vh;overflow-y:auto}
+  .crop-box h3{margin:0 0 6px;font-family:var(--serif);font-size:22px;font-weight:500}
+  .crop-hint{color:var(--muted);font-size:12.5px;line-height:1.55;margin:0 0 16px}
+  .crop-stage{position:relative;width:100%;aspect-ratio:1/1;overflow:hidden;background:var(--panel);
+    touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+  .crop-stage:active{cursor:grabbing}
+  .crop-stage img{position:absolute;top:0;left:0;transform-origin:0 0;max-width:none;pointer-events:none;-webkit-user-drag:none}
+  /* the area that survives the crop on every screen size (desktop band ∩ mobile band) */
+  .crop-safe{position:absolute;left:5%;right:5%;top:6.5%;bottom:6.5%;border:1px dashed rgba(255,255,255,.85);
+    pointer-events:none;box-shadow:0 0 0 9999px rgba(22,18,14,.18)}
+  .crop-zoom{display:flex;align-items:center;gap:12px;margin:16px 0 4px}
+  .crop-zoom span{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+  .crop-zoom input{flex:1}
+  .crop-acts{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   .f{margin-bottom:16px}
   .f label{display:block;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
@@ -278,6 +294,26 @@
   <div class="hero-slots" id="heroSlots"></div>
   <p class="lede" style="margin-top:22px;font-size:13px">Tip: use the best-quality portrait photo you have. After you replace a cover it can take up to a minute to refresh on the live site (give it a moment and refresh).</p>
 </section>
+
+<!-- ============ COVER CROPPER ============ -->
+<div id="cropWrap" class="crop-wrap hide">
+  <div class="crop-box">
+    <h3>Choose the part to show</h3>
+    <p class="crop-hint">Drag the photo to move it, use the slider to zoom. Everything inside the frame will be your cover. Keep faces inside the dashed line — that part shows on every screen size.</p>
+    <div class="crop-stage" id="cropStage">
+      <img id="cropImg" alt="">
+      <div class="crop-safe"></div>
+    </div>
+    <div class="crop-zoom">
+      <span>Zoom</span>
+      <input type="range" id="cropZoom" min="100" max="300" value="100">
+    </div>
+    <div class="crop-acts">
+      <button class="btn btn-sm" id="cropCancel">Cancel</button>
+      <button class="btn btn-sm btn-gold" id="cropOk">Use this area</button>
+    </div>
+  </div>
+</div>
 
 <!-- ============ HELP ============ -->
 <section id="viewHelp" class="wrap hide">
@@ -730,19 +766,6 @@ async function uploadPhoto(file, baseSlug){
 
 /* ---------- cover photos (home-page hero reel) ---------- */
 const HERO_COUNT = 5;
-function heroResize(img, maxLong, q){
-  return new Promise((res, rej) => {
-    const long  = Math.max(img.naturalWidth, img.naturalHeight);
-    const scale = Math.min(1, maxLong / long);
-    const w = Math.max(1, Math.round(img.naturalWidth * scale));
-    const h = Math.max(1, Math.round(img.naturalHeight * scale));
-    const c = document.createElement("canvas"); c.width = w; c.height = h;
-    const x = c.getContext("2d");
-    x.fillStyle = "#fff"; x.fillRect(0, 0, w, h);
-    x.drawImage(img, 0, 0, w, h);
-    c.toBlob(b => b ? res(b) : rej(new Error("Image encode failed")), "image/webp", q);
-  });
-}
 const heroPub = n => sb.storage.from(BUCKET).getPublicUrl("hero/cover-" + n + ".webp").data.publicUrl;
 
 function loadHeroSlots(){
@@ -751,6 +774,7 @@ function loadHeroSlots(){
   for (let n = 1; n <= HERO_COUNT; n++){
     const slot = document.createElement("div");
     slot.className = "hero-slot";
+    slot.dataset.slot = n;
     slot.innerHTML = `
       <div class="hs-im">
         <span class="hs-badge">Cover ${n}</span>
@@ -783,26 +807,167 @@ function loadHeroSlots(){
     test.src = bust;
     const fileInput = slot.querySelector("[data-file]");
     slot.querySelector("[data-replace]").addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", () => { if (fileInput.files && fileInput.files[0]) replaceHero(n, fileInput.files[0]); });
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files && fileInput.files[0]) openCropper(n, fileInput.files[0]);
+      fileInput.value = "";                       // let the same file be picked again
+    });
     wireHeroReset(resetBtn, n);
   }
 }
 
-async function replaceHero(n, file){
+/* Update one slot's preview in place. Right after an upload the Storage CDN can still
+   hand back the previous image for up to a minute, so we show the file the user just
+   picked (a local blob URL) — instant and always correct. */
+function setSlotPreview(n, src, isCustom){
+  const slot = document.querySelector(`.hero-slot[data-slot="${n}"]`); if (!slot) return;
+  const prev = slot.querySelector("[data-prev]");
+  const tag  = slot.querySelector("[data-tag]");
+  const resetBtn = slot.querySelector("[data-reset]");
+  if (prev){
+    const old = prev.src;
+    prev.src = src;
+    if (old && old.startsWith("blob:")) URL.revokeObjectURL(old);   // don't leak the previous blob
+  }
+  if (tag){
+    tag.textContent = isCustom ? "Custom" : "Default";
+    tag.className = "hs-tag " + (isCustom ? "custom" : "default");
+  }
+  if (resetBtn) resetBtn.classList.toggle("hide", !isCustom);
+}
+
+/* ---------- cover cropper ----------
+   The admin picks the exact area, and we upload only that area. The site keeps
+   object-fit:cover, so what you frame here is what shows — no extra settings to
+   store, nothing to change on index.html. */
+const CROP_ASPECT = 1;          // square frame: a fair compromise between the
+                                // desktop hero (slightly wide) and mobile (slightly tall)
+let CROP = null;                // { n, img, url, base, zoom, tx, ty, W, H }
+
+function openCropper(n, file){
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    const stage = $("cropStage");
+    $("cropWrap").classList.remove("hide");
+    const W = stage.clientWidth, H = Math.round(W / CROP_ASPECT);
+    const base = Math.max(W / img.naturalWidth, H / img.naturalHeight);   // cover the frame
+    CROP = { n, img, url, base, zoom: 1, tx: 0, ty: 0, W, H };
+    const el = $("cropImg");
+    el.src = url;
+    el.width = img.naturalWidth; el.height = img.naturalHeight;
+    $("cropZoom").value = 100;
+    centreCrop();
+    drawCrop();
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); toast("Couldn't read that image", true); };
+  img.src = url;
+}
+
+function centreCrop(){
+  const c = CROP, s = c.base * c.zoom;
+  c.tx = (c.W - c.img.naturalWidth  * s) / 2;
+  c.ty = (c.H - c.img.naturalHeight * s) / 2;
+}
+function clampCrop(){
+  const c = CROP, s = c.base * c.zoom;
+  const iw = c.img.naturalWidth * s, ih = c.img.naturalHeight * s;
+  c.tx = Math.min(0, Math.max(c.W - iw, c.tx));      // never leave a gap
+  c.ty = Math.min(0, Math.max(c.H - ih, c.ty));
+}
+function drawCrop(){
+  const c = CROP; if (!c) return;
+  clampCrop();
+  $("cropImg").style.transform = `translate(${c.tx}px, ${c.ty}px) scale(${c.base * c.zoom})`;
+}
+function closeCropper(){
+  if (CROP && CROP.url) URL.revokeObjectURL(CROP.url);
+  CROP = null;
+  $("cropWrap").classList.add("hide");
+}
+
+/* drag to pan — pointer events cover both mouse and touch */
+(function wireCropDrag(){
+  const stage = $("cropStage"); if (!stage) return;
+  let dragging = false, lx = 0, ly = 0;
+  stage.addEventListener("pointerdown", e => {
+    if (!CROP) return;
+    dragging = true; lx = e.clientX; ly = e.clientY;
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener("pointermove", e => {
+    if (!dragging || !CROP) return;
+    CROP.tx += e.clientX - lx; CROP.ty += e.clientY - ly;
+    lx = e.clientX; ly = e.clientY;
+    drawCrop();
+  });
+  const stop = e => { dragging = false; try { stage.releasePointerCapture(e.pointerId); } catch(_){} };
+  stage.addEventListener("pointerup", stop);
+  stage.addEventListener("pointercancel", stop);
+})();
+
+$("cropZoom").addEventListener("input", e => {
+  if (!CROP) return;
+  const c = CROP, old = c.base * c.zoom;
+  c.zoom = (+e.target.value) / 100;
+  const now = c.base * c.zoom;
+  // zoom about the centre of the frame so the subject doesn't drift off
+  c.tx = c.W / 2 - (c.W / 2 - c.tx) * (now / old);
+  c.ty = c.H / 2 - (c.H / 2 - c.ty) * (now / old);
+  drawCrop();
+});
+$("cropCancel").addEventListener("click", closeCropper);
+$("cropWrap").addEventListener("click", e => { if (e.target === $("cropWrap")) closeCropper(); });
+$("cropOk").addEventListener("click", async () => {
+  if (!CROP) return;
+  const c = CROP, n = c.n, s = c.base * c.zoom;
+  const sx = -c.tx / s, sy = -c.ty / s, sw = c.W / s, sh = c.H / s;   // source rect in original pixels
+  const full = await cropToBlob(c.img, sx, sy, sw, sh, 1600, 0.82);
+  const sm   = await cropToBlob(c.img, sx, sy, sw, sh, 1080, 0.80);
+  const preview = URL.createObjectURL(full);
+  closeCropper();
+  uploadHero(n, full, sm, preview);
+});
+
+function cropToBlob(img, sx, sy, sw, sh, outLong, q){
+  return new Promise((res, rej) => {
+    const outW = outLong, outH = Math.round(outLong / CROP_ASPECT);
+    const cv = document.createElement("canvas"); cv.width = outW; cv.height = outH;
+    const x = cv.getContext("2d");
+    x.fillStyle = "#fff"; x.fillRect(0, 0, outW, outH);
+    x.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
+    cv.toBlob(b => b ? res(b) : rej(new Error("Image encode failed")), "image/webp", q);
+  });
+}
+
+/* Audit logging for cover changes.
+   Unlike the fire-and-forget logAction(), this waits and hands the error back, because
+   a database that only knows the older action names will reject "cover_update" silently.
+   If the specific name is refused we fall back to "edit" so the change is still recorded. */
+async function rpcLog(action, detail){
+  try {
+    const r = await withTimeout(Promise.resolve(sb.rpc("log_action", { p_action: action, p_detail: detail || {} })), 8000, "Log");
+    return (r && r.error) ? (r.error.message || "audit log rejected") : null;
+  } catch(e){ return e.message || String(e); }
+}
+async function logCover(action, n){
+  const first = await rpcLog(action, { slot: n });
+  if (!first) return null;
+  const second = await rpcLog("edit", { id: "cover-" + n, change: action });   // known-good name
+  return second ? (first + " / " + second) : null;
+}
+
+async function uploadHero(n, full, sm, previewUrl){
   busy(true, `Uploading cover ${n}\u2026`);
   try {
-    const img  = await fileToImage(file);
-    const full = await heroResize(img, 1600, 0.82);
-    const sm   = await heroResize(img, 1080, 0.80);
     const opts = { contentType: "image/webp", upsert: true, cacheControl: "60" };
     let r = await sb.storage.from(BUCKET).upload("hero/cover-" + n + ".webp", full, opts);
     if (r.error) throw r.error;
     r = await sb.storage.from(BUCKET).upload("hero/cover-" + n + "-sm.webp", sm, opts);
     if (r.error) throw r.error;
-    logAction("cover_update", { slot: n });
+    const logErr = await logCover("cover_update", n);
     busy(false);
-    toast(`Cover ${n} updated \u2014 live on the site`);
-    loadHeroSlots();
+    toast(logErr ? `Cover ${n} updated, but the audit log failed: ${logErr}` : `Cover ${n} updated \u2014 live on the site`, !!logErr);
+    setSlotPreview(n, previewUrl, true);
   } catch(e){
     busy(false);
     toast("Upload failed: " + (e.message || e), true);
@@ -823,10 +988,10 @@ function wireHeroReset(btn, n){
     try {
       const r = await sb.storage.from(BUCKET).remove(["hero/cover-" + n + ".webp", "hero/cover-" + n + "-sm.webp"]);
       if (r.error) throw r.error;
-      logAction("cover_reset", { slot: n });
+      const logErr = await logCover("cover_reset", n);
       busy(false);
-      toast(`Cover ${n} reset to the built-in photo`);
-      loadHeroSlots();
+      toast(logErr ? `Cover ${n} reset, but the audit log failed: ${logErr}` : `Cover ${n} reset to the built-in photo`, !!logErr);
+      setSlotPreview(n, "images/hero-" + n + ".webp", false);
     } catch(e){
       busy(false);
       toast("Reset failed: " + (e.message || e), true);
