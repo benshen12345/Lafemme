@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LaFemme — file check</title>
+<style>
+  body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:#FAF7F2;color:#1C1A17;
+       max-width:760px;margin:0 auto;padding:40px 24px;line-height:1.6}
+  h1{font-weight:500;font-size:26px;margin-bottom:4px}
+  .sub{color:#6E675C;margin-bottom:28px}
+  .row{display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid #E6DFD3;
+       background:#fff;margin-bottom:8px}
+  .row b{flex:1;font-weight:500}
+  .tag{font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;white-space:nowrap}
+  .ok{background:#E6F2EA;color:#2F6B48}
+  .bad{background:#FBE9E7;color:#A33A2B}
+  .wait{background:#F1EFE8;color:#6E675C}
+  .verdict{margin-top:28px;padding:20px;border-left:3px solid #C6A15B;background:#F3EEE5}
+  .verdict h2{font-size:18px;font-weight:500;margin-bottom:8px}
+  code{background:#F1EFE8;padding:2px 6px;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+  ol{margin:10px 0 0 20px}
+  li{margin-bottom:6px}
+  img{display:none}
+</style>
+</head>
+<body>
+
+<h1>LaFemme — file check</h1>
+<p class="sub">This page tests whether <code>index.html</code> can find the files it needs.</p>
+
+<div class="row"><b>catalogue.js &nbsp;<span style="color:#6E675C;font-weight:400">— the 57 gowns</span></b><span class="tag wait" id="t1">checking…</span></div>
+<div class="row"><b>images/ folder &nbsp;<span style="color:#6E675C;font-weight:400">— gown photos</span></b><span class="tag wait" id="t2">checking…</span></div>
+<div class="row"><b>images/ folder &nbsp;<span style="color:#6E675C;font-weight:400">— cover photos</span></b><span class="tag wait" id="t3">checking…</span></div>
+<div class="row"><b>analytics.js &nbsp;<span style="color:#6E675C;font-weight:400">— visitor tracking</span></b><span class="tag wait" id="t4">checking…</span></div>
+
+<div class="verdict" id="verdict"><h2>Running checks…</h2></div>
+
+<img id="probe1" src="images/al-aurora-black-t.webp" alt="">
+<img id="probe2" src="images/hero-1.webp" alt="">
+
+<script src="catalogue.js"></script>
+<script src="analytics.js"></script>
+<script>
+const set = (id, ok, txt) => {
+  const e = document.getElementById(id);
+  e.className = "tag " + (ok ? "ok" : "bad");
+  e.textContent = txt;
+  return ok;
+};
+
+const r = { cat:false, img:false, hero:false, an:false };
+
+// 1. catalogue.js
+r.cat = (typeof STYLES !== "undefined" && STYLES.length)
+  ? set("t1", true,  "found · " + STYLES.length + " gowns")
+  : set("t1", false, "MISSING");
+
+// 4. analytics.js
+r.an = (typeof window.__track === "function")
+  ? set("t4", true,  "found")
+  : set("t4", false, "MISSING");
+
+// 2 & 3. images (wait for the probes to load or fail)
+function done() {
+  const p1 = document.getElementById("probe1"), p2 = document.getElementById("probe2");
+  r.img  = p1.naturalWidth  > 0 ? set("t2", true, "found") : set("t2", false, "MISSING");
+  r.hero = p2.naturalWidth  > 0 ? set("t3", true, "found") : set("t3", false, "MISSING");
+
+  const v = document.getElementById("verdict");
+  if (r.cat && r.img && r.hero && r.an) {
+    v.innerHTML = '<h2 style="color:#2F6B48">Everything is in place.</h2>' +
+      '<p>Your folder is correct. Open <code>index.html</code> from <b>this same folder</b> and the gowns will show.</p>';
+  } else {
+    v.innerHTML = '<h2 style="color:#A33A2B">Files are missing.</h2>' +
+      '<p><b>index.html cannot work on its own.</b> It needs its neighbours in the same folder.</p>' +
+      '<ol>' +
+      '<li>Right-click <code>lafemme-website.zip</code> → <b>Extract All…</b> (do NOT double-click into the zip)</li>' +
+      '<li>Extract it somewhere simple, e.g. <code>C:\\Lafemme\\</code></li>' +
+      '<li>Open the <code>site</code> folder — you should see <code>index.html</code>, <code>catalogue.js</code>, <code>analytics.js</code> and an <code>images</code> folder all together</li>' +
+      '<li>Open <code>index.html</code> from there</li>' +
+      '</ol>' +
+      '<p style="margin-top:10px">Opening a file from inside a zip only extracts that one file — which is why everything else vanishes.</p>';
+  }
+}
+addEventListener("load", () => setTimeout(done, 400));
+</script>
+</body>
+</html>

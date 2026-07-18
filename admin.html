@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="preconnect" href="https://djrnozqgrkpbxoaebaeo.supabase.co" crossorigin />
+<link rel="dns-prefetch" href="https://djrnozqgrkpbxoaebaeo.supabase.co" />
+<!-- preload the self-hosted supabase lib so login is ready fast on slow devices (parallel download during HTML parse) -->
+<link rel="preload" as="script" href="vendor/supabase.js" />
+<title>LaFemme — Catalogue Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500&family=Jost:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ivory:#FAF7F2; --ink:#1C1A17; --muted:#6E675C; --gold:#C6A15B; --gold-deep:#A9833F;
+    --hairline:#E6DFD3; --panel:#F3EEE5; --field:#fff; --ok:#3E7C56; --bad:#B14A3C; --line:#E6DFD3;
+    --serif:'Cormorant Garamond',Georgia,serif; --sans:'Jost','Segoe UI',Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ivory);color:var(--ink);font-family:var(--sans);font-weight:300;font-size:15px;line-height:1.6}
+  button,input,select,textarea{font-family:inherit;font-size:15px}
+  button{cursor:pointer}
+  :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+
+  header{border-bottom:1px solid var(--hairline);background:#fff;position:sticky;top:0;z-index:20}
+  .hd{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 0;flex-wrap:wrap}
+  .brand{font-family:var(--serif);font-size:24px;letter-spacing:.02em}
+  .brand small{display:block;font-family:var(--sans);font-size:9px;letter-spacing:.4em;text-transform:uppercase;color:var(--gold-deep);margin-top:3px}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap}
+  .tab{background:none;border:1px solid var(--hairline);border-radius:999px;padding:8px 18px;
+    font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);transition:.2s}
+  .tab.active{background:var(--ink);border-color:var(--ink);color:var(--ivory)}
+  .who{font-size:11px;letter-spacing:.1em;color:var(--muted)}
+  .who a{color:var(--gold-deep);cursor:pointer;text-decoration:underline}
+
+  .btn{border:1px solid var(--ink);background:transparent;color:var(--ink);padding:11px 22px;
+    font-size:11px;letter-spacing:.2em;text-transform:uppercase;transition:.25s}
+  .btn:hover{background:var(--ink);color:var(--ivory)}
+  .btn-gold{background:var(--gold);border-color:var(--gold);color:#fff}
+  .btn-gold:hover{background:var(--gold-deep);border-color:var(--gold-deep)}
+  .btn-sm{padding:7px 14px;font-size:10px}
+  .btn-bad{border-color:var(--bad);color:var(--bad)}
+  .btn-bad:hover{background:var(--bad);color:#fff}
+  .taxo-del.confirming, .confirming{background:var(--bad);color:#fff;border-color:var(--bad);font-weight:600}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+
+  section{padding:34px 0}
+  h2{font-family:var(--serif);font-size:30px;font-weight:500;margin-bottom:6px}
+  .lede{color:var(--muted);margin-bottom:26px;max-width:680px}
+  .hide{display:none !important}
+  .live{display:inline-block;background:#EAF5EE;color:var(--ok);border:1px solid #BFDECC;
+    font-size:10px;letter-spacing:.18em;text-transform:uppercase;padding:3px 10px;border-radius:20px;vertical-align:middle;margin-left:8px}
+
+  .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:22px}
+  .bar select,.bar input{border:1px solid var(--hairline);padding:10px 12px;background:#fff}
+  .count{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-left:auto}
+
+  /* catalogue list */
+  .items{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:18px}
+  .item{border:1px solid var(--hairline);background:#fff;display:flex;flex-direction:column}
+  .item .im{aspect-ratio:2/3;background:var(--panel);overflow:hidden}
+  .item .im img{width:100%;height:100%;object-fit:cover;display:block}
+  .item .bd{padding:12px;display:flex;flex-direction:column;flex:1}
+  .item .g{font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--gold-deep)}
+  .item h3{font-family:var(--serif);font-size:19px;font-weight:500;margin:3px 0 6px}
+  .item .tg{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+  .item .tg span{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid var(--hairline);border-radius:20px;padding:2px 8px}
+  .item .tg span.m{color:var(--gold-deep);border-color:#EAD9B8;background:#FFFDF6}
+  .item .dots{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
+  .item .dots i{width:13px;height:13px;border-radius:50%;border:1px solid var(--hairline);display:block}
+  .item .acts{display:flex;gap:6px;margin-top:auto}
+  .item .acts .btn{flex:1;text-align:center}
+
+  /* form */
+  .card{border:1px solid var(--hairline);background:#fff;padding:26px;margin-bottom:20px}
+  .audit-table{width:100%;border-collapse:collapse;font-size:13.5px}
+  .audit-table th{text-align:left;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:9px 8px;border-bottom:1px solid var(--hairline);white-space:nowrap}
+  .audit-table td{padding:9px 8px;border-bottom:1px solid var(--hairline);vertical-align:top}
+  .audit-table tr:last-child td{border-bottom:0}
+  .audit-card{background:#fff;border:1px solid var(--hairline);padding:22px;overflow-x:auto}
+  @media(max-width:600px){
+    .audit-table{font-size:12px}
+    .audit-table th,.audit-table td{padding:7px 6px}
+  }
+  /* cover photos */
+  .hero-slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:18px}
+  .hero-slot{border:1px solid var(--hairline);background:#fff;overflow:hidden;display:flex;flex-direction:column}
+  .hero-slot .hs-im{aspect-ratio:3/4;background:var(--panel);overflow:hidden;position:relative}
+  .hero-slot .hs-im img{width:100%;height:100%;object-fit:cover;display:block}
+  .hero-slot .hs-badge{position:absolute;top:8px;left:8px;background:rgba(22,18,14,.62);color:#F4EEE4;font-size:10px;letter-spacing:.14em;text-transform:uppercase;padding:3px 9px;border-radius:20px}
+  .hero-slot .hs-tag{position:absolute;top:8px;right:8px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border-radius:20px}
+  .hero-slot .hs-tag.custom{background:#EAF5EE;color:var(--ok)}
+  .hero-slot .hs-tag.default{background:rgba(255,255,255,.85);color:var(--muted)}
+  .hero-slot .hs-bd{padding:12px;display:flex;flex-direction:column;gap:8px}
+  .hero-slot .hs-actions{display:flex;gap:6px}
+  .hero-slot .hs-actions .btn{flex:1;text-align:center;padding:8px 6px;font-size:10px}
+  .hero-slot .hs-file{display:none}
+  .hero-slot .btn.confirming{background:var(--bad);border-color:var(--bad);color:#fff}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .f{margin-bottom:16px}
+  .f label{display:block;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+  .f input[type=text],.f select{width:100%;border:1px solid var(--hairline);background:var(--field);padding:11px 12px;border-radius:0}
+  .f input:focus,.f select:focus{border-color:var(--gold);outline:none}
+  .sub{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin:2px 0 9px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chips label{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--hairline);border-radius:999px;
+    padding:7px 14px;font-size:12px;letter-spacing:.04em;color:var(--muted);cursor:pointer}
+  .chips input{accent-color:var(--gold)}
+  .chips label:has(input:checked){border-color:var(--gold);color:var(--ink);background:#FFFDF8}
+
+  .var{border:1px solid var(--hairline);padding:16px;margin-bottom:12px;background:var(--panel)}
+  .var .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .var .top b{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:500}
+  .vgrid{display:grid;grid-template-columns:120px 1fr 1fr 120px;gap:12px;align-items:end}
+  .thumb{width:100%;aspect-ratio:2/3;border:1px solid var(--hairline);background:#fff;overflow:hidden;display:flex;align-items:center;justify-content:center}
+  .thumb img{width:100%;height:100%;object-fit:cover}
+  .thumb span{font-size:10px;color:var(--muted);text-align:center;padding:6px}
+  .f input[type=color]{width:100%;height:42px;border:1px solid var(--hairline);background:#fff;padding:3px;cursor:pointer}
+  .f input[type=file]{font-size:12px;color:var(--muted)}
+
+  .note{background:var(--panel);border-left:2px solid var(--gold);padding:14px 16px;font-size:13.5px;color:var(--muted);margin-bottom:22px}
+  .note b{color:var(--ink);font-weight:500}
+  .steps{counter-reset:s;list-style:none;margin-top:10px}
+  .steps li{counter-increment:s;position:relative;padding-left:26px;margin-bottom:8px}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:1px;width:17px;height:17px;border-radius:50%;
+    background:var(--gold);color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center}
+
+  .empty{text-align:center;color:var(--muted);padding:60px 20px}
+  /* audit trail */
+  .actrow{display:grid;grid-template-columns:120px 1fr 200px;gap:14px;align-items:start;
+    padding:13px 16px;border:1px solid var(--hairline);border-bottom:none;background:#fff}
+  .actrow:last-child{border-bottom:1px solid var(--hairline)}
+  .actrow:nth-child(even){background:#FCFAF6}
+  .actbadge{font-size:10px;letter-spacing:.14em;text-transform:uppercase;padding:4px 10px;border-radius:20px;
+    text-align:center;border:1px solid var(--hairline);color:var(--muted);white-space:nowrap;justify-self:start;
+    min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  .actbadge.add{color:var(--ok);border-color:#BFDECC;background:#F1F8F3}
+  .actbadge.edit{color:var(--gold-deep);border-color:#EAD9B8;background:#FFFDF6}
+  .actbadge.del{color:var(--bad);border-color:#E6C3BC;background:#FBF2F0}
+  .actmain b{font-family:var(--serif);font-size:17px;font-weight:500;display:block}
+  .actmain span{font-size:12.5px;color:var(--muted)}
+  .actmeta{text-align:right;font-size:11px;color:var(--muted);line-height:1.5}
+  .actmeta .who{color:var(--ink);font-size:12px}
+  @media(max-width:600px){
+    .actrow{grid-template-columns:1fr;gap:6px}
+    .actmeta{text-align:left}
+  }
+  /* filters (taxonomy) */
+  .fsec{font-family:var(--serif);font-size:22px;font-weight:500;margin-bottom:10px}
+  .builtins{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--hairline)}
+  .builtins b{color:var(--ink);font-weight:500;letter-spacing:.1em;text-transform:uppercase;font-size:10px}
+  .taxolist{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+  .taxorow{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--hairline);background:#FCFAF6;flex-wrap:wrap}
+  .taxorow .sw{width:18px;height:18px;border-radius:50%;border:1px solid var(--hairline);flex:none}
+  .taxorow b{font-family:var(--serif);font-size:17px;font-weight:500}
+  .taxorow > span{font-size:13px;color:var(--muted)}
+  .taxorow code{font-size:11px;color:var(--muted);background:#fff;border:1px solid var(--hairline);padding:1px 7px;border-radius:20px}
+  .taxorow .btn{margin-left:auto}
+  .taxoempty{font-size:13px;color:var(--muted);font-style:italic}
+  .addrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .addrow input[type=text]{flex:1;min-width:140px;border:1px solid var(--hairline);padding:10px 12px;background:var(--field)}
+  .addrow input[type=color]{width:52px;height:42px;border:1px solid var(--hairline);background:#fff;padding:3px;cursor:pointer}
+  #toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,90px);background:var(--ink);color:var(--ivory);
+    padding:13px 24px;font-size:13px;z-index:60;transition:transform .35s ease;letter-spacing:.04em;max-width:90vw;text-align:center}
+  #toast.on{transform:translate(-50%,0)}
+  #toast.bad{background:var(--bad)}
+  #gate{position:fixed;inset:0;z-index:100;background:var(--ivory);display:flex;align-items:center;justify-content:center;padding:24px}
+  #gate.hide{display:none}
+  .gbox{background:#fff;border:1px solid var(--hairline);padding:40px;max-width:380px;width:100%}
+  #busy{position:fixed;inset:0;z-index:80;background:rgba(250,247,242,.82);display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px}
+  #busy.on{display:flex}
+  .spin{width:34px;height:34px;border:3px solid var(--hairline);border-top-color:var(--gold);border-radius:50%;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  #busyTxt{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+  @media(max-width:760px){
+    .row,.vgrid{grid-template-columns:1fr}
+    .vgrid .thumb{max-width:160px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== access gate ===== -->
+<div id="gate">
+  <div class="gbox">
+    <div class="brand" style="margin-bottom:6px">LaFemme <small>Catalogue Manager</small></div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:22px">Admin access only.</p>
+    <div class="f"><label for="gEm">Email</label><input type="email" id="gEm" autocomplete="username" /></div>
+    <div class="f"><label for="gPw">Password</label><input type="password" id="gPw" autocomplete="current-password" /></div>
+    <button class="btn btn-gold" id="gIn" style="width:100%">Sign in</button>
+    <div id="gErr" style="color:var(--bad);font-size:13px;margin-top:10px;min-height:18px"></div>
+  </div>
+</div>
+
+<header>
+  <div class="wrap hd">
+    <div class="brand">LaFemme <small>Catalogue Manager</small></div>
+    <div class="tabs">
+      <button class="tab active" data-view="list">Catalogue</button>
+      <button class="tab" data-view="add">Add New</button>
+      <button class="tab" data-view="hero">Cover photos</button>
+      <button class="tab" data-view="filters">Filters</button>
+      <button class="tab" data-view="activity">Audit trail</button>
+      <button class="tab" data-view="help">How it works</button>
+    </div>
+    <div class="who"><span id="whoTxt"></span> <a id="signOut">Sign out</a></div>
+  </div>
+</header>
+
+<!-- ============ CATALOGUE ============ -->
+<section id="viewList" class="wrap">
+  <h2>Current catalogue <span class="live">Live</span></h2>
+  <p class="lede">Everything on the website right now. Edits and new pieces save straight to the site — no uploading needed. Give it a few seconds and refresh the site to see changes.</p>
+  <div class="bar">
+    <select id="fGender"><option value="all">All pieces</option><option value="f">Evening gowns</option><option value="m">Men suits</option></select>
+    <input type="text" id="fSearch" placeholder="Search by name…" style="min-width:180px" />
+    <button class="btn btn-sm" id="reloadBtn">Reload</button>
+    <span class="count" id="count"></span>
+  </div>
+  <div class="items" id="items"></div>
+  <div class="empty hide" id="listEmpty">No pieces match.</div>
+</section>
+
+<!-- ============ ADD / EDIT ============ -->
+<section id="viewAdd" class="wrap hide">
+  <h2 id="formTitle">Add a new piece</h2>
+  <p class="lede">Upload one photo per colour — they're resized and uploaded automatically. Hit save and it's live on the site.</p>
+
+  <div class="card">
+    <div class="row">
+      <div class="f">
+        <label for="iGender">Type</label>
+        <select id="iGender"><option value="f">Evening Gown</option><option value="m">Men Suit</option></select>
+      </div>
+      <div class="f">
+        <label for="iName">Name <span style="color:var(--bad)">*</span></label>
+        <input type="text" id="iName" placeholder="e.g. Belinda" />
+      </div>
+    </div>
+    <div class="f" style="max-width:260px">
+      <label for="iPrefix">Supplier code (optional)</label>
+      <input type="text" id="iPrefix" placeholder="e.g. CD, AL, JA" />
+    </div>
+    <div class="f">
+      <label>Style — tick all that apply</label>
+      <div class="sub">Silhouette / cut / neckline</div>
+      <div class="chips" id="iCats"></div>
+    </div>
+    <div class="f" style="margin-bottom:0">
+      <label>Fabric — tick all that apply</label>
+      <div class="sub">Material / embellishment (optional)</div>
+      <div class="chips" id="iMats"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="top" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <b style="font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)">Colours</b>
+      <button class="btn btn-sm" id="addVar">+ Add another colour</button>
+    </div>
+    <div id="vars"></div>
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <button class="btn btn-gold" id="saveBtn">Save piece</button>
+    <button class="btn" id="cancelBtn">Cancel</button>
+    <button class="btn btn-bad hide" id="delBtn" style="margin-left:auto">Delete this piece</button>
+  </div>
+</section>
+
+<!-- ============ COVER PHOTOS ============ -->
+<section id="viewHero" class="wrap hide">
+  <h2>Cover photos <span class="live">Live</span></h2>
+  <p class="lede">The 5 photos that fade across the top of the home page. Replace any one — tall <b>portrait</b> shots look best. Changes go live on the site by themselves.</p>
+  <div class="hero-slots" id="heroSlots"></div>
+  <p class="lede" style="margin-top:22px;font-size:13px">Tip: use the best-quality portrait photo you have. After you replace a cover it can take up to a minute to refresh on the live site (give it a moment and refresh).</p>
+</section>
+
+<!-- ============ HELP ============ -->
+<section id="viewHelp" class="wrap hide">
+  <h2>How it works</h2>
+  <p class="lede">Changes here go live on the website by themselves. No zip, no re-uploading to Netlify.</p>
+  <div class="note">
+    <b>To add a piece</b>
+    <ol class="steps">
+      <li>Go to <b>Add New</b>.</li>
+      <li>Fill in the name, pick the style and fabric tags.</li>
+      <li>For each colour, choose the colour and upload one photo.</li>
+      <li>Hit <b>Save piece</b> — it uploads and goes straight onto the site.</li>
+      <li>Open the website (or refresh it) after a few seconds to see it.</li>
+    </ol>
+  </div>
+  <div class="note">
+    <b>To fix an existing piece</b> — open <b>Catalogue</b>, click <b>Edit</b> on any piece, change its style/fabric tags or colours, then save. Good for correcting the pieces that were auto-tagged.
+  </div>
+  <div class="note">
+    <b>To add a new filter</b> — open <b>Filters</b> to add your own Style, Fabric or Colour (no photo needed). It becomes tickable in the Add/Edit form right away, and shows on the website once a piece uses it.
+  </div>
+  <div class="note">
+    <b>Good to know</b><br />
+    • Use the best-quality photo you have. Avoid photos sent over WhatsApp — it shrinks them.<br />
+    • Photos are auto-resized into a grid thumbnail and a full-size version.<br />
+    • Deleting a piece removes it from the site immediately.<br />
+    • If you don't replace a colour's photo while editing, the existing photo stays.
+  </div>
+</section>
+
+<!-- ============ FILTERS (taxonomy) ============ -->
+<section id="viewFilters" class="wrap hide">
+  <h2>Filters</h2>
+  <p class="lede">Add your own Style, Fabric or Colour options — no photo needed. They show up in the Add/Edit tick-lists, and appear on the website once a piece uses them.</p>
+
+  <div class="card">
+    <h3 class="fsec">Style</h3>
+    <div class="builtins" id="builtCat"></div>
+    <div class="taxolist" id="taxoCat"></div>
+    <div class="addrow">
+      <input type="text" id="ncatEn" placeholder="New style — English, e.g. Peplum">
+      <input type="text" id="ncatZh" placeholder="中文, e.g. 荷叶褶">
+      <button class="btn btn-sm btn-gold" id="addCat">Add</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="fsec">Fabric</h3>
+    <div class="builtins" id="builtMat"></div>
+    <div class="taxolist" id="taxoMat"></div>
+    <div class="addrow">
+      <input type="text" id="nmatEn" placeholder="New fabric — English, e.g. Metallic">
+      <input type="text" id="nmatZh" placeholder="中文, e.g. 金属光">
+      <button class="btn btn-sm btn-gold" id="addMat">Add</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="fsec">Colour</h3>
+    <div class="builtins" id="builtCol"></div>
+    <div class="taxolist" id="taxoCol"></div>
+    <div class="addrow">
+      <input type="text" id="ncolEn" placeholder="New colour — English, e.g. Rose Gold">
+      <input type="text" id="ncolZh" placeholder="中文, e.g. 玫瑰金">
+      <input type="color" id="ncolHex" value="#C88F73" title="Swatch colour">
+      <button class="btn btn-sm btn-gold" id="addCol">Add</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ AUDIT TRAIL ============ -->
+<section id="viewActivity" class="wrap hide">
+  <h2>Audit trail</h2>
+  <p class="lede">Every add, edit and delete you make here is recorded — plus sign-ins. Same permanent log as the analytics dashboard.</p>
+  <div class="bar">
+    <select id="actFilter">
+      <option value="changes">Catalogue changes</option>
+      <option value="all">Everything</option>
+    </select>
+    <button class="btn btn-sm" id="reloadAct">Reload</button>
+    <span class="count" id="actCount"></span>
+  </div>
+  <div class="audit-card">
+    <table class="audit-table">
+      <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Target</th><th>Detail</th></tr></thead>
+      <tbody id="actList"><tr><td colspan="5" style="color:var(--muted)">Loading…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="empty hide" id="actEmpty">Nothing recorded yet.</div>
+</section>
+
+<div id="toast"></div>
+<div id="busy"><div class="spin"></div><div id="busyTxt">Working…</div></div>
+
+<script src="vendor/supabase.js"></script>
+<script>
+/* ---------- Supabase ---------- */
+const SUPABASE_URL      = "https://djrnozqgrkpbxoaebaeo.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqcm5venFncmtwYnhvYWViYWVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5MjI5ODcsImV4cCI6MjA5OTQ5ODk4N30.GRak9yFiaknsX5WVxQ_Zue70k5m-zOrpXcb2vBut5tA";
+const BUCKET = "gowns";
+let sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false,
+    /* pass-through lock: some browsers deadlock on navigator.locks and auth calls hang forever */
+    lock: async (_name, _timeout, fn) => await fn()
+  }
+});
+let ME = null;
+function withTimeout(promise, ms, label){
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error((label || "Request") + " timed out — check your internet and try again")), ms))
+  ]);
+}
+/* fire-and-forget audit log; sb.rpc() is a thenable (no .catch), so wrap it and never let it break the flow */
+function logAction(action, detail){
+  try { Promise.resolve(sb.rpc("log_action", { p_action: action, p_detail: detail || {} })).catch(() => {}); } catch(e){}
+}
+/* awaited version — used for add/edit/delete so the audit row is written before we move on */
+async function logActionAwait(action, detail){
+  try { await withTimeout(Promise.resolve(sb.rpc("log_action", { p_action: action, p_detail: detail || {} })), 8000, "Log"); } catch(e){}
+}
+
+/* ---------- reference data ---------- */
+const CATEGORIES = [
+  ["fitted","Fitted"],["mermaid","Mermaid"],["aline","A-Line"],["ballgown","Ballgown"],["flare","Flare"],
+  ["tube","Tube"],["corset","Corset"],["cape","Cape"],["sleeves","Sleeves"],["halter","Halter"],
+  ["offshoulder","Off-Shoulder"],["oneshoulder","One-Shoulder"],["vneck","V-Neck"],["slit","Slit"],
+  ["ruffle","Ruffle"],["overskirt","Overskirt"],["short","Short"],["midi","Midi"],
+  ["twopiece","Two-Piece"],["threepiece","Three-Piece"],["doublebreasted","Double-Breasted"],["oriental","Oriental / 中装"]
+];
+const MATERIALS = [
+  ["sequin","Sequin"],["satin","Satin"],["chiffon","Chiffon"],["tulle","Tulle"],["lace","Lace"],["velvet","Velvet"],
+  ["organza","Organza"],["silk","Silk"],["crepe","Crepe"],["mesh","Mesh"],["feather","Feather"],["glitter","Glitter"],
+  ["sparkle","Sparkle"],["shimmer","Shimmer"],["diamond","Diamond"],["crystal","Crystal"],["beaded","Beaded"],
+  ["pearl","Pearl"],["fringe","Fringe"],["embroidered","Embroidered"],["floral","Floral"]
+];
+const FAMILIES = [["black","Black","#26231F"],["grey","Grey","#5F6165"],["white","White / Ivory","#F0EBE0"],
+  ["navy","Navy","#28324A"],["blue","Blue","#5E86AE"],["green","Green","#7FA07A"],["pink","Pink / Blush","#EEBFC8"],
+  ["red","Red","#9B2233"],["purple","Purple","#7A5EA8"],["gold","Gold / Champagne","#C6A15B"],
+  ["beige","Camel / Beige","#C0996B"],["silver","Silver","#C6C9CD"],["yellow","Yellow","#EFD98A"],["multi","Multi / Print","#B3A99C"]];
+/* custom filters (taxonomy) loaded from Supabase; merged with the built-ins above */
+let TAXO = { category: [], material: [], colour: [] };
+async function loadTaxonomy(){
+  try {
+    const { data } = await withTimeout(sb.from("taxonomy").select("*").order("sort",{ascending:true}), 10000, "Filters");
+    TAXO = { category: [], material: [], colour: [] };
+    (data || []).forEach(r => { if (TAXO[r.kind]) TAXO[r.kind].push(r); });
+  } catch(e){ TAXO = { category: [], material: [], colour: [] }; }
+}
+function catOptions(){ return CATEGORIES.concat(TAXO.category.map(r => [r.key, r.label_en])); }
+function matOptions(){ return MATERIALS.concat(TAXO.material.map(r => [r.key, r.label_en])); }
+function famOptions(){ return FAMILIES.concat(TAXO.colour.map(r => [r.key, r.label_en, r.hex || "#BDB6AA"])); }
+const famLabel = k => (famOptions().find(f=>f[0]===k)||[])[1] || k;
+const famHex   = k => (famOptions().find(f=>f[0]===k)||[])[2] || "#cccccc";
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const slug = s => s.replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,"").toLowerCase();
+const today = () => new Date().toISOString().slice(0,10);
+const toast = (msg,bad) => { const t=$("toast"); t.textContent=msg; t.classList.toggle("bad",!!bad); t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),3000); };
+const busy = (on,txt) => { $("busyTxt").textContent = txt||"Working…"; $("busy").classList.toggle("on",!!on); };
+
+let PRODUCTS = [];      // live catalogue from Supabase
+let editId = null;      // null = adding; id = editing
+let editAddedAt = null;
+
+/* ---------- auth ---------- */
+document.body.style.overflow = "hidden";
+const gateIn = async () => {
+  const err = $("gErr"); err.textContent = "Signing in…";
+  try {
+    const { data, error } = await withTimeout(
+      sb.auth.signInWithPassword({ email:$("gEm").value.trim(), password:$("gPw").value }),
+      15000, "Sign-in");
+    if (error){ err.textContent = error.message; return; }
+    await afterAuth(data && data.user);
+  } catch(e){
+    err.textContent = (e && e.message) ? e.message : "Sign-in failed";
+  }
+};
+$("gIn").addEventListener("click", gateIn);
+$("gPw").addEventListener("keydown", e => { if (e.key === "Enter") gateIn(); });
+$("signOut").addEventListener("click", async () => { try { await sb.auth.signOut(); } catch(e){} location.reload(); });
+
+async function afterAuth(user){
+  const err = $("gErr");
+  try {
+    if (!user){
+      const r = await withTimeout(sb.auth.getUser(), 12000, "Session");
+      user = r.data && r.data.user;
+    }
+    if (!user){ err.textContent = "No session — please try signing in again."; return; }
+    const { data: prof, error } = await withTimeout(
+      sb.from("profiles").select("email, role").eq("id", user.id).maybeSingle(),
+      12000, "Profile check");
+    if (error){ err.textContent = "Couldn't verify admin: " + error.message; return; }
+    if (!prof){ err.textContent = "No profile row for this account — ask an admin to set role = 'admin'."; await sb.auth.signOut(); return; }
+    if (prof.role !== "admin"){ err.textContent = "This account is read-only (role: " + prof.role + ")."; await sb.auth.signOut(); return; }
+    ME = prof; $("whoTxt").textContent = prof.email;
+    logAction("portal_open");
+    $("gate").classList.add("hide");
+    document.body.style.overflow = "";
+    const taxoP = loadTaxonomy(), listP = loadList();   // run both in parallel to speed up login
+    await taxoP;
+    buildTagPickers();
+    await listP;
+  } catch(e){
+    err.textContent = (e && e.message) ? e.message : "Login error";
+  }
+}
+sb.auth.getSession().then(({ data }) => { if (data && data.session) afterAuth(data.session.user); }).catch(()=>{});
+
+/* ---------- views ---------- */
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => show(t.dataset.view)));
+function show(v){
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.view === v));
+  $("viewList").classList.toggle("hide", v !== "list");
+  $("viewAdd").classList.toggle("hide", v !== "add");
+  $("viewHero").classList.toggle("hide", v !== "hero");
+  $("viewFilters").classList.toggle("hide", v !== "filters");
+  $("viewActivity").classList.toggle("hide", v !== "activity");
+  $("viewHelp").classList.toggle("hide", v !== "help");
+  if (v === "add" && editId === null) resetForm();
+  if (v === "hero") loadHeroSlots();
+  if (v === "filters") renderFilters();
+  if (v === "activity") loadAudit();
+}
+
+/* ---------- tag pickers ---------- */
+function buildTagPickers(){
+  $("iCats").innerHTML = catOptions().map(([k,l]) =>
+    `<label><input type="checkbox" value="${k}" class="catk"> ${esc(l)}</label>`).join("");
+  $("iMats").innerHTML = matOptions().map(([k,l]) =>
+    `<label><input type="checkbox" value="${k}" class="matk"> ${esc(l)}</label>`).join("");
+}
+
+/* ---------- catalogue list ---------- */
+async function loadList(){
+  busy(true, "Loading catalogue…");
+  const { data, error } = await sb.from("products").select("*").order("added_at",{ascending:false});
+  busy(false);
+  if (error){ toast("Couldn't load: " + error.message, true); return; }
+  PRODUCTS = data || [];
+  renderList();
+}
+$("reloadBtn").addEventListener("click", loadList);
+$("fGender").addEventListener("change", renderList);
+$("fSearch").addEventListener("input", renderList);
+
+function renderList(){
+  const g = $("fGender").value, q = $("fSearch").value.trim().toLowerCase();
+  let rows = PRODUCTS.filter(p => (g === "all" || p.gender === g) && (!q || (p.name||"").toLowerCase().includes(q)));
+  $("count").textContent = rows.length + " piece" + (rows.length === 1 ? "" : "s");
+  $("listEmpty").classList.toggle("hide", rows.length > 0);
+  $("items").innerHTML = rows.map(p => {
+    const v = (p.variants || [])[0] || {};
+    const cats = (p.category || []).map(c => `<span>${labelOf(CATEGORIES,c)}</span>`).join("");
+    const mats = (p.material || []).map(m => `<span class="m">${labelOf(MATERIALS,m)}</span>`).join("");
+    const dots = (p.variants || []).map(x => `<i style="background:${x.h||'#ccc'}" title="${x.c||''}"></i>`).join("");
+    return `<div class="item">
+      <div class="im">${v.img ? `<img loading="lazy" src="${esc(v.img)}" alt="">` : ""}</div>
+      <div class="bd">
+        <div class="g">${p.gender === "m" ? "Men Suit" : "Evening Gown"}</div>
+        <h3>${esc(p.name || "")}</h3>
+        <div class="tg">${cats}${mats}</div>
+        <div class="dots">${dots}</div>
+        <div class="acts">
+          <button class="btn btn-sm" onclick="editPiece('${esc(p.id)}')">Edit</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+const labelOf = (list,k) => (list.find(x=>x[0]===k)||[null,k])[1];
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- variant rows ---------- */
+function addVarRow(v){
+  v = v || {};
+  const wrap = document.createElement("div");
+  wrap.className = "var";
+  wrap.innerHTML = `
+    <div class="top"><b>Colour</b><button type="button" class="btn btn-sm btn-bad rm">Remove</button></div>
+    <div class="vgrid">
+      <div class="thumb">${v.img ? `<img src="${esc(v.img)}">` : `<span>No photo yet</span>`}</div>
+      <div class="f" style="margin:0">
+        <label>Colour</label>
+        <select class="vfam">${famOptions().map(([k,l]) => `<option value="${k}" ${v.f===k?"selected":""}>${esc(l)}</option>`).join("")}</select>
+      </div>
+      <div class="f" style="margin:0">
+        <label>Colour name (shown to customer)</label>
+        <input type="text" class="vlabel" value="${esc(v.c||"")}" placeholder="e.g. Baby Blue">
+      </div>
+      <div class="f" style="margin:0">
+        <label>Swatch</label>
+        <input type="color" class="vhex" value="${v.h||famHex(v.f||'black')}">
+      </div>
+    </div>
+    <div class="f" style="margin:12px 0 0">
+      <label>Photo ${v.img ? "(leave empty to keep current)" : ""}</label>
+      <input type="file" class="vfile" accept="image/*">
+    </div>`;
+  // dataset carries the existing (kept) image so we don't lose it on edit
+  wrap.dataset.img = v.img || "";
+  wrap.dataset.hi  = v.hi  || "";
+  const fam = wrap.querySelector(".vfam"), hex = wrap.querySelector(".vhex"), lbl = wrap.querySelector(".vlabel");
+  fam.addEventListener("change", () => {
+    hex.value = famHex(fam.value);
+    if (!lbl.value.trim()) lbl.value = famLabel(fam.value).split(" ")[0];
+  });
+  const file = wrap.querySelector(".vfile"), thumb = wrap.querySelector(".thumb");
+  file.addEventListener("change", () => {
+    if (file.files && file.files[0]){
+      const u = URL.createObjectURL(file.files[0]);
+      thumb.innerHTML = `<img src="${u}">`;
+    }
+  });
+  wrap.querySelector(".rm").addEventListener("click", () => wrap.remove());
+  $("vars").appendChild(wrap);
+}
+$("addVar").addEventListener("click", () => addVarRow());
+
+/* ---------- form reset / edit ---------- */
+function resetForm(){
+  editId = null; editAddedAt = null;
+  $("formTitle").textContent = "Add a new piece";
+  $("iName").value = ""; $("iPrefix").value = ""; $("iGender").value = "f";
+  document.querySelectorAll("#iCats input, #iMats input").forEach(c => c.checked = false);
+  $("vars").innerHTML = ""; addVarRow();
+  $("delBtn").classList.add("hide");
+  $("saveBtn").textContent = "Save piece";
+}
+$("cancelBtn").addEventListener("click", () => { resetForm(); show("list"); });
+
+window.editPiece = function(id){
+  const p = PRODUCTS.find(x => x.id === id); if (!p) return;
+  editId = p.id; editAddedAt = p.added_at;
+  $("formTitle").textContent = "Edit — " + (p.name || "");
+  $("iName").value = p.name || ""; $("iPrefix").value = p.prefix || ""; $("iGender").value = p.gender || "f";
+  document.querySelectorAll("#iCats input").forEach(c => c.checked = (p.category||[]).includes(c.value));
+  document.querySelectorAll("#iMats input").forEach(c => c.checked = (p.material||[]).includes(c.value));
+  $("vars").innerHTML = "";
+  (p.variants && p.variants.length ? p.variants : [{}]).forEach(addVarRow);
+  $("delBtn").classList.remove("hide");
+  $("saveBtn").textContent = "Save changes";
+  show("add");
+  window.scrollTo(0,0);
+};
+
+/* ---------- delete ---------- */
+let _delArmed = false, _delT = null;
+$("delBtn").addEventListener("click", async () => {
+  if (!editId) return;
+  const btn = $("delBtn");
+  // two-tap confirm (mobile-safe; native confirm() is often blocked in phone browsers)
+  if (!_delArmed){
+    _delArmed = true;
+    btn.textContent = "Tap again to delete";
+    btn.classList.add("confirming");
+    _delT = setTimeout(() => { _delArmed = false; btn.textContent = "Delete this piece"; btn.classList.remove("confirming"); }, 3000);
+    return;
+  }
+  if (_delT) clearTimeout(_delT);
+  _delArmed = false; btn.textContent = "Delete this piece"; btn.classList.remove("confirming");
+  busy(true, "Deleting…");
+  const { error } = await sb.from("products").delete().eq("id", editId);
+  busy(false);
+  if (error){ toast("Delete failed: " + error.message, true); return; }
+  await logActionAwait("delete", { id: editId });
+  toast("Deleted — removed from the site");
+  resetForm(); await loadList(); show("list");
+});
+
+/* ---------- image processing ---------- */
+function fileToImage(file){
+  return new Promise((res,rej) => {
+    const u = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => { URL.revokeObjectURL(u); res(im); };
+    im.onerror = () => { URL.revokeObjectURL(u); rej(new Error("Couldn't read that image")); };
+    im.src = u;
+  });
+}
+function resizeWebP(img, maxH, q){
+  return new Promise((res,rej) => {
+    const scale = Math.min(1, maxH / img.naturalHeight);
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const x = c.getContext("2d");
+    x.fillStyle = "#fff"; x.fillRect(0,0,w,h);
+    x.drawImage(img, 0, 0, w, h);
+    c.toBlob(b => b ? res(b) : rej(new Error("Image encode failed")), "image/webp", q);
+  });
+}
+async function uploadPhoto(file, baseSlug){
+  const img = await fileToImage(file);
+  const full  = await resizeWebP(img, 1400, 0.82);
+  const thumb = await resizeWebP(img, 1000, 0.80);
+  const fullPath = baseSlug + ".webp", thumbPath = baseSlug + "-t.webp";
+  let r = await sb.storage.from(BUCKET).upload(fullPath, full, { contentType:"image/webp", upsert:true });
+  if (r.error) throw r.error;
+  r = await sb.storage.from(BUCKET).upload(thumbPath, thumb, { contentType:"image/webp", upsert:true });
+  if (r.error) throw r.error;
+  return {
+    img: sb.storage.from(BUCKET).getPublicUrl(thumbPath).data.publicUrl,
+    hi:  sb.storage.from(BUCKET).getPublicUrl(fullPath).data.publicUrl
+  };
+}
+
+/* ---------- cover photos (home-page hero reel) ---------- */
+const HERO_COUNT = 5;
+function heroResize(img, maxLong, q){
+  return new Promise((res, rej) => {
+    const long  = Math.max(img.naturalWidth, img.naturalHeight);
+    const scale = Math.min(1, maxLong / long);
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const x = c.getContext("2d");
+    x.fillStyle = "#fff"; x.fillRect(0, 0, w, h);
+    x.drawImage(img, 0, 0, w, h);
+    c.toBlob(b => b ? res(b) : rej(new Error("Image encode failed")), "image/webp", q);
+  });
+}
+const heroPub = n => sb.storage.from(BUCKET).getPublicUrl("hero/cover-" + n + ".webp").data.publicUrl;
+
+function loadHeroSlots(){
+  const box = $("heroSlots"); if (!box) return;
+  box.innerHTML = "";
+  for (let n = 1; n <= HERO_COUNT; n++){
+    const slot = document.createElement("div");
+    slot.className = "hero-slot";
+    slot.innerHTML = `
+      <div class="hs-im">
+        <span class="hs-badge">Cover ${n}</span>
+        <span class="hs-tag default" data-tag>Default</span>
+        <img data-prev alt="Cover ${n}">
+      </div>
+      <div class="hs-bd">
+        <input type="file" class="hs-file" data-file accept="image/*">
+        <div class="hs-actions">
+          <button class="btn btn-sm" data-replace>Replace</button>
+          <button class="btn btn-sm btn-bad hide" data-reset>Reset</button>
+        </div>
+      </div>`;
+    box.appendChild(slot);
+    const prev = slot.querySelector("[data-prev]");
+    const tag  = slot.querySelector("[data-tag]");
+    const resetBtn = slot.querySelector("[data-reset]");
+    const bust = heroPub(n) + "?t=" + Date.now();
+    const test = new Image();
+    test.onload = () => {                        // a custom cover exists
+      prev.src = test.src;
+      tag.textContent = "Custom"; tag.className = "hs-tag custom";
+      resetBtn.classList.remove("hide");
+    };
+    test.onerror = () => {                        // none uploaded -> local default
+      prev.src = "images/hero-" + n + ".webp";
+      tag.textContent = "Default"; tag.className = "hs-tag default";
+      resetBtn.classList.add("hide");
+    };
+    test.src = bust;
+    const fileInput = slot.querySelector("[data-file]");
+    slot.querySelector("[data-replace]").addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => { if (fileInput.files && fileInput.files[0]) replaceHero(n, fileInput.files[0]); });
+    wireHeroReset(resetBtn, n);
+  }
+}
+
+async function replaceHero(n, file){
+  busy(true, `Uploading cover ${n}\u2026`);
+  try {
+    const img  = await fileToImage(file);
+    const full = await heroResize(img, 1600, 0.82);
+    const sm   = await heroResize(img, 1080, 0.80);
+    const opts = { contentType: "image/webp", upsert: true, cacheControl: "60" };
+    let r = await sb.storage.from(BUCKET).upload("hero/cover-" + n + ".webp", full, opts);
+    if (r.error) throw r.error;
+    r = await sb.storage.from(BUCKET).upload("hero/cover-" + n + "-sm.webp", sm, opts);
+    if (r.error) throw r.error;
+    sb.rpc("log_action", { p_action: "cover_update", p_detail: { slot: n } }).catch(()=>{});
+    busy(false);
+    toast(`Cover ${n} updated \u2014 live on the site`);
+    loadHeroSlots();
+  } catch(e){
+    busy(false);
+    toast("Upload failed: " + (e.message || e), true);
+  }
+}
+
+/* two-tap confirm (mobile-safe) for the destructive reset-to-default */
+function wireHeroReset(btn, n){
+  let armed = false, t = null;
+  btn.addEventListener("click", async () => {
+    if (!armed){
+      armed = true; btn.textContent = "Tap to confirm"; btn.classList.add("confirming");
+      t = setTimeout(() => { armed = false; btn.textContent = "Reset"; btn.classList.remove("confirming"); }, 3000);
+      return;
+    }
+    clearTimeout(t); armed = false; btn.classList.remove("confirming");
+    busy(true, `Resetting cover ${n}\u2026`);
+    try {
+      const r = await sb.storage.from(BUCKET).remove(["hero/cover-" + n + ".webp", "hero/cover-" + n + "-sm.webp"]);
+      if (r.error) throw r.error;
+      sb.rpc("log_action", { p_action: "cover_reset", p_detail: { slot: n } }).catch(()=>{});
+      busy(false);
+      toast(`Cover ${n} reset to the built-in photo`);
+      loadHeroSlots();
+    } catch(e){
+      busy(false);
+      toast("Reset failed: " + (e.message || e), true);
+    }
+  });
+}
+
+/* ---------- save ---------- */
+$("saveBtn").addEventListener("click", save);
+async function save(){
+  const name = $("iName").value.trim();
+  if (!name) return toast("Please enter a name", true);
+  const gender = $("iGender").value;
+  const prefix = $("iPrefix").value.trim().toUpperCase();
+  const category = [...document.querySelectorAll("#iCats input:checked")].map(c => c.value);
+  const material = [...document.querySelectorAll("#iMats input:checked")].map(c => c.value);
+  if (gender === "f" && category.length === 0) return toast("Pick at least one style tag", true);
+  const rows = [...document.querySelectorAll("#vars .var")];
+  if (!rows.length) return toast("Add at least one colour", true);
+
+  const id = editId || slug((prefix ? prefix + "-" : "") + name);
+  $("saveBtn").disabled = true;
+  try {
+    const variants = [];
+    for (let i = 0; i < rows.length; i++){
+      const row = rows[i];
+      const fam = row.querySelector(".vfam").value;
+      const label = row.querySelector(".vlabel").value.trim() || famLabel(fam).split(" ")[0];
+      const hex = row.querySelector(".vhex").value;
+      const fileInput = row.querySelector(".vfile");
+      let img = row.dataset.img || "", hi = row.dataset.hi || "";
+      if (fileInput.files && fileInput.files[0]){
+        busy(true, `Uploading photo ${i+1} of ${rows.length}…`);
+        const baseSlug = slug(id + "-" + label) || (id + "-" + i);
+        const up = await uploadPhoto(fileInput.files[0], baseSlug);
+        img = up.img; hi = up.hi;
+      }
+      if (!img){ busy(false); $("saveBtn").disabled = false; return toast(`Colour ${i+1} needs a photo`, true); }
+      variants.push({ c: label, d: "", f: fam, h: hex, ref: (prefix ? prefix + " " : "") + name + " " + label, img, hi });
+    }
+    const types = [...new Set([...category, ...material])];
+    const rec = { id, gender, prefix, name, types, category, material, variants, added_at: editAddedAt || today() };
+    busy(true, "Saving to the site…");
+    const { error } = await sb.from("products").upsert(rec);
+    if (error) throw error;
+    await logActionAwait(editId ? "edit" : "add", { id });
+    busy(false);
+    toast(editId ? "Saved — live on the site" : "Added — live on the site");
+    resetForm(); await loadList(); show("list");
+  } catch(e){
+    busy(false);
+    toast("Error: " + (e.message || e), true);
+  } finally {
+    $("saveBtn").disabled = false;
+  }
+}
+
+/* ---------- filters (taxonomy) ---------- */
+const KIND_NOUN = { category:"styles", material:"fabrics", colour:"colours" };
+function renderFilters(){
+  $("builtCat").innerHTML = "<b>Built-in</b> &nbsp; " + CATEGORIES.map(c => esc(c[1])).join(" · ");
+  $("builtMat").innerHTML = "<b>Built-in</b> &nbsp; " + MATERIALS.map(c => esc(c[1])).join(" · ");
+  $("builtCol").innerHTML = "<b>Built-in</b> &nbsp; " + FAMILIES.map(c => esc(c[1])).join(" · ");
+  $("taxoCat").innerHTML = taxoRows("category");
+  $("taxoMat").innerHTML = taxoRows("material");
+  $("taxoCol").innerHTML = taxoRows("colour");
+}
+function taxoRows(kind){
+  const rows = TAXO[kind] || [];
+  if (!rows.length) return `<div class="taxoempty">No custom ${KIND_NOUN[kind]} yet.</div>`;
+  return rows.map(r => `<div class="taxorow">
+    ${r.hex ? `<i class="sw" style="background:${esc(r.hex)}"></i>` : ""}
+    <b>${esc(r.label_en)}</b>${r.label_zh ? `<span>${esc(r.label_zh)}</span>` : ""}
+    <code>${esc(r.key)}</code>
+    <button class="btn btn-sm btn-bad taxo-del" onclick="delTaxo('${esc(r.id)}', this)">Remove</button>
+  </div>`).join("");
+}
+async function addTaxo(kind, enId, zhId, hexId){
+  const en = $(enId).value.trim(); if (!en) return toast("Enter a name", true);
+  const zh = $(zhId).value.trim();
+  const hex = hexId ? $(hexId).value : null;
+  const key = slug(en); if (!key) return toast("Name needs letters or numbers", true);
+  const builtin = (kind === "category" ? CATEGORIES : kind === "material" ? MATERIALS : FAMILIES).map(x => x[0]);
+  if (builtin.includes(key)) return toast(`"${en}" already exists as a built-in`, true);
+  if ((TAXO[kind] || []).some(r => r.key === key)) return toast(`"${en}" already added`, true);
+  busy(true, "Saving filter…");
+  const { error } = await sb.from("taxonomy").upsert({ kind, key, label_en: en, label_zh: zh || null, hex: hex, sort: 50 }, { onConflict: "kind,key" });
+  busy(false);
+  if (error) return toast("Error: " + error.message, true);
+  logAction("add", { id: "filter:" + kind + ":" + key });
+  $(enId).value = ""; $(zhId).value = "";
+  await loadTaxonomy(); renderFilters(); buildTagPickers();
+  toast("Filter added — live on the site");
+}
+window.delTaxo = async function(id, btn){
+  // two-tap confirm (mobile-safe; native confirm() is often blocked in phone browsers)
+  if (btn && btn.dataset.confirm !== "1"){
+    // reset any other button mid-confirm
+    document.querySelectorAll(".taxo-del.confirming").forEach(b => {
+      if (b._t) clearTimeout(b._t); b.dataset.confirm = "0"; b.classList.remove("confirming"); b.textContent = "Remove";
+    });
+    btn.dataset.confirm = "1";
+    btn.textContent = "Tap to confirm";
+    btn.classList.add("confirming");
+    btn._t = setTimeout(() => { btn.dataset.confirm = "0"; btn.textContent = "Remove"; btn.classList.remove("confirming"); }, 3000);
+    return;
+  }
+  if (btn && btn._t) clearTimeout(btn._t);
+  busy(true, "Removing…");
+  const { error } = await sb.from("taxonomy").delete().eq("id", id);
+  busy(false);
+  if (error) return toast("Error: " + error.message, true);
+  logAction("delete", { id: "filter:" + id });
+  await loadTaxonomy(); renderFilters(); buildTagPickers();
+  toast("Filter removed");
+};
+$("addCat").addEventListener("click", () => addTaxo("category", "ncatEn", "ncatZh", null));
+$("addMat").addEventListener("click", () => addTaxo("material", "nmatEn", "nmatZh", null));
+$("addCol").addEventListener("click", () => addTaxo("colour", "ncolEn", "ncolZh", "ncolHex"));
+
+/* ---------- audit trail ---------- */
+const ACTION_LABEL = {
+  login:"Signed in", logout:"Signed out",
+  portal_open:"Opened the catalogue editor", dashboard_open:"Opened the stats dashboard",
+  add:"Added a piece", edit:"Edited a piece", delete:"Deleted a piece",
+  cover_update:"Replaced a cover photo", cover_reset:"Reset a cover photo",
+  catalogue_export:"Exported the catalogue", export_csv:"Exported analytics",
+  date_range_change:"Changed the stats date range", profile_update:"Changed a user's access",
+  purge:"Purged old analytics"
+};
+const CHANGE_ACTIONS = ["add","edit","delete","cover_update","cover_reset"];
+function actionText(a){ return ACTION_LABEL[a] || String(a || "").replace(/_/g," "); }
+function badgeClass(a){ return a === "add" ? "add" : a === "edit" ? "edit" : a === "delete" ? "del" : ""; }
+const BADGE_SHORT = {
+  login:"Sign in", logout:"Sign out",
+  portal_open:"Editor", dashboard_open:"Stats",
+  add:"Add", edit:"Edit", delete:"Delete",
+  catalogue_export:"Export", export_csv:"Export",
+  date_range_change:"Range", profile_update:"Access", purge:"Purge"
+};
+function badgeShort(a){ return BADGE_SHORT[a] || String(a || "").split("_")[0] || "—"; }
+function detailText(r){
+  const a = r.action, d = r.detail || r.after || {};
+  if (a === "add" || a === "edit" || a === "delete") return d.id ? ("Piece: " + d.id) : "";
+  if (a === "cover_update" || a === "cover_reset") return d.slot ? ("Cover " + d.slot) : "";
+  if (a === "catalogue_export") return [d.pieces != null ? d.pieces + " pieces" : "", d.new_images != null ? d.new_images + " new photos" : ""].filter(Boolean).join(" · ");
+  if (a === "date_range_change" || a === "export_csv"){ const f = (d.p_from || "").slice(0,10), t = (d.p_to || "").slice(0,10); return (f || t) ? (f + " → " + t) : ""; }
+  if (a === "profile_update") return d.role ? ("Access set to " + d.role) : (r.target_id ? ("User " + String(r.target_id).slice(0,8)) : "");
+  if (a === "purge") return d.before ? ("Deleted events before " + d.before) : "";
+  return "";
+}
+async function loadAudit(){
+  const box = $("actList"), empty = $("actEmpty");
+  box.innerHTML = `<tr><td colspan="5" style="color:var(--muted)">Loading…</td></tr>`; empty.classList.add("hide");
+  let res;
+  try { res = await withTimeout(sb.from("audit_log").select("*").order("at",{ascending:false}).limit(200), 12000, "Audit"); }
+  catch(e){ box.innerHTML = `<tr><td colspan="5" style="color:var(--bad)">${esc(e.message||e)}</td></tr>`; return; }
+  if (res.error){ box.innerHTML = `<tr><td colspan="5" style="color:var(--bad)">${esc(res.error.message)}</td></tr>`; return; }
+  let rows = res.data || [];
+  if ($("actFilter").value === "changes") rows = rows.filter(r => CHANGE_ACTIONS.includes(r.action));
+  $("actCount").textContent = rows.length + " event" + (rows.length === 1 ? "" : "s");
+  if (!rows.length){ box.innerHTML = `<tr><td colspan="5" style="color:var(--muted)">Nothing recorded yet.</td></tr>`; empty.classList.add("hide"); return; }
+  box.innerHTML = rows.map(r => {
+    const when = new Date(r.at).toLocaleString("en-GB");
+    const det = detailText(r);
+    const tgt = r.target_table ? esc(r.target_table) + (r.target_id ? " · " + esc(String(r.target_id)).slice(0,8) : "") : "—";
+    return `<tr>
+      <td style="white-space:nowrap">${esc(when)}</td>
+      <td>${esc(r.actor_email || "—")}</td>
+      <td>${esc(actionText(r.action))}</td>
+      <td>${tgt}</td>
+      <td style="color:var(--muted)">${det ? esc(det) : "—"}</td>
+    </tr>`;
+  }).join("");
+}
+$("reloadAct").addEventListener("click", loadAudit);
+$("actFilter").addEventListener("change", loadAudit);
+</script>
+</body>
+</html>
