@@ -80,6 +80,18 @@
 
   .barrow{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:13.5px}
   .barrow .nm{width:150px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* rows that carry a photo + style type */
+  .prow{margin-bottom:12px}
+  .prow .nm{display:flex;flex-direction:column;gap:2px;line-height:1.25}
+  .prow .nm b{font-weight:500;overflow:hidden;text-overflow:ellipsis}
+  .prow .nm .ptype{font-style:normal;font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--gold-deep);overflow:hidden;text-overflow:ellipsis}
+  .pthumb{width:34px;height:45px;flex:none;object-fit:cover;background:var(--panel);
+    border:1px solid var(--hairline);display:block}
+  .pthumb-x{background:var(--panel)}
+  .pcell{display:flex;align-items:center;gap:10px}
+  .pcell .pthumb{width:30px;height:40px}
+  .ptype-cell{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold-deep);white-space:nowrap}
   .barrow .tr{flex:1;height:8px;background:var(--panel);position:relative}
   .barrow .tr i{position:absolute;inset:0 auto 0 0;background:var(--gold);display:block}
   .barrow .vl{width:74px;text-align:right;flex:none;color:var(--muted);font-size:12px}
@@ -186,8 +198,8 @@
         <span class="intentcount" id="intentCount"></span>
       </div>
       <table>
-        <thead><tr><th>Piece</th><th>Side</th><th>Views</th><th>Price asks</th><th>Ask rate</th></tr></thead>
-        <tbody id="intent"><tr><td colspan="5" style="color:var(--muted)">No data yet.</td></tr></tbody>
+        <thead><tr><th>Piece</th><th>Style</th><th>Side</th><th>Views</th><th>Price asks</th><th>Ask rate</th></tr></thead>
+        <tbody id="intent"><tr><td colspan="6" style="color:var(--muted)">No data yet.</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -343,6 +355,7 @@ async function loadDash() {
 
   LAST.styles  = st || [];
   LAST.colours = co || [];
+  if (!Object.keys(PIECES).length) await loadPieces();   // photos + style types, fetched once
   renderTopStyles();
   renderColours();
   renderIntent();
@@ -355,18 +368,68 @@ function renderTopStyles(){
   const styles = typeFilter(LAST.styles);
   const max = Math.max(1, ...styles.map(s => Number(s.views)));
   $("topStyles").innerHTML = styles.length
-    ? styles.map(s => `
-        <div class="barrow">
-          <span class="nm" title="${esc(s.style_name)}">${esc(s.style_name)}</span>
+    ? styles.map(s => {
+        const p = pieceOf(s), t = typeText(p);
+        return `
+        <div class="barrow prow">
+          ${thumbHtml(p, s.style_name)}
+          <span class="nm">
+            <b title="${esc(s.style_name)}">${esc(s.style_name)}</b>
+            <i class="ptype">${t ? esc(t) : (s.gender === "m" ? "Men suit" : "Evening gown")}</i>
+          </span>
           <span class="tr"><i style="width:${(Number(s.views) / max * 100).toFixed(1)}%"></i></span>
           <span class="vl">${s.views}</span>
-        </div>`).join("")
+        </div>`;
+      }).join("")
     : NODATA;
 }
 
 const COLHEX = { black:"#2A2724", grey:"#5F6165", white:"#F2EDE2", navy:"#28324A", blue:"#A7BED3",
   green:"#8CA07E", pink:"#E7C3BC", red:"#8C3242", purple:"#6B5586", gold:"#C6A15B",
   beige:"#C0996B", silver:"#C9CBCE", yellow:"#E4CE86", other:"#BDB6AA" };
+
+/* ---------- piece lookup: photo + style type for the charts ----------
+   stats_top_styles() aggregates by name, so we match the same way (name + gender).
+   Seven names are shared by more than one piece; those rows are already merged by
+   the RPC, so we show one representative photo and the union of their style types. */
+const CAT_LABELS = {
+  fitted:"Fitted", mermaid:"Mermaid", aline:"A-Line", ballgown:"Ballgown", flare:"Flare",
+  tube:"Tube", corset:"Corset", cape:"Cape", sleeves:"Sleeves", halter:"Halter",
+  offshoulder:"Off-Shoulder", oneshoulder:"One-Shoulder", vneck:"V-Neck", slit:"Slit",
+  ruffle:"Ruffle", overskirt:"Overskirt", short:"Short", midi:"Midi",
+  twopiece:"Two-Piece", threepiece:"Three-Piece", doublebreasted:"Double-Breasted",
+  oriental:"Oriental / 中装"
+};
+let PIECES = {};                                   // "name|gender" -> { img, cats, prefix }
+const pkey = (name, gender) => (name || "").trim().toLowerCase() + "|" + (gender || "");
+
+async function loadPieces(){
+  try {
+    const { data, error } = await withTimeout(
+      sb.from("products").select("name, gender, prefix, category, variants"), 12000, "Pieces");
+    if (error || !data) return;
+    const map = {};
+    data.forEach(p => {
+      const k = pkey(p.name, p.gender);
+      const v0 = (p.variants || [])[0] || {};
+      if (!map[k]) map[k] = { img: v0.img || "", cats: [], prefix: p.prefix || "" };
+      (p.category || []).forEach(c => { if (!map[k].cats.includes(c)) map[k].cats.push(c); });
+      if (!map[k].img && v0.img) map[k].img = v0.img;
+    });
+    PIECES = map;
+  } catch(e){ /* charts still work without photos */ }
+}
+
+function pieceOf(s){ return PIECES[pkey(s.style_name, s.gender)] || null; }
+function typeText(p){
+  if (!p || !p.cats.length) return "";
+  return p.cats.slice(0, 2).map(c => CAT_LABELS[c] || c).join(" · ");
+}
+function thumbHtml(p, name){
+  return p && p.img
+    ? `<img class="pthumb" src="${esc(p.img)}" alt="" loading="lazy">`
+    : `<span class="pthumb pthumb-x" aria-hidden="true"></span>`;
+}
 function renderColours(){
   const cmax = Math.max(1, ...LAST.colours.map(c => Number(c.hits)));
   $("topColours").innerHTML = LAST.colours.length
@@ -396,15 +459,17 @@ function renderIntent(){
   $("intent").innerHTML = rows.length
     ? rows.map(s => {
         const v = Number(s.views), a = Number(s.asks);
+        const p = pieceOf(s), t = typeText(p);
         return `<tr>
-          <td>${esc(s.style_name)}</td>
+          <td class="pcell">${thumbHtml(p, s.style_name)}<span>${esc(s.style_name)}</span></td>
+          <td class="ptype-cell">${t ? esc(t) : "—"}</td>
           <td>${s.gender === "m" ? "Men" : "Women"}</td>
           <td>${v}</td>
           <td><b>${a}</b></td>
           <td>${v ? (a / v * 100).toFixed(0) + "%" : "–"}</td>
         </tr>`;
       }).join("")
-    : `<tr><td colspan="5" style="color:var(--muted)">No data yet.</td></tr>`;
+    : `<tr><td colspan="6" style="color:var(--muted)">No data yet.</td></tr>`;
 }
 
 /* dashboard filter controls (client-side, no refetch) */
