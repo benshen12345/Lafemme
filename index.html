@@ -1546,8 +1546,17 @@ function applyFilter(){
     card.classList.toggle("hide", !(genderOk && categoryOk && materialOk && colorOk && brandOk && searchOk));
     const catEl = card.querySelector(".cat");
     if (catEl) catEl.textContent = catLabelFor(st, card);
-    // which variant photo the card shows: an active colour wins, else the default (hero) variant
-    const showJ = (state.color !== "all" && colorOk) ? st.v.findIndex(v => v.f === state.color) : 0;
+    // which variant photo the card shows: an active colour wins, then a colour named in the
+    // search box (so searching "pink" shows the pink one, not the default black), else the hero variant
+    let showJ = 0;
+    if (state.color !== "all" && colorOk) {
+      showJ = st.v.findIndex(v => v.f === state.color);
+    } else if (state.qTokens.length) {
+      const j = st.v.findIndex(v =>
+        state.qTokens.some(tok =>
+          `${v.c} ${v.d || ""} ${v.f} ${COLOR_ZH[v.f] || ""}`.toLowerCase().includes(tok)));
+      if (j > -1) showJ = j;
+    }
     if (showJ > -1) {
       const img = card.querySelector(".cardimg"), cn = card.querySelector(".cname");
       if (img) { img.src = st.v[showJ].img; img.alt = `${st.n} — ${st.v[showJ].c}`; }
