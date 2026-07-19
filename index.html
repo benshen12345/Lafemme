@@ -473,6 +473,8 @@
     .result-count{text-align:center;margin:0 0 16px;letter-spacing:.2em}
   }
   .card .sizes{font-size:13px;color:var(--muted)}
+  /* suits carry no name line, so the colour needs the spacing the name used to give */
+  .card .cat-line + .sizes{margin-top:8px;font-size:15px;color:var(--ink)}
 
   /* ---------- lightbox ---------- */
   #lb{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(12,10,8,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
@@ -1273,10 +1275,26 @@ const MAT_LABELS_I18N = {
 const MAT_ORDER = ["sequin","satin","chiffon","tulle","lace","velvet","organza","silk","crepe","mesh","feather","glitter","sparkle","shimmer","diamond","crystal","beaded","pearl","fringe","embroidered","floral"];
 function ML(m){ return (MAT_LABELS_I18N[LANG] && MAT_LABELS_I18N[LANG][m]) || MAT_LABELS_I18N.en[m] || m; }
 
+/* ---------- what a piece is called on screen ----------
+   The men's suits were auto-named "colour + style" when the photos were imported
+   (e.g. "Navy Double-Breasted"). Those aren't real product names, and they only
+   repeat what the card already shows, so suits are described by their style and
+   fabric instead. Gowns keep their real names. The studio identifies any piece by
+   its `ref`, which is unaffected. */
+const isSuit = st => st.g === "m";
+function suitDesc(st){
+  const parts = [];
+  if (st.cat && st.cat.length) parts.push(CL(st.cat[0]));
+  if (st.mat && st.mat.length) parts.push(ML(st.mat[0]));
+  return parts.join(" · ") || (LANG === "zh" ? "男装" : "Men suit");
+}
+function pieceName(st){ return isSuit(st) ? suitDesc(st) : st.n; }
+
 function catLabel(g){ return LANG === "zh" ? (g === "m" ? "男士西装" : "晚礼服") : (g === "m" ? "Men Suit" : "Evening Gown"); }
 /* small label above a card: the active category when one is filtered, else the piece's first category */
 function catLabelFor(st, card){
   if (state.category !== "all" && card && !card.classList.contains("hide")) return CL(state.category);
+  if (isSuit(st)) return suitDesc(st);            // suits show "style · fabric", never a name
   return (st.cat && st.cat.length) ? CL(st.cat[0]) : (LANG === "zh" ? "晚装" : "Evening");
 }
 
@@ -1373,20 +1391,22 @@ function renderCatalogue(styles){
   card.dataset.search = SEARCH_IDX[i];
 
   const typeLabel = (st.cat && st.cat.length) ? CL(st.cat[0]) : (LANG === "zh" ? "晚装" : "Evening");
+  const kicker = isSuit(st) ? suitDesc(st) : typeLabel;      // suits: style · fabric
+  const altName = pieceName(st);
   const dots = st.v.map((v, j) =>
     `<button class="dot${j === 0 ? " on" : ""}" data-v="${j}" style="background:${v.h}"
        title="${v.c}${v.d ? " · " + v.d : ""}" aria-label="Show ${v.c}"></button>`).join("");
 
   card.innerHTML = `
-    <div class="ph" role="button" tabindex="0" aria-label="View ${st.n}">
+    <div class="ph" role="button" tabindex="0" aria-label="View ${altName}">
       <div class="tilt">
-        <img class="cardimg" loading="lazy" decoding="async" src="${st.v[0].img}" alt="${st.n} — ${st.v[0].c}">
+        <img class="cardimg" loading="lazy" decoding="async" src="${st.v[0].img}" alt="${altName} — ${st.v[0].c}">
         <div class="glare"></div>
       </div>
     </div>
     <div class="meta">
-      <span class="cat-line">${st.p ? `<span class="brand">${BL(st.p)}</span>` : ""}<span class="cat">${typeLabel}</span></span>
-      <h3>${st.n}</h3>
+      <span class="cat-line">${st.p ? `<span class="brand">${BL(st.p)}</span>` : ""}<span class="cat">${kicker}</span></span>
+      ${isSuit(st) ? "" : `<h3>${st.n}</h3>`}
       <div class="sizes"><span class="cname">${st.v[0].c}</span><span class="copt">${st.v.length > 1 ? (LANG === "zh" ? ` · ${st.v.length} 色` : ` · ${st.v.length} options`) : ""}</span></div>
       <div class="dots-row">${dots}</div>
     </div>`;
@@ -1401,8 +1421,8 @@ function renderCatalogue(styles){
     const n = st.v.length;
     j = ((j % n) + n) % n;                              // loop around
     const v = st.v[j];
-    if (dir) { sliding = true; slideSwap(tilt, img, v.img, `${st.n} — ${v.c}`, dir, () => { sliding = false; }); }
-    else { img.src = v.img; img.alt = `${st.n} — ${v.c}`; }
+    if (dir) { sliding = true; slideSwap(tilt, img, v.img, `${altName} — ${v.c}`, dir, () => { sliding = false; }); }
+    else { img.src = v.img; img.alt = `${altName} — ${v.c}`; }
     cn.textContent = v.c;
     dotsEls.forEach(x => x.classList.toggle("on", +x.dataset.v === j));
     card.dataset.shown = j;
@@ -1566,7 +1586,7 @@ function applyFilter(){
     }
     if (showJ > -1) {
       const img = card.querySelector(".cardimg"), cn = card.querySelector(".cname");
-      if (img) { img.src = st.v[showJ].img; img.alt = `${st.n} — ${st.v[showJ].c}`; }
+      if (img) { img.src = st.v[showJ].img; img.alt = `${pieceName(st)} — ${st.v[showJ].c}`; }
       if (cn) cn.textContent = st.v[showJ].c;
       card.dataset.shown = showJ;
       card.querySelectorAll(".dot").forEach(x => x.classList.toggle("on", +x.dataset.v === showJ));
@@ -1672,7 +1692,7 @@ function renderDrop(q){
     html += list.map(i => {
       const st = CAT[i], j = bestColour(st, toks), v = st.v[j];
       const sub = st.v.length > 1 ? (LANG === "zh" ? `${st.v.length} 色` : `${st.v.length} colours`) : "";
-      return `<button class="sd-prod" type="button" data-idx="${i}" data-col="${j}"><img src="${v.img}" alt="" loading="lazy"><span class="sd-pname">${escapeHTML(st.n)}</span><span class="sd-psub">${sub}</span></button>`;
+      return `<button class="sd-prod" type="button" data-idx="${i}" data-col="${j}"><img src="${v.img}" alt="" loading="lazy"><span class="sd-pname">${escapeHTML(pieceName(st))}</span><span class="sd-psub">${sub}</span></button>`;
     }).join("");
     html += `</div>`;
     if (total > list.length) html += `<button class="sd-all" type="button">${LANG === "zh" ? `查看全部 ${total} 件` : `See all ${total} results`}</button>`;
@@ -1875,7 +1895,7 @@ function openLb(i, vi){
   const setImgDirect = (v) => {
     const hiSrc = v.hi || v.img, myToken = ++lbToken;
     lbImg.style.transition = ""; lbImg.style.transform = "";
-    lbImg.src = v.img; lbImg.alt = `${st.n} \u2014 ${v.c}`;
+    lbImg.src = v.img; lbImg.alt = `${pieceName(st)} \u2014 ${v.c}`;
     if (hiSrc !== v.img) {
       const up = new Image();
       up.onload = () => { if (myToken === lbToken) lbImg.src = hiSrc; };
@@ -1894,7 +1914,7 @@ function openLb(i, vi){
     const imgURL = `${location.origin}/${v.hi || v.img}`;
     ask.href = waLink(
       `${msg("askPrice")}\n\n` +
-      `${pieceLabel(st.n, v.c, v.d)}\n` +
+      `${pieceLabel(pieceName(st), v.c, v.d)}\n` +
       `${msg("ref")}: ${v.ref}\n` +
       `${msg("photo")}: ${imgURL}`
     );
@@ -1905,7 +1925,7 @@ function openLb(i, vi){
          the popup stays open so the customer can keep adding other colours. */
       const btn = document.getElementById("lbBook"), prev = btn.dataset.label || btn.textContent;
       btn.dataset.label = prev;
-      const res = addFitting({ name: st.n, colour: v.c, desc: v.d, ref: v.ref, photo: `${location.origin}/${v.hi || v.img}` });
+      const res = addFitting({ name: pieceName(st), colour: v.c, desc: v.d, ref: v.ref, photo: `${location.origin}/${v.hi || v.img}` });
       btn.textContent = res === "ok" ? (LANG === "zh" ? "\u5df2\u52a0\u5165 \u2713" : "Added \u2713")
                       : res === "dup" ? (LANG === "zh" ? "\u5df2\u5728\u6e05\u5355\u4e2d" : "Already in list")
                       : (LANG === "zh" ? `\u6e05\u5355\u5df2\u6ee1\uff08\u6700\u591a ${FIT_MAX} \u4ef6\uff09` : `List full (max ${FIT_MAX})`);
@@ -1923,14 +1943,14 @@ function openLb(i, vi){
     const n = st.v.length;
     idx = ((idx % n) + n) % n;
     const v = st.v[idx];
-    if (dir) { sliding = true; ++lbToken; slideSwap(lbPh, lbImg, v.hi || v.img, `${st.n} \u2014 ${v.c}`, dir, () => { sliding = false; }); }
+    if (dir) { sliding = true; ++lbToken; slideSwap(lbPh, lbImg, v.hi || v.img, `${pieceName(st)} \u2014 ${v.c}`, dir, () => { sliding = false; }); }
     else setImgDirect(v);
     cur = idx;
     paintMeta();
   };
 
   document.getElementById("lbCat").textContent = catLabel(st.g) + ((st.cat && st.cat.length) ? " \u00b7 " + CL(st.cat[0]) : "");
-  document.getElementById("lbTitle").textContent = st.n;
+  document.getElementById("lbTitle").textContent = pieceName(st);
   document.getElementById("lbTags").innerHTML =
     (st.cat || []).map(c => `<span class="tag">${CL(c)}</span>`).join("") +
     (st.mat || []).map(m => `<span class="tag">${ML(m)}</span>`).join("");
