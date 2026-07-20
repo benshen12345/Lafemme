@@ -1275,8 +1275,14 @@ function slideSwap(clip, base, newSrc, newAlt, dir, done){
     decodeReady(base, 300).then(() => {                   // only hand over a painted frame
       base.style.transition = "none";
       base.style.transform  = "";                         // revert to CSS (keeps hover zoom)
+      /* .cardimg carries a 0.8s transform transition for the hover zoom. Re-enabling it
+         on the next frame is not safe: mobile browsers batch style work differently, so
+         the snap-back and the restored transition can land together and the photo eases
+         back across the card instead of settling. Forcing a reflow commits the snap
+         first, synchronously, which is what rAF only sometimes did. */
+      void base.offsetWidth;
+      base.style.transition = "";
       inc.remove();
-      requestAnimationFrame(() => { base.style.transition = ""; });
       if (done) done();
     });
   };
