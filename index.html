@@ -1852,6 +1852,7 @@ function closeFilters(fromPop){
       if (!filterPanel.classList.contains("open")){
         filterPanel.classList.remove("floating");
         if (filterBackdrop) filterBackdrop.classList.remove("floating");
+        if (!window.matchMedia("(max-width:640px)").matches) dropFilters();   // back into the section
       }
     }, REDUCED ? 0 : 340);
   }
@@ -1877,20 +1878,29 @@ if (filterClearBtn) filterClearBtn.addEventListener("click", () => {
    we lift the drawer + backdrop up to <body> so they overlay everything; on desktop they
    stay inline in the section (rendered as normal chip rows). */
 let _panelHome = null, _backdropHome = null;
+/* Move the panel (and its backdrop) to <body>. A fixed child inside a section that has
+   a transform is positioned against that section, not the viewport, so later sections
+   paint straight over it. Living directly under <body> is the only reliable fix. */
+function liftFilters(){
+  if (filterPanel && filterPanel.parentElement !== document.body){
+    _panelHome = { parent: filterPanel.parentElement, next: filterPanel.nextSibling };
+    document.body.appendChild(filterPanel);
+  }
+  if (filterBackdrop && filterBackdrop.parentElement !== document.body){
+    _backdropHome = { parent: filterBackdrop.parentElement, next: filterBackdrop.nextSibling };
+    document.body.appendChild(filterBackdrop);
+  }
+}
+function dropFilters(){
+  if (filterPanel && _panelHome){ _panelHome.parent.insertBefore(filterPanel, _panelHome.next); _panelHome = null; }
+  if (filterBackdrop && _backdropHome){ _backdropHome.parent.insertBefore(filterBackdrop, _backdropHome.next); _backdropHome = null; }
+}
 function syncFilterPlacement(){
   const mobile = window.matchMedia("(max-width:640px)").matches;
   if (mobile){
-    if (filterPanel && filterPanel.parentElement !== document.body){
-      _panelHome = { parent: filterPanel.parentElement, next: filterPanel.nextSibling };
-      document.body.appendChild(filterPanel);
-    }
-    if (filterBackdrop && filterBackdrop.parentElement !== document.body){
-      _backdropHome = { parent: filterBackdrop.parentElement, next: filterBackdrop.nextSibling };
-      document.body.appendChild(filterBackdrop);
-    }
-  } else {
-    if (filterPanel && _panelHome){ _panelHome.parent.insertBefore(filterPanel, _panelHome.next); _panelHome = null; }
-    if (filterBackdrop && _backdropHome){ _backdropHome.parent.insertBefore(filterBackdrop, _backdropHome.next); _backdropHome = null; }
+    liftFilters();
+  } else if (!filterPanel || !filterPanel.classList.contains("floating")) {
+    dropFilters();                                  // leave a desktop overlay alone
     closeFilters();
   }
 }
@@ -2397,6 +2407,7 @@ function openFiltersInPlace(){
   if (!isDrawer){
     filterPanel.classList.add("floating");
     if (filterBackdrop) filterBackdrop.classList.add("floating");
+    liftFilters();                                  // out of the section, straight under <body>
   }
   openFilters();
 }
