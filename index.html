@@ -1975,6 +1975,11 @@ function openLb(i, vi){
     else setImgDirect(v);
     cur = idx;
     paintMeta();
+    /* Same event the grid cards send, so a colour look counts wherever it happens.
+       Only when dir is set — dir 0 is the initial paint on open, which is already
+       covered by card_open and would otherwise double-count every popup. */
+    if (dir) track("colour_switch", { gender: st.g, style_id: st.i, style_name: st.n,
+                                      style_ref: v.ref, colour: v.c, colour_family: v.f });
   };
 
   document.getElementById("lbCat").textContent = catLabel(st.g) + ((st.cat && st.cat.length) ? " \u00b7 " + CL(st.cat[0]) : "");
