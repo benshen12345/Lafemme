@@ -799,7 +799,7 @@
       <a href="#booking">Book a Fitting</a>
     </nav>
     <div style="display:flex;align-items:center;gap:14px">
-      <button id="langBtn" class="tbtn" aria-label="Switch language / 切换语言">中文</button>
+      <button id="langBtn" class="tbtn" aria-label="Switch to Chinese / 切换为中文">EN</button>
       <button id="themeBtn" class="tbtn" aria-pressed="false"><i aria-hidden="true"></i><span>Noir mode</span></button>
       <button id="menuBtn" aria-expanded="false" aria-controls="mobileMenu" aria-label="Menu"><span></span><span></span><span></span></button>
     </div>
@@ -810,7 +810,7 @@
     <a href="#about">About</a>
     <a href="#visit">Visit</a>
     <a href="#booking">Book a Fitting</a>
-    <button id="langBtnM" style="text-align:left;background:none;border:0;padding:12px 0;font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--hairline)">中文</button>
+    <button id="langBtnM" style="text-align:left;background:none;border:0;padding:12px 0;font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--hairline)">EN</button>
   </nav>
 </header>
 
@@ -1244,6 +1244,21 @@ const REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
    <img> that stays put; a temporary incoming layer animates in and is then removed.
    dir: +1 = new photo enters from the right (next), -1 = from the left (previous).
    Photos are preloaded, so the swap is instant behind the motion (no flash). */
+/* Slide one photo out and the next one in.
+   Both handovers wait for the browser to actually have the frame ready, otherwise the
+   incoming panel slides in empty, or the old photo flashes back for a frame at the end
+   while the base <img> decodes the new source. A short race keeps a slow image from
+   making the swipe feel dead. */
+function decodeReady(img, cap){
+  const p = (img.decode ? img.decode() : Promise.reject())
+    .catch(() => new Promise(res => {
+      if (img.complete) return res();
+      img.addEventListener("load", res, { once: true });
+      img.addEventListener("error", res, { once: true });
+    }));
+  return Promise.race([p, new Promise(res => setTimeout(res, cap))]);
+}
+
 function slideSwap(clip, base, newSrc, newAlt, dir, done){
   if (REDUCED || !clip || !base || !dir){ if (base){ base.src = newSrc; base.alt = newAlt; } if (done) done(); return; }
   const inc = document.createElement("img");
@@ -1252,21 +1267,31 @@ function slideSwap(clip, base, newSrc, newAlt, dir, done){
   inc.style.transition = "none";
   inc.style.transform = `translateX(${dir * 100}%)`;
   inc.src = newSrc;
-  clip.appendChild(inc);
-  void inc.offsetWidth;                                   // reflow so the start offset sticks
+
   const dur = 400, ease = "cubic-bezier(.22,1,.22,1)";
-  base.style.transition = `transform ${dur}ms ${ease}`;
-  inc.style.transition  = `transform ${dur}ms ${ease}`;
-  base.style.transform  = `translateX(${-dir * 100}%)`;
-  inc.style.transform   = "translateX(0)";
-  window.setTimeout(() => {
-    base.src = newSrc; base.alt = newAlt;                 // cached → instant, seamless
-    base.style.transition = "none";
-    base.style.transform  = "";                           // revert to CSS (keeps hover zoom)
-    inc.remove();
-    requestAnimationFrame(() => { base.style.transition = ""; });
-    if (done) done();
-  }, dur + 40);
+
+  const finish = () => {
+    base.src = newSrc; base.alt = newAlt;
+    decodeReady(base, 300).then(() => {                   // only hand over a painted frame
+      base.style.transition = "none";
+      base.style.transform  = "";                         // revert to CSS (keeps hover zoom)
+      inc.remove();
+      requestAnimationFrame(() => { base.style.transition = ""; });
+      if (done) done();
+    });
+  };
+
+  const animate = () => {
+    clip.appendChild(inc);
+    void inc.offsetWidth;                                 // reflow so the start offset sticks
+    base.style.transition = `transform ${dur}ms ${ease}`;
+    inc.style.transition  = `transform ${dur}ms ${ease}`;
+    base.style.transform  = `translateX(${-dir * 100}%)`;
+    inc.style.transform   = "translateX(0)";
+    window.setTimeout(finish, dur + 40);
+  };
+
+  decodeReady(inc, 220).then(animate);                    // don't slide an empty panel in
 }
 const track = (t, d) => { try { window.__track && window.__track(t, d); } catch (e) {} };
 const FINE_POINTER = window.matchMedia("(pointer: fine)").matches;
@@ -1453,7 +1478,19 @@ function renderCatalogue(styles){
   const cn  = card.querySelector(".cname");
   const tilt = card.querySelector(".tilt");
   const dotsEls = card.querySelectorAll(".dot");
-  let sliding = false;
+  let sliding = false, preloaded = false;
+  /* Pull the other colours down before they're needed. Touch used to be the only trigger,
+     so a mouse user clicking a dot — and the very first swipe — slid in a photo that was
+     still downloading. Any first sign of interest is enough. */
+  const preload = () => {
+    if (preloaded || st.v.length < 2) return;
+    preloaded = true;
+    st.v.forEach(v => { const im = new Image(); im.src = v.img; });
+  };
+  /* The card's own photo is lazy-loaded, so this only fires once the card is near the
+     viewport — which makes it the cheapest possible moment to fetch the other colours.
+     By the time anyone swipes, they're already in cache. */
+  if (img.complete) preload(); else img.addEventListener("load", preload, { once: true });
   const showVariant = (j, doTrack, dir) => {
     if (dir && sliding) return;                          // ignore rapid input mid-slide
     const n = st.v.length;
@@ -1467,6 +1504,8 @@ function renderCatalogue(styles){
     if (doTrack) track("colour_switch", { gender: st.g, style_id: st.i, style_name: st.n, style_ref: v.ref, colour: v.c, colour_family: v.f });
   };
   dotsEls.forEach(d => {
+    d.addEventListener("pointerenter", preload);
+    d.addEventListener("pointerdown", preload);
     d.addEventListener("click", e => {
       e.stopPropagation();
       const j = +d.dataset.v, cur = +(card.dataset.shown || 0);
@@ -1476,6 +1515,7 @@ function renderCatalogue(styles){
   });
 
   const ph = card.querySelector(".ph");
+  ph.addEventListener("pointerenter", preload);
   const open = () => openLb(i, +(card.dataset.shown || 0));
   let swiped = false;
   ph.addEventListener("click", () => { if (swiped) { swiped = false; return; } open(); });
@@ -1484,12 +1524,12 @@ function renderCatalogue(styles){
   /* swipe left/right through colours on touch (only if the piece has more than one) */
   if (st.v.length > 1) {
     ph.style.touchAction = "pan-y";   /* let the page scroll vertically, keep horizontal for us */
-    let sx = 0, sy = 0, axis = null, tracking = false, preloaded = false;
+    let sx = 0, sy = 0, axis = null, tracking = false;
     ph.addEventListener("touchstart", e => {
       if (e.touches.length !== 1) return;
       sx = e.touches[0].clientX; sy = e.touches[0].clientY;
       axis = null; tracking = true; swiped = false;
-      if (!preloaded) { st.v.forEach(v => { const im = new Image(); im.src = v.img; }); preloaded = true; }
+      preload();
     }, { passive: true });
     ph.addEventListener("touchmove", e => {
       if (!tracking) return;
@@ -2633,10 +2673,13 @@ function applyLang(lang){
   const tspan = document.querySelector('#themeBtn span');
   if (tspan) { const noir = document.documentElement.dataset.theme === 'noir';
     tspan.textContent = (LANG === 'zh') ? (noir ? '日间模式' : '夜间模式') : (noir ? 'Ivory mode' : 'Noir mode'); }
-  /* language toggle buttons show the OTHER language */
-  const other = (LANG === 'zh') ? 'EN' : '中文';
+  /* The toggle reads as a status light, not an instruction: it shows the language the
+     page is in right now. Tapping it still switches. The aria-label carries the action
+     so screen readers aren't left guessing what the button does. */
+  const current = (LANG === 'zh') ? '中文' : 'EN';
+  const action  = (LANG === 'zh') ? 'Switch to English / 切换为英文' : 'Switch to Chinese / 切换为中文';
   const lb1 = document.getElementById('langBtn'), lb2 = document.getElementById('langBtnM');
-  if (lb1) lb1.textContent = other; if (lb2) lb2.textContent = other;
+  [lb1, lb2].forEach(b => { if (b) { b.textContent = current; b.setAttribute('aria-label', action); } });
   /* product cards: category + "N options" suffix */
   document.querySelectorAll('.card').forEach(card => {
     const st = (typeof CAT !== 'undefined') ? CAT[+card.dataset.idx] : null;
