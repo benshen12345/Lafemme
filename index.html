@@ -338,6 +338,22 @@
   .facet-h{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
   /* mobile filter drawer chrome is hidden on desktop; facets flow inline as normal blocks */
   .filter-toggle,.filter-backdrop,.filter-panel-head,.filter-panel-foot{display:none}
+  /* ...unless the nav "Filters" link floats the panel over the page. Used on laptops,
+     where the facets normally sit inline: opening them as an overlay means the reader
+     never loses the spot they were scrolled to. */
+  .filter-panel.floating{position:fixed;top:0;left:-110%;bottom:0;width:340px;max-width:86vw;z-index:200;
+    background-color:var(--ivory);box-shadow:0 0 44px rgba(0,0,0,.32);
+    transition:left .32s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column}
+  .filter-panel.floating.open{left:0}
+  .filter-panel.floating .filter-panel-head{display:flex;align-items:center;justify-content:space-between;
+    flex:0 0 auto;padding:20px 20px 14px}
+  .filter-panel.floating .filter-panel-foot{display:flex;gap:10px;flex:0 0 auto;padding:12px 18px;
+    border-top:1px solid var(--hairline)}
+  .filter-panel.floating .filter-panel-body{flex:1 1 auto;overflow-y:auto;padding:4px 20px 16px}
+  .filter-panel.floating .facet:last-of-type{margin-bottom:20px}
+  .filter-backdrop.floating{display:block;position:fixed;inset:0;background:rgba(20,16,12,.5);z-index:190;
+    opacity:0;pointer-events:none;transition:opacity .3s ease}
+  .filter-backdrop.floating.open{opacity:1;pointer-events:auto}
   .result-count{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted);text-align:right;margin:0 2px 20px}
   .swatch-all{background:none;border:0;color:var(--muted);font-size:11px;letter-spacing:.2em;text-transform:uppercase;cursor:pointer;padding:6px 6px 6px 0;transition:color .3s ease}
   .swatch-all:hover,.swatch-all.active{color:var(--ink)}
@@ -757,6 +773,7 @@
     </a>
     <nav class="links" aria-label="Main">
       <a href="#collection">Collection</a>
+      <a href="#" id="navFilter">Filters</a>
       <a href="#about">About</a>
       <a href="#visit">Visit</a>
       <a href="#booking">Book a Fitting</a>
@@ -769,7 +786,7 @@
   </div>
   <nav id="mobileMenu" aria-label="Mobile">
     <a href="#collection">Collection</a>
-    <a href="#collection" id="menuFilter">Filters</a>
+    <a href="#" id="menuFilter">Filters</a>
     <a href="#about">About</a>
     <a href="#visit">Visit</a>
     <a href="#booking">Book a Fitting</a>
@@ -1828,6 +1845,16 @@ function closeFilters(fromPop){
   if (filterBackdrop) filterBackdrop.classList.remove("open");
   document.body.classList.remove("filter-open");
   if (filterToggle) filterToggle.setAttribute("aria-expanded", "false");
+  /* wait for the slide-out before handing the panel back to the page flow,
+     otherwise it snaps into place mid-animation */
+  if (filterPanel.classList.contains("floating")){
+    setTimeout(() => {
+      if (!filterPanel.classList.contains("open")){
+        filterPanel.classList.remove("floating");
+        if (filterBackdrop) filterBackdrop.classList.remove("floating");
+      }
+    }, REDUCED ? 0 : 340);
+  }
   if (filterHistoryActive){
     filterHistoryActive = false;
     if (fromPop !== true){ try { history.back(); } catch(e){} }
@@ -2355,17 +2382,22 @@ mMenu.querySelectorAll("a").forEach(a=>a.addEventListener("click", ()=>{
   menuBtn.setAttribute("aria-expanded","false");
 }));
 
-/* "Filter" in the menu jumps to the collection AND opens the filter drawer, so the
-   customer doesn't have to land on Collection and then hunt for the filter button.
-   The wait lets the smooth scroll finish first, otherwise the drawer opens mid-scroll
-   and the page keeps moving underneath it. */
-const menuFilter = document.getElementById("menuFilter");
-if (menuFilter) menuFilter.addEventListener("click", () => {
-  setTimeout(() => {
-    if (typeof openFilters === "function" && filterPanel &&
-        getComputedStyle(filterToggle).display !== "none") openFilters();   // drawer exists on phones only
-    else if (filterPanel) filterPanel.scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "center" });
-  }, REDUCED ? 60 : 620);
+/* "Filters" in either nav opens the panel right where the customer is standing —
+   no scrolling, so they don't lose the row of pieces they were looking at.
+   On phones the panel is already a drawer; on laptops we float it for the moment
+   it's open, then hand it back to the page flow on close. */
+function openFiltersInPlace(){
+  if (!filterPanel) return;
+  const isDrawer = filterToggle && getComputedStyle(filterToggle).display !== "none";
+  if (!isDrawer){
+    filterPanel.classList.add("floating");
+    if (filterBackdrop) filterBackdrop.classList.add("floating");
+  }
+  openFilters();
+}
+["menuFilter", "navFilter"].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("click", e => { e.preventDefault(); openFiltersInPlace(); });
 });
 
 /* smooth-scroll for in-page nav links, offset for the fixed header */
