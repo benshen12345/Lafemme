@@ -351,6 +351,19 @@
     border-top:1px solid var(--hairline)}
   .filter-panel.floating .filter-panel-body{flex:1 1 auto;overflow-y:auto;padding:4px 20px 16px}
   .filter-panel.floating .facet:last-of-type{margin-bottom:20px}
+  /* the drawer's own chrome only had styles inside the phone breakpoint, so the
+     overlay needs them too — otherwise the footer buttons render unstyled and the
+     page keeps scrolling behind the panel */
+  body.filter-open{overflow:hidden}
+  .filter-panel.floating .filter-clear{flex:1;padding:13px;border:1px solid var(--hairline);border-radius:9px;
+    background:transparent;color:var(--ink);font-family:var(--sans);font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;cursor:pointer}
+  .filter-panel.floating .filter-apply{flex:1.8;padding:13px;border:0;border-radius:9px;background:var(--ink);
+    color:var(--ivory);font-family:var(--sans);font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;cursor:pointer}
+  .filter-panel.floating .filter-panel-title{font-family:var(--serif);font-size:22px;font-weight:500}
+  .filter-panel.floating .filter-close{background:none;border:0;font-size:17px;line-height:1;color:var(--muted);
+    cursor:pointer;padding:4px 6px}
   .filter-backdrop.floating{display:block;position:fixed;inset:0;background:rgba(20,16,12,.5);z-index:190;
     opacity:0;pointer-events:none;transition:opacity .3s ease}
   .filter-backdrop.floating.open{opacity:1;pointer-events:auto}
