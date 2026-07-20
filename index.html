@@ -701,14 +701,21 @@
     .hero-copy{max-width:none}
     .hero-right{--hdr:70px}
   }
-  @media (max-width:900px){
-    /* tablet portrait: the full nav needs ~836px, but iPad portrait is 744-834.
-       Tighten the link gaps and the logo so everything still fits on one line. */
+  /* 901-1100px (iPad Pro 12.9 portrait, small laptops): the five links still fit,
+     but only with tighter gaps — at the roomy 60px spacing the bar needs ~1017px. */
+  @media (max-width:1100px){
     .links{gap:26px}
     .mono{height:34px}
     .wordmark{height:24px}
     .wrap.nav{padding-left:16px;padding-right:16px}
     .nav{gap:10px}
+  }
+  @media (max-width:900px){
+    /* Tablet portrait is 744-834px wide and the full bar needs ~881px, so the links
+       move into the menu button here rather than being squeezed. Everything in the
+       bar is also in the menu, including Filters and the language switch. */
+    .links{display:none}
+    #menuBtn{display:block}
     .grid{grid-template-columns:repeat(2,1fr);gap:26px 18px}
     .book-grid,.visit-grid{grid-template-columns:1fr;gap:44px}
     .book-side{margin-top:0}   /* stacked on mobile — no offset needed */

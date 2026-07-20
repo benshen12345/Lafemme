@@ -91,6 +91,20 @@
   .pthumb-x{background:var(--panel)}
   .pcell{display:flex;align-items:center;gap:10px}
   .pcell .pthumb{width:30px;height:40px}
+  /* collapsible glossary — the dashboard should explain itself instead of
+     relying on anyone remembering what each number counts */
+  .glossary{margin:-2px 0 26px;border:1px solid var(--hairline);background:#fff}
+  .glossary summary{cursor:pointer;padding:13px 18px;font-size:11px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--gold-deep);list-style:none;user-select:none}
+  .glossary summary::-webkit-details-marker{display:none}
+  .glossary summary::after{content:"+";float:right;font-size:14px;line-height:1}
+  .glossary[open] summary::after{content:"\2212"}
+  .glossary summary:hover{background:var(--panel)}
+  .glossary dl{margin:0;padding:2px 18px 4px;border-top:1px solid var(--hairline)}
+  .glossary dt{margin-top:14px;font-weight:500;font-size:13.5px;color:var(--ink)}
+  .glossary dd{margin:3px 0 0;font-size:12.5px;line-height:1.6;color:var(--muted)}
+  .glossary .gnote{margin:16px 18px 16px;padding-top:12px;border-top:1px solid var(--hairline);
+    font-size:12.5px;line-height:1.6;color:var(--muted)}
   .kpi em{display:block;margin-top:5px;font-style:normal;font-size:10.5px;letter-spacing:.04em;
     text-transform:none;color:var(--muted);line-height:1.3}
   .pblock{margin-bottom:4px}
@@ -180,10 +194,50 @@
       <div class="kpi"><b id="kAsk">–</b><span>Price enquiries</span></div>
       <div class="kpi"><b id="kBook">–</b><span>Booking clicks</span></div>
     </div>
-    <p class="note" style="margin-top:-6px">
-      <b>Total reach-outs</b> = chat button opens + price enquiries + booking clicks — every way a customer started a conversation.
-      <b>Chat button opens</b> counts the general "chat with us" buttons (floating button, Book-a-fitting section, and the showroom notice); the other two are tied to a specific piece.
-    </p>
+    <details class="glossary">
+      <summary>What do these numbers mean?</summary>
+      <dl>
+        <dt>Evening gowns viewed</dt>
+        <dd>How many times someone looked closely at a gown — opening its photo, plus flipping
+            through its colours. The small line on the card splits the two.</dd>
+
+        <dt>Men suits viewed</dt>
+        <dd>The same thing on the suits side.</dd>
+
+        <dt>Visits</dt>
+        <dd>How many times the website was opened. The same person opening it twice counts twice,
+            so read it as traffic, not as people.</dd>
+
+        <dt>Total reach-outs</dt>
+        <dd>Every time a customer started a conversation: chat button opens + price enquiries +
+            booking clicks. This is the number to watch — it's the closest thing to a lead.</dd>
+
+        <dt>Chat button opens</dt>
+        <dd>Taps on the general "chat with us" buttons — the floating WhatsApp button, the one in
+            the Book-a-fitting section, and the showroom notice. Not tied to any piece.</dd>
+
+        <dt>Price enquiries</dt>
+        <dd>Taps on "Ask price" inside a piece's photo popup. Always tied to a specific piece,
+            which is what makes it the strongest signal on the page.</dd>
+
+        <dt>Booking clicks</dt>
+        <dd>"Book a fitting" on a piece, or sending the booking form.</dd>
+
+        <dt>Most viewed pieces</dt>
+        <dd>What customers opened most in this date range. The coloured dots under each row show
+            which colours of that piece they actually looked at.</dd>
+
+        <dt>Most wanted colours</dt>
+        <dd>Colour popularity across the whole catalogue, not per piece.</dd>
+
+        <dt>Highest intent — price enquiries</dt>
+        <dd>Views against price enquiries for each piece. A high ask rate means people who see it
+            want it — worth restocking. Many views with no enquiries usually means the photo pulls
+            people in but the piece doesn't close.</dd>
+      </dl>
+      <p class="gnote"><b>Not counted:</b> scrolling past pieces, switching between the Gowns and
+         Suits tabs, and using the filters. Only deliberate actions are recorded.</p>
+    </details>
 
     <div class="split">
       <div class="card">
