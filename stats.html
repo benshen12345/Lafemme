@@ -91,6 +91,12 @@
   .pthumb-x{background:var(--panel)}
   .pcell{display:flex;align-items:center;gap:10px}
   .pcell .pthumb{width:30px;height:40px}
+  .kpi em{display:block;margin-top:5px;font-style:normal;font-size:10.5px;letter-spacing:.04em;
+    text-transform:none;color:var(--muted);line-height:1.3}
+  .pblock{margin-bottom:4px}
+  .cdots{display:flex;flex-wrap:wrap;gap:5px 10px;margin:-4px 0 12px 44px;font-size:11px;color:var(--muted)}
+  .cdot{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+  .cdot i{width:10px;height:10px;border-radius:50%;border:1px solid var(--hairline);display:inline-block}
   .ptype-cell{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold-deep);white-space:nowrap}
   .barrow .tr{flex:1;height:8px;background:var(--panel);position:relative}
   .barrow .tr i{position:absolute;inset:0 auto 0 0;background:var(--gold);display:block}
@@ -166,13 +172,18 @@
     </div>
 
     <div class="kpis">
-      <div class="kpi hi"><b id="kWomen">–</b><span>Evening gowns viewed</span></div>
-      <div class="kpi hi"><b id="kMen">–</b><span>Men suits viewed</span></div>
+      <div class="kpi hi"><b id="kWomen">–</b><span>Evening gowns viewed</span><em id="kWomenSub"></em></div>
+      <div class="kpi hi"><b id="kMen">–</b><span>Men suits viewed</span><em id="kMenSub"></em></div>
       <div class="kpi"><b id="kVisits">–</b><span>Visits</span></div>
-      <div class="kpi"><b id="kWa">–</b><span>WhatsApp chats</span></div>
+      <div class="kpi hi"><b id="kTotal">–</b><span>Total reach-outs</span></div>
+      <div class="kpi"><b id="kWa">–</b><span>Chat button opens</span></div>
       <div class="kpi"><b id="kAsk">–</b><span>Price enquiries</span></div>
       <div class="kpi"><b id="kBook">–</b><span>Booking clicks</span></div>
     </div>
+    <p class="note" style="margin-top:-6px">
+      <b>Total reach-outs</b> = chat button opens + price enquiries + booking clicks — every way a customer started a conversation.
+      <b>Chat button opens</b> counts the general "chat with us" buttons (floating button, Book-a-fitting section, and the showroom notice); the other two are tied to a specific piece.
+    </p>
 
     <div class="split">
       <div class="card">
@@ -346,9 +357,20 @@ async function loadDash() {
   ]);
   if (!o) return toast("Could not load stats");
 
-  $("kWomen").textContent  = o.women_views;   // gowns actually opened, not tab presses
-  $("kMen").textContent    = o.men_views;
+  /* A piece counts as "viewed" when someone opens it AND when they flip through its
+     colours — both mean the customer stopped to look. We show the total but keep the
+     split visible, so a bigger number never looks unexplained. women_colour/men_colour
+     only exist after the stats_overview update; before that these read as 0. */
+  const wOpen = Number(o.women_views) || 0, wCol = Number(o.women_colour) || 0;
+  const mOpen = Number(o.men_views)   || 0, mCol = Number(o.men_colour)   || 0;
+  const split = (a, b) => b ? `${a} opened · ${b} colour looks` : `${a} opened`;
+  $("kWomen").textContent    = wOpen + wCol;
+  $("kWomenSub").textContent = split(wOpen, wCol);
+  $("kMen").textContent      = mOpen + mCol;
+  $("kMenSub").textContent   = split(mOpen, mCol);
   $("kVisits").textContent = o.visits;
+  const wa = Number(o.wa_clicks) || 0, ap = Number(o.ask_price) || 0, bk = Number(o.book_clicks) || 0;
+  $("kTotal").textContent  = wa + ap + bk;
   $("kWa").textContent     = o.wa_clicks;
   $("kAsk").textContent    = o.ask_price;
   $("kBook").textContent   = o.book_clicks;
@@ -356,6 +378,7 @@ async function loadDash() {
   LAST.styles  = st || [];
   LAST.colours = co || [];
   if (!Object.keys(PIECES).length) await loadPieces();   // photos + style types, fetched once
+  await loadColourSplit(r);                              // which colour, on which piece
   renderTopStyles();
   renderColours();
   renderIntent();
@@ -371,6 +394,7 @@ function renderTopStyles(){
     ? styles.map(s => {
         const p = pieceOf(s), t = typeText(p);
         return `
+        <div class="pblock">
         <div class="barrow prow">
           ${thumbHtml(p, s.style_name)}
           <span class="nm">
@@ -379,6 +403,8 @@ function renderTopStyles(){
           </span>
           <span class="tr"><i style="width:${(Number(s.views) / max * 100).toFixed(1)}%"></i></span>
           <span class="vl">${s.views}</span>
+        </div>
+        ${colourDots(s)}
         </div>`;
       }).join("")
     : NODATA;
@@ -401,23 +427,57 @@ const CAT_LABELS = {
   oriental:"Oriental / 中装"
 };
 let PIECES = {};                                   // "name|gender" -> { img, cats, prefix }
+let PID = {};                                      // product id     -> "name|gender"
+let CSPLIT = {};                                   // "name|gender" -> { colour_family: count }
 const pkey = (name, gender) => (name || "").trim().toLowerCase() + "|" + (gender || "");
 
 async function loadPieces(){
   try {
     const { data, error } = await withTimeout(
-      sb.from("products").select("name, gender, prefix, category, variants"), 12000, "Pieces");
+      sb.from("products").select("id, name, gender, prefix, category, variants"), 12000, "Pieces");
     if (error || !data) return;
-    const map = {};
+    const map = {}, ids = {};
     data.forEach(p => {
       const k = pkey(p.name, p.gender);
+      ids[p.id] = k;
       const v0 = (p.variants || [])[0] || {};
       if (!map[k]) map[k] = { img: v0.img || "", cats: [], prefix: p.prefix || "" };
       (p.category || []).forEach(c => { if (!map[k].cats.includes(c)) map[k].cats.push(c); });
       if (!map[k].img && v0.img) map[k].img = v0.img;
     });
-    PIECES = map;
+    PIECES = map; PID = ids;
   } catch(e){ /* charts still work without photos */ }
+}
+
+/* Which colours people actually looked at, per piece.
+   stats_top_colours is a site-wide total ("pink is popular"); this answers the more
+   useful question — pink on WHICH piece. Read straight from events, since the colour
+   switch already records style_id + colour_family. */
+async function loadColourSplit(r){
+  CSPLIT = {};
+  try {
+    const { data, error } = await withTimeout(
+      sb.from("events").select("style_id, colour_family")
+        .eq("event_type", "colour_switch")
+        .gte("occurred_at", r.p_from).lt("occurred_at", r.p_to)
+        .limit(10000), 12000, "Colours");
+    if (error || !data) return;
+    data.forEach(e => {
+      const k = PID[e.style_id]; if (!k || !e.colour_family) return;
+      (CSPLIT[k] || (CSPLIT[k] = {}))[e.colour_family] =
+        (CSPLIT[k][e.colour_family] || 0) + 1;
+    });
+  } catch(e){ /* the bars still render without the colour split */ }
+}
+
+function colourDots(s){
+  const m = CSPLIT[pkey(s.style_name, s.gender)];
+  if (!m) return "";
+  const list = Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  if (!list.length) return "";
+  return `<div class="cdots">` + list.map(([f, n]) =>
+    `<span class="cdot" title="${esc(f)} — ${n}"><i style="background:${COLHEX[f] || COLHEX.other}"></i>${n}</span>`
+  ).join("") + `</div>`;
 }
 
 function pieceOf(s){ return PIECES[pkey(s.style_name, s.gender)] || null; }

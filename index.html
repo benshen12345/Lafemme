@@ -769,6 +769,7 @@
   </div>
   <nav id="mobileMenu" aria-label="Mobile">
     <a href="#collection">Collection</a>
+    <a href="#collection" id="menuFilter">Filters</a>
     <a href="#about">About</a>
     <a href="#visit">Visit</a>
     <a href="#booking">Book a Fitting</a>
@@ -2024,7 +2025,14 @@ document.addEventListener("keydown", e => {
 
 /* ---------- booking form → WhatsApp ---------- */
 refreshWaLinks();
-document.getElementById("waFab").addEventListener("click", () => track("wa_click"));
+/* Every generic "start a chat" entry point counts as one wa_click. They all land in
+   the same WhatsApp conversation, so counting them separately would understate how
+   many people actually reached out. Piece-specific buttons keep their own events
+   (ask_price / book_click). */
+["waFab", "waDirect", "menNoticeBtn"].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("click", () => track("wa_click"));
+});
 
 /* fitting-for note: shows which piece the fitting is for, with a × to clear it */
 /* ---------- fitting list (multi-select, saved in the browser via localStorage) ---------- */
@@ -2346,6 +2354,19 @@ mMenu.querySelectorAll("a").forEach(a=>a.addEventListener("click", ()=>{
   menuBtn.classList.remove("open");
   menuBtn.setAttribute("aria-expanded","false");
 }));
+
+/* "Filter" in the menu jumps to the collection AND opens the filter drawer, so the
+   customer doesn't have to land on Collection and then hunt for the filter button.
+   The wait lets the smooth scroll finish first, otherwise the drawer opens mid-scroll
+   and the page keeps moving underneath it. */
+const menuFilter = document.getElementById("menuFilter");
+if (menuFilter) menuFilter.addEventListener("click", () => {
+  setTimeout(() => {
+    if (typeof openFilters === "function" && filterPanel &&
+        getComputedStyle(filterToggle).display !== "none") openFilters();   // drawer exists on phones only
+    else if (filterPanel) filterPanel.scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "center" });
+  }, REDUCED ? 60 : 620);
+});
 
 /* smooth-scroll for in-page nav links, offset for the fixed header */
 document.querySelectorAll('a[href^="#"]').forEach(a=>{
