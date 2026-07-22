@@ -546,7 +546,10 @@
   .step p{font-size:14.5px;color:var(--muted)}
 
   /* ---------- about ---------- */
-  .about-wrap{max-width:720px;margin:0 auto;text-align:center}
+  .about-wrap{max-width:920px;margin:0 auto;text-align:center}
+  /* body paragraphs keep the readable 720px measure even though the container is wider,
+     so long lines don't run edge to edge while the title gets its full width */
+  .about-wrap p{color:var(--muted);margin-bottom:16px;max-width:720px;margin-left:auto;margin-right:auto}
   .h-script{
     font-family:var(--script);font-style:italic;font-weight:500;
     letter-spacing:.005em;
@@ -560,10 +563,13 @@
   .about-wrap h2{font-size:clamp(46px,6vw,78px);line-height:1.15;margin:18px 0 26px}
   /* kicker and the script title were sharing a line because one is inline and the other
      inline-block; force each onto its own row so the title sits under the label.
-     fit-content keeps the gold gradient wrapping the letters, not the whole row. */
+     The title needs more room than the 720px body column — at 66px it wants ~790px — so
+     it's allowed to be wider than its parent. margin:auto can't centre a child that's
+     wider than the parent, so an inline-block title centred by the parent's text-align
+     is used instead: that stays centred at any width. The body copy keeps the narrow
+     720px measure for readability. */
   .about-wrap .kicker{display:block}
-  .about-wrap .h-script{display:block;width:fit-content;margin-left:auto;margin-right:auto}
-  .about-wrap p{color:var(--muted);margin-bottom:16px}
+  .about-wrap .h-script{display:inline-block;white-space:nowrap;max-width:92vw}
   .portrait{
     position:relative;aspect-ratio:4/5;overflow:hidden;border:1px solid var(--hairline);
     background:
@@ -759,6 +765,8 @@
     .hero-bg{position:absolute}
   }
   @media (max-width:640px){
+    /* one line no longer fits on a phone — let the title wrap again */
+    .about-wrap .h-script{white-space:normal;max-width:100%}
     .links{display:none}
     #menuBtn{display:block}
     .nav{display:flex;justify-content:space-between;gap:10px}
