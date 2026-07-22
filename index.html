@@ -22,7 +22,14 @@
    crossfade never has to download mid-transition — this removes the switch lag */
 (function(){
   var sfx = window.matchMedia("(max-width:1024px)").matches ? "-sm" : "";
-  for (var i = 2; i <= 5; i++){ var im = new Image(); im.src = "images/hero-" + i + sfx + ".webp"; }
+  // hero-2..5 are only seen once the carousel advances, so downloading them up front
+  // just delays the first paint. Wait until the browser is idle (first paint is done),
+  // then prefetch them so the crossfade is still ready when it's needed.
+  var warm = function(){
+    for (var i = 2; i <= 5; i++){ var im = new Image(); im.src = "images/hero-" + i + sfx + ".webp"; }
+  };
+  if ("requestIdleCallback" in window) requestIdleCallback(warm, { timeout: 3000 });
+  else window.addEventListener("load", function(){ setTimeout(warm, 1200); });
 })();
 </script>
 <style>
@@ -731,8 +738,10 @@
   }
   /* 901-1100px (iPad Pro 12.9 portrait, small laptops): the five links still fit,
      but only with tighter gaps — at the roomy 60px spacing the bar needs ~1017px. */
-  @media (max-width:1100px){
-    .links{gap:26px}
+  @media (max-width:1150px){
+    /* six nav links now, so the tighter spacing has to kick in a little earlier —
+       at 60px gaps the bar needs ~1106px, at 26px only ~936px */
+    .links{gap:24px}
     .mono{height:34px}
     .wordmark{height:24px}
     .wrap.nav{padding-left:16px;padding-right:16px}
@@ -825,6 +834,7 @@
       <a href="#collection">Collection</a>
       <a href="#" id="navFilter">Filters</a>
       <a href="#about">About</a>
+      <a href="#faq">FAQ</a>
       <a href="#visit">Visit</a>
       <a href="#booking">Book a Fitting</a>
     </nav>
@@ -838,6 +848,7 @@
     <a href="#collection">Collection</a>
     <a href="#" id="menuFilter">Filters</a>
     <a href="#about">About</a>
+    <a href="#faq">FAQ</a>
     <a href="#visit">Visit</a>
     <a href="#booking">Book a Fitting</a>
     <button id="langBtnM" style="text-align:left;background:none;border:0;padding:12px 0;font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--hairline)">EN</button>
@@ -874,10 +885,10 @@
       <div class="reel" aria-hidden="true">
         <div class="reel-in" id="heroReel">
           <picture><source media="(max-width:1024px)" srcset="images/hero-1-sm.webp"><img src="images/hero-1.webp" alt="" style="--i:0" fetchpriority="high" decoding="async"></picture>
-          <picture><source media="(max-width:1024px)" srcset="images/hero-2-sm.webp"><img src="images/hero-2.webp" alt="" style="--i:1"></picture>
-          <picture><source media="(max-width:1024px)" srcset="images/hero-3-sm.webp"><img src="images/hero-3.webp" alt="" style="--i:2"></picture>
-          <picture><source media="(max-width:1024px)" srcset="images/hero-4-sm.webp"><img src="images/hero-4.webp" alt="" style="--i:3"></picture>
-          <picture><source media="(max-width:1024px)" srcset="images/hero-5-sm.webp"><img src="images/hero-5.webp" alt="" style="--i:4"></picture>
+          <picture><source media="(max-width:1024px)" srcset="images/hero-2-sm.webp"><img src="images/hero-2.webp" alt="" style="--i:1" loading="lazy" decoding="async"></picture>
+          <picture><source media="(max-width:1024px)" srcset="images/hero-3-sm.webp"><img src="images/hero-3.webp" alt="" style="--i:2" loading="lazy" decoding="async"></picture>
+          <picture><source media="(max-width:1024px)" srcset="images/hero-4-sm.webp"><img src="images/hero-4.webp" alt="" style="--i:3" loading="lazy" decoding="async"></picture>
+          <picture><source media="(max-width:1024px)" srcset="images/hero-5-sm.webp"><img src="images/hero-5.webp" alt="" style="--i:4" loading="lazy" decoding="async"></picture>
         </div>
       </div>
       </div>
@@ -1138,27 +1149,27 @@
       <h2 class="h-serif">Rental questions, answered</h2>
     </div>
     <div class="faq reveal">
-      <details>
+      <details data-q="rental period">
         <summary>How long is the rental period?</summary>
         <div class="a">The standard rental period is 4 days. If you need an extended period, an extension surcharge applies — message us on WhatsApp for the extension rates and details.</div>
       </details>
-      <details>
+      <details data-q="cost to rent">
         <summary>How much does it cost to rent?</summary>
         <div class="a">Rental prices start from RM300+ — each piece is priced by its design and detailing. Send us a piece code on WhatsApp for its exact rental price, or visit our showroom and we'll help you find your dream outfit.</div>
       </details>
-      <details>
+      <details data-q="fitting fee">
         <summary>Is there a fitting fee?</summary>
         <div class="a">Yes — RM10 per person, per hour. If you rent an outfit during your fitting appointment, the fitting fee is fully waived. Need extra fitting time? Just message us for the applicable charges.</div>
       </details>
-      <details>
+      <details data-q="deposit">
         <summary>Is there a deposit?</summary>
         <div class="a">Yes — a security deposit is collected when you pick up your outfit, and fully refunded once it's returned in good condition with no damage, permanent stains, or missing items. It secures your piece throughout the rental period.</div>
       </details>
-      <details>
+      <details data-q="cleaning and alterations">
         <summary>What about cleaning and alterations?</summary>
         <div class="a">Dry-cleaning is included — return the piece as-is and we handle the rest. Basic fit-pinning is done free in-studio; more complex alterations are quoted individually.</div>
       </details>
-      <details>
+      <details data-q="how early to book">
         <summary>How early should I book?</summary>
         <div class="a">As early as possible — our gowns are first come, first served. Most clients book around 3 months before their event to secure their preferred gown. Once you've found the one, we recommend confirming early to ensure it's available for your special day.</div>
       </details>
@@ -1252,8 +1263,8 @@ setTimeout(function(){
 }, 2800);
 </script>
 <script src="catalogue.js"></script>
-<script src="analytics.js"></script>
-<script src="vendor/supabase.js"></script>
+<script src="analytics.js" defer></script>
+<script src="vendor/supabase.js" defer></script>
 <script>
 /* =============================================================
    CONFIG — replace these before going live
@@ -1515,9 +1526,11 @@ function renderCatalogue(styles){
   const tilt = card.querySelector(".tilt");
   const dotsEls = card.querySelectorAll(".dot");
   let sliding = false, preloaded = false;
-  /* Pull the other colours down before they're needed. Touch used to be the only trigger,
-     so a mouse user clicking a dot — and the very first swipe — slid in a photo that was
-     still downloading. Any first sign of interest is enough. */
+  /* Pull the other colours down before they're needed — but only on the first sign of
+     interest (hover, touch, or the dots coming into reach), NOT the moment the card
+     loads. Preloading every card's extra colours up front floods a first-time visitor
+     with dozens of downloads and slows the first paint. The pointerenter/touchstart
+     handlers below call this, which is early enough for the swap to feel instant. */
   const preload = () => {
     if (preloaded || st.v.length < 2) return;
     preloaded = true;
@@ -1526,7 +1539,8 @@ function renderCatalogue(styles){
   /* The card's own photo is lazy-loaded, so this only fires once the card is near the
      viewport — which makes it the cheapest possible moment to fetch the other colours.
      By the time anyone swipes, they're already in cache. */
-  if (img.complete) preload(); else img.addEventListener("load", preload, { once: true });
+  /* the pointerenter / touchstart handlers below trigger preload — not the card's own
+     load event, so a fresh visitor isn't hit with every colour of every card at once */
   const showVariant = (j, doTrack, dir) => {
     if (dir && sliding) return;                          // ignore rapid input mid-slide
     const n = st.v.length;
@@ -2442,7 +2456,15 @@ async function loadCatalogue(){
   } catch (e) { /* network / library failure -> keep catalogue.js fallback */ }
   renderCatalogue(styles);
 }
+/* Render straightaway from the offline catalogue.js so the grid paints without waiting
+   for the deferred supabase library. Once supabase has loaded, run again to pull any
+   live changes — usually identical, since catalogue.js is rebuilt alongside, so the
+   refresh is invisible. If supabase is already present (cached), the second run is
+   immediate; if not, we wait for the window load event by which point defer is done. */
 loadCatalogue();
+if (typeof supabase === "undefined") {
+  window.addEventListener("load", () => { if (typeof supabase !== "undefined") loadCatalogue(); });
+}
 
 /* ---------- custom cover photos (Supabase Storage) ----------
    The reel ships with local images/hero-1..5 so the first paint is instant
@@ -2476,8 +2498,27 @@ if ("requestIdleCallback" in window) requestIdleCallback(loadHeroCovers, { timeo
 else setTimeout(loadHeroCovers, 1200);
 
 const loader = document.getElementById("loader");
-window.addEventListener("load", ()=> setTimeout(()=>loader.classList.add("done"), 1500));
-setTimeout(()=>loader.classList.add("done"), 2600); // hard cap
+/* Close the loader as soon as the FIRST hero image can be shown — not on window.load,
+   which waits for every image, font and script on the page and can take 5s+ on a slow
+   connection for a first-time visitor. A short floor keeps it from flashing; a hard cap
+   guarantees it never hangs even if that one image is very slow. */
+(function(){
+  const shownAt = Date.now();
+  const MIN = 500, CAP = 3000;
+  let done = false;
+  const reveal = () => {
+    if (done) return; done = true;
+    const wait = Math.max(0, MIN - (Date.now() - shownAt));
+    setTimeout(() => loader.classList.add("done"), wait);
+  };
+  const hero1 = document.querySelector(".reel picture img");
+  if (hero1 && hero1.complete && hero1.naturalWidth) reveal();          // already cached → instant
+  else if (hero1) {
+    hero1.addEventListener("load", reveal, { once: true });
+    hero1.addEventListener("error", reveal, { once: true });            // broken image shouldn't trap anyone
+  } else reveal();
+  setTimeout(reveal, CAP);                                              // hard cap
+})();
 
 /* ---------- mobile menu ---------- */
 const menuBtn = document.getElementById("menuBtn");
@@ -2507,6 +2548,14 @@ function openFiltersInPlace(){
   }
   openFilters();
 }
+/* which rental question a customer opens — recorded on expand only (not when they
+   collapse it), so a single open counts once. Reuses q, like the search event. */
+document.querySelectorAll("#faq details").forEach(d => {
+  d.addEventListener("toggle", () => {
+    if (d.open) track("faq_open", { q: d.getAttribute("data-q") || "" });
+  });
+});
+
 ["menuFilter", "navFilter"].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.addEventListener("click", e => { e.preventDefault(); openFiltersInPlace(); });
@@ -2558,7 +2607,7 @@ window.__appReady = true;   // tells the failsafe the page booted correctly
 /* ==================== i18n: full-site EN / 中文 toggle ==================== */
 const I18N = {
   /* nav / buttons / CTA */
-  "Collection":"礼服系列","About":"关于我们","Visit":"到店","Book a Fitting":"预约试穿","Menu":"菜单",
+  "Collection":"礼服系列","About":"关于我们","FAQ":"常见问题","Visit":"到店","Book a Fitting":"预约试穿","Menu":"菜单",
   "View Collection":"浏览系列","Add to fitting list":"加入试穿清单","Ask price on WhatsApp":"在 WhatsApp 询价",
   "Send via WhatsApp":"通过 WhatsApp 发送","Chat on WhatsApp":"用 WhatsApp 联系",
   "Open in Waze":"用 Waze 打开","Google Maps":"Google 地图",
