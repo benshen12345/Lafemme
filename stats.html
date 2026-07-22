@@ -74,6 +74,17 @@
   .kpi span{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
   .kpi.hi{border-top:2px solid var(--gold)}
 
+  /* sub-navigation inside the dashboard, so it reads as three short sections
+     instead of one long scroll */
+  .subtabs{display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--hairline);flex-wrap:wrap}
+  .subtab{background:none;border:0;border-bottom:2px solid transparent;padding:10px 4px;margin-right:14px;
+    font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);cursor:pointer;transition:.15s}
+  .subtab:hover{color:var(--ink)}
+  .subtab.active{color:var(--ink);border-bottom-color:var(--gold)}
+  .subhint{color:var(--muted);font-size:12.5px;line-height:1.6;margin-top:2px}
+  /* most-viewed needs the room; colours is a short list, so give it the narrow column */
+  .split-2-1{display:grid;grid-template-columns:1.7fr 1fr;gap:18px;margin-bottom:18px}
+  .showall{margin-top:14px}
   .split{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
   /* the three text panels (search / filters / FAQ) are short lists — three across saves
      a lot of vertical space vs stacking them full width. drops to 2 then 1 as it narrows */
@@ -149,6 +160,7 @@
   #toast.on{transform:translate(-50%,0)}
   /* 900 not 820: iPad Pro 11" portrait is 834px wide and was falling through */
   @media(max-width:1000px){ .trio{grid-template-columns:1fr 1fr} }
+  @media(max-width:820px){ .split-2-1{grid-template-columns:1fr} }
   @media(max-width:900px){ .split{grid-template-columns:1fr} .barrow .nm{width:110px} }
   @media(max-width:620px){ .trio{grid-template-columns:1fr} }
 </style>
@@ -215,6 +227,17 @@
       <div class="kpi"><b id="kAsk">–</b><span>Price enquiries</span></div>
       <div class="kpi"><b id="kBook">–</b><span>Booking clicks</span></div>
     </div>
+
+    <!-- sub-sections so the dashboard isn't one long scroll; all data loads at once,
+         these just switch what's shown -->
+    <div class="subtabs" role="tablist">
+      <button class="subtab active" data-sub="overview">Overview</button>
+      <button class="subtab" data-sub="pieces">Pieces</button>
+      <button class="subtab" data-sub="behaviour">What they wanted</button>
+    </div>
+
+    <!-- OVERVIEW: the numbers + what they mean -->
+    <div class="subpane" data-pane="overview">
     <details class="glossary">
       <summary>What do these numbers mean?</summary>
       <dl>
@@ -268,8 +291,12 @@
       <p class="gnote"><b>Not counted:</b> scrolling past pieces, switching between the Gowns and
          Suits tabs, and using the filters. Only deliberate actions are recorded.</p>
     </details>
+    <p class="subhint">The numbers above are for the selected date range. Use the <b>Pieces</b> and <b>What they wanted</b> tabs for the detail behind them.</p>
+    </div>
 
-    <div class="split">
+    <!-- PIECES: most-viewed (with colours beside it) + the intent table -->
+    <div class="subpane hide" data-pane="pieces">
+    <div class="split-2-1">
       <div class="card">
         <h3>Most viewed pieces</h3>
         <div id="topStyles"><p style="color:var(--muted);font-size:13px">No data yet.</p></div>
@@ -280,7 +307,7 @@
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:18px">
+    <div class="card">
       <h3>Highest intent — price enquiries</h3>
       <p style="color:var(--muted);font-size:13px;margin-bottom:14px">A piece that gets <b>viewed</b> a lot is pretty. A piece that gets <b>price-asked</b> a lot is sellable. Restock from this list.</p>
       <div class="intentbar">
@@ -296,8 +323,12 @@
         <thead><tr><th>Piece</th><th>Style</th><th>Side</th><th>Views</th><th>Price asks</th><th>Ask rate</th></tr></thead>
         <tbody id="intent"><tr><td colspan="6" style="color:var(--muted)">No data yet.</td></tr></tbody>
       </table>
+      <button class="btn btn-sm showall hide" id="intentMore">Show all</button>
+    </div>
     </div>
 
+    <!-- BEHAVIOUR: search / filters / FAQ -->
+    <div class="subpane hide" data-pane="behaviour">
     <div class="trio">
       <div class="card2">
         <h3>What people searched</h3>
@@ -316,6 +347,7 @@
         <p class="ph">Which FAQ questions customers expanded. A question opened a lot is a concern worth answering up front.</p>
         <div id="faqOpens">No data yet.</div>
       </div>
+    </div>
     </div>
   </section>
 
@@ -700,6 +732,7 @@ function renderColours(){
     : NODATA;
 }
 
+let intentExpanded = false;
 function renderIntent(){
   const q = ($("intentSearch").value || "").trim().toLowerCase();
   let rows = typeFilter(LAST.styles).filter(s => !q || (s.style_name || "").toLowerCase().includes(q));
@@ -713,8 +746,24 @@ function renderIntent(){
     return Number(b.asks) - Number(a.asks);
   });
   $("intentCount").textContent = rows.length + " piece" + (rows.length === 1 ? "" : "s");
-  $("intent").innerHTML = rows.length
-    ? rows.map(s => {
+
+  /* show the top 5 by default so the section stays short; the button reveals the rest.
+     While searching, show everything that matches — the point is to find a piece. */
+  const LIMIT = 5;
+  const searching = !!q;
+  const shown = (intentExpanded || searching) ? rows : rows.slice(0, LIMIT);
+  const more = $("intentMore");
+  if (more){
+    if (!searching && rows.length > LIMIT){
+      more.classList.remove("hide");
+      more.textContent = intentExpanded ? "Show less" : `Show all ${rows.length}`;
+    } else {
+      more.classList.add("hide");
+    }
+  }
+
+  $("intent").innerHTML = shown.length
+    ? shown.map(s => {
         const v = Number(s.views), a = Number(s.asks);
         const p = pieceOf(s), t = typeText(p);
         return `<tr>
@@ -738,6 +787,16 @@ document.querySelectorAll("#typeSeg .segbtn").forEach(b => b.addEventListener("c
 }));
 $("intentSearch").addEventListener("input", renderIntent);
 $("intentSort").addEventListener("change", () => { intentSort = $("intentSort").value; renderIntent(); });
+const intentMore = $("intentMore");
+if (intentMore) intentMore.addEventListener("click", () => { intentExpanded = !intentExpanded; renderIntent(); });
+
+/* sub-section switcher — all data is already loaded, this only toggles which pane shows */
+document.querySelectorAll(".subtab").forEach(t => t.addEventListener("click", () => {
+  document.querySelectorAll(".subtab").forEach(x => x.classList.remove("active"));
+  t.classList.add("active");
+  const pane = t.dataset.sub;
+  document.querySelectorAll(".subpane").forEach(p => p.classList.toggle("hide", p.dataset.pane !== pane));
+}));
 
 /* ---------- csv ---------- */
 $("csv").addEventListener("click", async () => {
