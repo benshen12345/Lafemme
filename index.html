@@ -754,6 +754,10 @@
        bar is also in the menu, including Filters and the language switch. */
     .links{display:none}
     #menuBtn{display:block}
+    /* the bar is a 3-column grid (logo · links · buttons); once the links are hidden the
+       empty middle column still holds 'auto' width and spreads logo and buttons apart.
+       Switch to flex so they sit at the two ends and the row reads straight. */
+    .nav{display:flex;justify-content:space-between;gap:10px}
     .grid{grid-template-columns:repeat(2,1fr);gap:26px 18px}
     .book-grid,.visit-grid{grid-template-columns:1fr;gap:44px}
     .book-side{margin-top:0}   /* stacked on mobile — no offset needed */
@@ -767,9 +771,6 @@
   @media (max-width:640px){
     /* one line no longer fits on a phone — let the title wrap again */
     .about-wrap .h-script{white-space:normal;max-width:100%}
-    .links{display:none}
-    #menuBtn{display:block}
-    .nav{display:flex;justify-content:space-between;gap:10px}
     .mono{height:34px}
     .wordmark{height:22px}
     .brand{gap:9px}
