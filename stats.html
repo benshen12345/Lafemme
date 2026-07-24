@@ -647,16 +647,20 @@ function colourDots(s){
 /* What customers typed, and which filters they tapped. Both read straight from events
    (search stores q; filter_use stores filter_key + filter_value), so no SQL is needed.
    Terms are grouped case-insensitively and counted. */
-let SEARCHES = [], FILTERS = {}, FAQS = [];
+let SEARCHES = [], FILTERS = {}, FAQS = [], BEHAV_ERR = "";
 async function loadSearchAndFilters(r){
-  SEARCHES = []; FILTERS = {}; FAQS = [];
+  SEARCHES = []; FILTERS = {}; FAQS = []; BEHAV_ERR = "";
   try {
     const { data, error } = await withTimeout(
       sb.from("events").select("event_type, q, filter_key, filter_value")
         .in("event_type", ["search", "filter_use", "faq_open"])
         .gte("occurred_at", r.p_from).lt("occurred_at", r.p_to)
         .limit(10000), 12000, "Searches");
-    if (error || !data) return;
+    /* an empty panel used to look identical whether the query returned nothing or failed
+       outright, so a permissions problem read as "no customers did this yet". Keep the
+       reason and show it. */
+    if (error){ BEHAV_ERR = error.message || "the query was refused"; return; }
+    if (!data){ BEHAV_ERR = "no response from the database"; return; }
     const terms = {}, faqs = {};
     data.forEach(e => {
       if (e.event_type === "search" && e.q) {
@@ -671,7 +675,14 @@ async function loadSearchAndFilters(r){
     });
     SEARCHES = Object.entries(terms).sort((a, b) => b[1] - a[1]);
     FAQS = Object.entries(faqs).sort((a, b) => b[1] - a[1]);
-  } catch(e){ /* the rest of the dashboard is unaffected */ }
+  } catch(e){ BEHAV_ERR = (e && e.message) || String(e); }
+}
+
+/* what an empty behaviour panel should say: nothing recorded yet, or couldn't read it */
+function behavEmpty(){
+  return BEHAV_ERR
+    ? `<p style="color:var(--bad);font-size:13px;line-height:1.6">Couldn't load this — ${esc(BEHAV_ERR)}.<br><span style="color:var(--muted)">The other panels use a different route to the database, so they can still work while this one doesn't.</span></p>`
+    : NODATA;
 }
 
 /* rental FAQ labels: the event stores a short slug, shown here as a readable question */
@@ -686,7 +697,7 @@ const FAQ_LABELS = {
 function renderFaqOpens(){
   const box = $("faqOpens");
   if (!box) return;
-  if (!FAQS.length){ box.innerHTML = NODATA; return; }
+  if (!FAQS.length){ box.innerHTML = behavEmpty(); return; }
   const max = FAQS[0][1];
   box.innerHTML = FAQS.map(([slug, n]) =>
     `<div class="termrow">
@@ -700,7 +711,7 @@ const FILTER_TITLES = { category: "Style", material: "Fabric", colour: "Colour",
 function renderSearchTerms(){
   const box = $("searchTerms");
   if (!box) return;
-  if (!SEARCHES.length){ box.innerHTML = NODATA; return; }
+  if (!SEARCHES.length){ box.innerHTML = behavEmpty(); return; }
   const max = SEARCHES[0][1];
   box.innerHTML = SEARCHES.slice(0, 40).map(([term, n]) =>
     `<div class="termrow">
@@ -713,7 +724,7 @@ function renderFilterUse(){
   const box = $("filterUse");
   if (!box) return;
   const groups = Object.keys(FILTERS);
-  if (!groups.length){ box.innerHTML = NODATA; return; }
+  if (!groups.length){ box.innerHTML = behavEmpty(); return; }
   const order = ["category", "material", "colour", "brand"];
   groups.sort((a, b) => order.indexOf(a) - order.indexOf(b));
   box.innerHTML = groups.map(key => {
