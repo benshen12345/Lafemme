@@ -162,7 +162,25 @@
   @media(max-width:1000px){ .trio{grid-template-columns:1fr 1fr} }
   @media(max-width:820px){ .split-2-1{grid-template-columns:1fr} }
   @media(max-width:900px){ .split{grid-template-columns:1fr} .barrow .nm{width:110px} }
-  @media(max-width:620px){ .trio{grid-template-columns:1fr} }
+  @media(max-width:620px){
+    .trio{grid-template-columns:1fr}
+    /* phone: two even KPI columns instead of auto-fit (which left a stumpy 2-wide row
+       and an orphan gap next to the odd card); tighter numbers and padding */
+    .kpis{grid-template-columns:1fr 1fr;gap:10px}
+    .kpi{padding:13px 13px}
+    .kpi b{font-size:23px}
+    .kpi span{font-size:10px;letter-spacing:.12em}
+    /* sub-tabs on ONE row — the wrap + big right-margin was dropping the 3rd tab to a
+       second line with the divider cutting through it. Even thirds, smaller text. */
+    .subtabs{flex-wrap:nowrap;gap:0;justify-content:space-between}
+    .subtab{margin-right:0;flex:1;text-align:center;font-size:10.5px;letter-spacing:.08em;padding:11px 2px}
+    /* the intent table has 6 columns — let it scroll sideways instead of crushing,
+       and pin a sensible min-width so columns stay legible */
+    .tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px}
+    .tablewrap table{min-width:540px}
+    table{font-size:12.5px}
+    th,td{padding:9px 8px}
+  }
 </style>
 </head>
 <body>
@@ -319,10 +337,12 @@
         </select>
         <span class="intentcount" id="intentCount"></span>
       </div>
+      <div class="tablewrap">
       <table>
         <thead><tr><th>Piece</th><th>Style</th><th>Side</th><th>Views</th><th>Price asks</th><th>Ask rate</th></tr></thead>
         <tbody id="intent"><tr><td colspan="6" style="color:var(--muted)">No data yet.</td></tr></tbody>
       </table>
+      </div>
       <button class="btn btn-sm showall hide" id="intentMore">Show all</button>
     </div>
     </div>
@@ -356,10 +376,12 @@
     <h2>Audit trail</h2>
     <div class="note"><b>Immutable.</b> Nobody — including admins — can edit or delete these records. Every sign-in, dashboard open, export, user change and data purge is written here permanently.</div>
     <div class="card">
+      <div class="tablewrap">
       <table>
         <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Target</th><th>Detail</th></tr></thead>
         <tbody id="auditRows"><tr><td colspan="5" style="color:var(--muted)">Loading…</td></tr></tbody>
       </table>
+      </div>
     </div>
   </section>
 
@@ -371,10 +393,12 @@
       To add someone: Supabase dashboard → Authentication → Users → Add user. They arrive here as <b>viewer</b>; promote them below. Every change is audited.
     </div>
     <div class="card">
+      <div class="tablewrap">
       <table>
         <thead><tr><th>Email</th><th>Role</th><th>Added</th><th></th></tr></thead>
         <tbody id="userRows"><tr><td colspan="4" style="color:var(--muted)">Loading…</td></tr></tbody>
       </table>
+      </div>
     </div>
   </section>
 

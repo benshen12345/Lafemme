@@ -194,6 +194,35 @@
     .row,.vgrid{grid-template-columns:1fr}
     .vgrid .thumb{max-width:160px}
   }
+  @media(max-width:600px){
+    /* the sticky header was eating a third of the screen: 6 pill tabs wrapped to three
+       rows. Compact pills fit in two, and the rest of the bar is tightened. */
+    .hd{padding:12px 0;gap:10px}
+    .brand{font-size:20px}
+    .brand small{font-size:8px;letter-spacing:.3em}
+    .tabs{gap:6px}
+    .tab{padding:7px 12px;font-size:10px;letter-spacing:.1em}
+    .who{font-size:10px}
+    /* two pieces per row instead of one — a 2:3 photo at full phone width made the
+       catalogue endless to scroll (185 pieces) */
+    .items{grid-template-columns:1fr 1fr;gap:12px}
+    .item .bd{padding:10px}
+    .item h3{font-size:16px}
+    .item .tg span{font-size:8px;padding:2px 6px}
+    .item .dots i{width:11px;height:11px}
+    .item .acts .btn{padding:7px 4px;font-size:9px}
+    /* same for the 5 cover slots */
+    .hero-slots{grid-template-columns:1fr 1fr;gap:12px}
+    .hero-slot .hs-bd{padding:9px}
+    .hero-slot .hs-actions .btn{padding:7px 4px;font-size:9px}
+    /* the audit card already had overflow-x, but a width:100% table just shrinks to
+       fit instead of overflowing — so it never scrolled, it only crushed. A min-width
+       makes it overflow properly and scroll sideways. */
+    .audit-table{min-width:620px}
+    section{padding:24px 0}
+    h2{font-size:25px}
+    .lede{font-size:14px;margin-bottom:20px}
+  }
 </style>
 </head>
 <body>
