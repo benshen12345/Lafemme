@@ -282,8 +282,12 @@
         <select id="iGender"><option value="f">Evening Gown</option><option value="m">Men Suit</option></select>
       </div>
       <div class="f">
-        <label for="iName">Name <span style="color:var(--bad)">*</span></label>
+        <label for="iName">Name <span id="nameReq" style="color:var(--bad)">*</span></label>
         <input type="text" id="iName" placeholder="e.g. Belinda" />
+        <small id="nameHint" class="hide" style="color:var(--muted);font-size:11.5px;line-height:1.5;margin-top:6px;display:block">
+          Optional for suits — leave it blank and one is filled in from the brand, style and fabric.
+          Customers never see a suit's name anyway; the card shows style · fabric.
+        </small>
       </div>
     </div>
     <div class="f" style="max-width:260px">
@@ -687,6 +691,53 @@ const labelOf = (list,k) => (list.find(x=>x[0]===k)||[null,k])[1];
 const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 /* ---------- variant rows ---------- */
+/* Every colour name already used in the catalogue, with the family and swatch it goes
+   with. Typing names by hand is how the catalogue ended up with "Charcoal" and
+   "Charcoal grey" as separate colours, and with three names sharing one swatch — so the
+   name is picked from this list instead, and picking it carries the family and hex along.
+   Where a name has been used inconsistently, the most common pairing wins. */
+function nameIndex(){
+  const seen = {};
+  PRODUCTS.forEach(p => (p.variants || []).forEach(v => {
+    const c = (v.c || "").trim();
+    if (!c) return;
+    const key = c.toLowerCase();
+    const e = seen[key] || (seen[key] = { label: c, pairs: {} });
+    const pk = (v.f || "") + "|" + (v.h || "");
+    e.pairs[pk] = (e.pairs[pk] || 0) + 1;
+  }));
+  return Object.values(seen).map(e => {
+    const best = Object.entries(e.pairs).sort((a, b) => b[1] - a[1])[0][0].split("|");
+    const uses = Object.values(e.pairs).reduce((a, b) => a + b, 0);
+    return { label: e.label, f: best[0], h: best[1], uses };
+  }).sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/* Fill one row's name picker, grouped by family so like colours sit together */
+function fillNamePicker(sel, current){
+  const idx = nameIndex();
+  const byFam = {};
+  idx.forEach(n => (byFam[n.f] || (byFam[n.f] = [])).push(n));
+  const famOrder = famOptions().map(f => f[0]).filter(k => byFam[k]);
+  let html = `<option value="">— pick a colour name —</option>`;
+  famOrder.forEach(k => {
+    html += `<optgroup label="${esc(famLabel(k))}">`
+      + byFam[k].map(n => `<option value="${esc(n.label)}" data-f="${esc(n.f)}" data-h="${esc(n.h)}">${esc(n.label)}${n.uses > 1 ? ` (${n.uses})` : ""}</option>`).join("")
+      + `</optgroup>`;
+  });
+  html += `<option value="__new">＋ Type a new name…</option>`;
+  sel.innerHTML = html;
+  if (current){
+    const hit = [...sel.options].find(o => o.value.toLowerCase() === current.toLowerCase());
+    if (hit) sel.value = hit.value;
+    else {
+      // a name not in the catalogue yet (or being edited) — keep it, don't silently drop it
+      sel.insertAdjacentHTML("afterbegin", `<option value="${esc(current)}" selected>${esc(current)}</option>`);
+      sel.value = current;
+    }
+  }
+}
+
 function addVarRow(v){
   v = v || {};
   const wrap = document.createElement("div");
@@ -701,7 +752,8 @@ function addVarRow(v){
       </div>
       <div class="f" style="margin:0">
         <label>Colour name (shown to customer)</label>
-        <input type="text" class="vlabel" value="${esc(v.c||"")}" placeholder="e.g. Baby Blue">
+        <select class="vname"></select>
+        <input type="text" class="vlabel hide" value="${esc(v.c||"")}" placeholder="e.g. Baby Blue" style="margin-top:8px">
       </div>
       <div class="f" style="margin:0">
         <label>Swatch</label>
@@ -716,9 +768,27 @@ function addVarRow(v){
   wrap.dataset.img = v.img || "";
   wrap.dataset.hi  = v.hi  || "";
   const fam = wrap.querySelector(".vfam"), hex = wrap.querySelector(".vhex"), lbl = wrap.querySelector(".vlabel");
+  const pick = wrap.querySelector(".vname");
+  fillNamePicker(pick, v.c || "");
+  /* picking an existing name pulls its family and swatch with it — that's what keeps
+     the same colour looking like the same colour everywhere */
+  pick.addEventListener("change", () => {
+    if (pick.value === "__new"){
+      lbl.classList.remove("hide");
+      lbl.value = "";
+      lbl.focus();
+      return;
+    }
+    lbl.classList.add("hide");
+    const o = pick.selectedOptions[0];
+    if (o && o.dataset.f){
+      fam.value = o.dataset.f;
+      if (o.dataset.h) hex.value = o.dataset.h;
+    }
+  });
   fam.addEventListener("change", () => {
     hex.value = famHex(fam.value);
-    if (!lbl.value.trim()) lbl.value = famLabel(fam.value).split(" ")[0];
+    if (pick.value === "__new" && !lbl.value.trim()) lbl.value = famLabel(fam.value).split(" ")[0];
   });
   const file = wrap.querySelector(".vfile"), thumb = wrap.querySelector(".thumb");
   file.addEventListener("change", () => {
@@ -733,6 +803,16 @@ function addVarRow(v){
 $("addVar").addEventListener("click", () => addVarRow());
 
 /* ---------- form reset / edit ---------- */
+/* the name is only compulsory for gowns — suits get one generated, so the asterisk
+   and the hint follow whichever type is selected */
+function syncNameHint(){
+  const men = $("iGender").value === "m";
+  $("nameReq").classList.toggle("hide", men);
+  $("nameHint").classList.toggle("hide", !men);
+  $("iName").placeholder = men ? "Leave blank to fill in automatically" : "e.g. Belinda";
+}
+$("iGender").addEventListener("change", syncNameHint);
+
 function resetForm(){
   editId = null; editAddedAt = null;
   $("formTitle").textContent = "Add a new piece";
@@ -741,6 +821,7 @@ function resetForm(){
   $("vars").innerHTML = ""; addVarRow();
   $("delBtn").classList.add("hide");
   $("saveBtn").textContent = "Save piece";
+  syncNameHint();
 }
 $("cancelBtn").addEventListener("click", () => { resetForm(); show("list"); });
 
@@ -755,6 +836,7 @@ window.editPiece = function(id){
   (p.variants && p.variants.length ? p.variants : [{}]).forEach(addVarRow);
   $("delBtn").classList.remove("hide");
   $("saveBtn").textContent = "Save changes";
+  syncNameHint();
   show("add");
   window.scrollTo(0,0);
 };
@@ -1057,13 +1139,38 @@ function wireHeroReset(btn, n){
 
 /* ---------- save ---------- */
 $("saveBtn").addEventListener("click", save);
+
+/* Suits mostly arrive without a model name, and the public site never prints one for
+   them anyway (see v67 — suit cards show "style · fabric"). Forcing a made-up name was
+   busywork. When it's left blank we build one from what was actually filled in, adding a
+   number only if that combination is taken. It never reaches a customer; it exists so the
+   admin list, the search box and the stats dashboard can still tell two suits apart —
+   the dashboard groups by name, so blank names would collapse every suit into one row. */
+function autoName(prefix, cats, mats){
+  const bits = [];
+  if (prefix) bits.push(prefix);
+  if (cats && cats[0]) bits.push(labelOf(CATEGORIES, cats[0]));
+  if (mats && mats[0]) bits.push(labelOf(MATERIALS, mats[0]));
+  if (bits.length < 2) bits.push("Suit");
+  const base = bits.join(" ");
+  const taken = new Set(PRODUCTS.filter(p => p.id !== editId).map(p => (p.name || "").trim().toLowerCase()));
+  if (!taken.has(base.toLowerCase())) return base;
+  let i = 2;
+  while (taken.has((base + " " + i).toLowerCase())) i++;
+  return base + " " + i;
+}
+
 async function save(){
-  const name = $("iName").value.trim();
-  if (!name) return toast("Please enter a name", true);
+  let name = $("iName").value.trim();
   const gender = $("iGender").value;
   const prefix = $("iPrefix").value.trim().toUpperCase();
   const category = [...document.querySelectorAll("#iCats input:checked")].map(c => c.value);
   const material = [...document.querySelectorAll("#iMats input:checked")].map(c => c.value);
+  if (!name){
+    // gowns print their name on the card, so that one still has to be filled in
+    if (gender !== "m") return toast("Please enter a name", true);
+    name = autoName(prefix, category, material);
+  }
   if (gender === "f" && category.length === 0) return toast("Pick at least one style tag", true);
   const rows = [...document.querySelectorAll("#vars .var")];
   if (!rows.length) return toast("Add at least one colour", true);
@@ -1075,7 +1182,11 @@ async function save(){
     for (let i = 0; i < rows.length; i++){
       const row = rows[i];
       const fam = row.querySelector(".vfam").value;
-      const label = row.querySelector(".vlabel").value.trim() || famLabel(fam).split(" ")[0];
+      /* the name comes from the picker; the text box only applies when "type a new
+         name" was chosen (or the picker was left empty) */
+      const picked = row.querySelector(".vname").value;
+      const typed = row.querySelector(".vlabel").value.trim();
+      const label = (picked && picked !== "__new" ? picked : typed) || famLabel(fam).split(" ")[0];
       const hex = row.querySelector(".vhex").value;
       const fileInput = row.querySelector(".vfile");
       let img = row.dataset.img || "", hi = row.dataset.hi || "";
@@ -1086,7 +1197,10 @@ async function save(){
         img = up.img; hi = up.hi;
       }
       if (!img){ busy(false); $("saveBtn").disabled = false; return toast(`Colour ${i+1} needs a photo`, true); }
-      variants.push({ c: label, d: "", f: fam, h: hex, ref: (prefix ? prefix + " " : "") + name + " " + label, img, hi });
+      /* the reference is what the customer pastes into WhatsApp, so keep it clean —
+         a generated suit name already starts with the brand, don't print it twice */
+      const refBase = (prefix && !name.toUpperCase().startsWith(prefix + " ")) ? prefix + " " + name : name;
+      variants.push({ c: label, d: "", f: fam, h: hex, ref: refBase + " " + label, img, hi });
     }
     const types = [...new Set([...category, ...material])];
     const rec = { id, gender, prefix, name, types, category, material, variants, added_at: editAddedAt || today() };
