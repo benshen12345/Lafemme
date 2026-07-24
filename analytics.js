@@ -29,15 +29,8 @@
   let queue = [];
   let timer = null;
 
-  function flush() {
-    if (!queue.length) return;
-    const body = JSON.stringify(queue);
-    queue = [];
-    clearTimeout(timer); timer = null;
-
-    // fetch with keepalive survives page unload AND can send the auth headers
-    // (sendBeacon cannot set headers, so its requests were being rejected)
-    fetch(ENDPOINT, {
+  function post(rows, canSplit) {
+    return fetch(ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -45,9 +38,34 @@
         "Authorization": "Bearer " + SUPABASE_ANON_KEY,
         "Prefer": "return=minimal"
       },
-      body,
+      body: JSON.stringify(rows),
       keepalive: true
-    }).catch(() => {});                        // analytics must never break the site
+    }).then(function (res) {
+      /* A batch is one INSERT: if a single row is malformed the server rejects all of
+         them, and the rest of that batch is lost with it. That actually happened — a
+         tracked field had no matching column, so every batch containing a search event
+         was discarded along with the seven other events beside it.
+
+         On a 4xx the server definitely stored nothing, so it's safe to split the batch
+         and retry each half; the bad row ends up alone and only it is lost. Network
+         failures are NOT retried — the insert may have succeeded before the connection
+         dropped, and retrying would duplicate. */
+      if (!res.ok && canSplit && res.status >= 400 && res.status < 500 && rows.length > 1) {
+        var mid = Math.ceil(rows.length / 2);
+        post(rows.slice(0, mid), true);
+        post(rows.slice(mid), true);
+      }
+    }).catch(function () {});   // analytics must never break the site
+  }
+
+  function flush() {
+    if (!queue.length) return;
+    var rows = queue;
+    queue = [];
+    clearTimeout(timer); timer = null;
+    // fetch with keepalive survives page unload AND can send the auth headers
+    // (sendBeacon cannot set headers, so its requests were being rejected)
+    post(rows, true);
   }
 
   window.__track = function (event_type, data) {
