@@ -260,6 +260,7 @@
   <p class="lede">Everything on the website right now. Edits and new pieces save straight to the site — no uploading needed. Give it a few seconds and refresh the site to see changes.</p>
   <div class="bar">
     <select id="fGender"><option value="all">All pieces</option><option value="f">Evening gowns</option><option value="m">Men suits</option></select>
+    <select id="fStyle"><option value="all">All styles</option></select>
     <select id="fColour"><option value="all">All colours</option></select>
     <input type="text" id="fSearch" placeholder="Search name, colour, style…" style="min-width:180px" />
     <button class="btn btn-sm" id="reloadBtn">Reload</button>
@@ -590,11 +591,13 @@ async function loadList(){
   if (error){ toast("Couldn't load: " + error.message, true); return; }
   PRODUCTS = data || [];
   fillColourFilter();
+  fillStyleFilter();
   renderList();
 }
 $("reloadBtn").addEventListener("click", loadList);
 $("fGender").addEventListener("change", renderList);
 $("fColour").addEventListener("change", renderList);
+$("fStyle").addEventListener("change", renderList);
 $("fSearch").addEventListener("input", renderList);
 
 /* the colour dropdown only lists families actually used by the current pieces */
@@ -609,6 +612,23 @@ function fillColourFilter(){
   sel.value = [...sel.options].some(o => o.value === keep) ? keep : "all";
 }
 
+/* Same idea for styles, plus one extra entry: "needs a style check" gathers the pieces
+   carrying exactly one tag. During the original bulk import anything whose shape wasn't
+   obvious was defaulted to a single tag, so that group is really "nobody has confirmed
+   this yet" — this is how you find them without scrolling the whole catalogue. */
+function fillStyleFilter(){
+  const sel = $("fStyle"); if (!sel) return;
+  const keep = sel.value || "all";
+  const used = new Set();
+  PRODUCTS.forEach(p => (p.category || []).forEach(c => used.add(c)));
+  const opts = catOptions().filter(c => used.has(c[0]));   // catOptions includes Nee's custom styles
+  sel.innerHTML = `<option value="all">All styles</option>`
+    + `<option value="__single">⚑ Needs a style check (only 1 tag)</option>`
+    + `<option value="__none">⚑ No style tag at all</option>`
+    + opts.map(c => `<option value="${esc(c[0])}">${esc(c[1])}</option>`).join("");
+  sel.value = [...sel.options].some(o => o.value === keep) ? keep : "all";
+}
+
 /* everything a search box should be able to match on a piece */
 function haystack(p){
   const vars = (p.variants || []).map(v => `${v.c || ""} ${v.d || ""} ${v.f || ""} ${v.ref || ""}`).join(" ");
@@ -620,10 +640,17 @@ function haystack(p){
 function renderList(){
   const g = $("fGender").value, q = $("fSearch").value.trim().toLowerCase();
   const col = $("fColour") ? $("fColour").value : "all";
+  const sty = $("fStyle") ? $("fStyle").value : "all";
   const toks = q ? q.split(/\s+/) : [];
   let rows = PRODUCTS.filter(p => {
     if (g !== "all" && p.gender !== g) return false;
     if (col !== "all" && !(p.variants || []).some(v => v.f === col)) return false;
+    if (sty !== "all"){
+      const cats = p.category || [];
+      if (sty === "__single"){ if (cats.length !== 1) return false; }
+      else if (sty === "__none"){ if (cats.length !== 0) return false; }
+      else if (!cats.includes(sty)) return false;
+    }
     if (toks.length){ const h = haystack(p); if (!toks.every(t => h.includes(t))) return false; }
     return true;
   });
