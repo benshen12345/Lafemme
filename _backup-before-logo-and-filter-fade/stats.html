@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="preconnect" href="https://djrnozqgrkpbxoaebaeo.supabase.co" crossorigin />
+<link rel="dns-prefetch" href="https://djrnozqgrkpbxoaebaeo.supabase.co" />
+<!-- preload the self-hosted supabase lib so login is ready fast on slow devices (parallel download during HTML parse) -->
+<link rel="preload" as="script" href="vendor/supabase.js" />
+<meta name="robots" content="noindex, nofollow" />
+<title>LaFemme — Insights</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500&family=Jost:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ivory:#FAF7F2; --ink:#1C1A17; --muted:#6E675C; --gold:#C6A15B; --gold-deep:#A9833F;
+    --hairline:#E6DFD3; --panel:#F3EEE5; --ok:#3E7C56; --bad:#B14A3C;
+    --serif:'Cormorant Garamond',Georgia,serif; --sans:'Jost','Segoe UI',Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ivory);color:var(--ink);font-family:var(--sans);font-weight:300;font-size:15px;line-height:1.6}
+  button,input,select{font-family:inherit;font-size:15px}
+  button{cursor:pointer}
+  :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 24px}
+  .hide{display:none !important}
+
+  header{border-bottom:1px solid var(--hairline);background:#fff;position:sticky;top:0;z-index:10}
+  .hd{display:flex;align-items:center;gap:16px;padding:16px 0;flex-wrap:wrap}
+  .brand{font-family:var(--serif);font-size:22px}
+  .brand small{display:block;font-family:var(--sans);font-size:9px;letter-spacing:.36em;text-transform:uppercase;color:var(--gold-deep)}
+  .who{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:13px;color:var(--muted)}
+  .pill{border:1px solid var(--gold);border-radius:999px;padding:3px 12px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold-deep)}
+  .tabs{display:flex;gap:8px;padding-bottom:12px;flex-wrap:wrap}
+  .tab{background:none;border:1px solid var(--hairline);border-radius:999px;padding:7px 16px;
+    font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  .tab.active{background:var(--ink);border-color:var(--ink);color:var(--ivory)}
+
+  .btn{border:1px solid var(--ink);background:transparent;color:var(--ink);padding:10px 20px;
+    font-size:11px;letter-spacing:.18em;text-transform:uppercase;transition:.2s}
+  .btn:hover{background:var(--ink);color:var(--ivory)}
+  .btn-gold{background:var(--gold);border-color:var(--gold);color:#fff}
+  .btn-sm{padding:6px 12px;font-size:10px}
+  .btn-bad{border-color:var(--bad);color:var(--bad)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+
+  /* login */
+  #login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .box{background:#fff;border:1px solid var(--hairline);padding:40px;max-width:380px;width:100%}
+  .box h1{font-family:var(--serif);font-size:30px;font-weight:500;margin-bottom:4px}
+  .box p{color:var(--muted);font-size:14px;margin-bottom:24px}
+  .f{margin-bottom:16px}
+  .f label{display:block;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+  .f input,.f select{width:100%;border:1px solid var(--hairline);padding:11px 12px;background:#fff}
+  .f input:focus{border-color:var(--gold);outline:none}
+  .err{color:var(--bad);font-size:13px;margin-top:10px;min-height:18px}
+
+  section{padding:26px 0 60px}
+  h2{font-family:var(--serif);font-size:26px;font-weight:500;margin-bottom:16px}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:22px}
+  .bar input[type=date]{border:1px solid var(--hairline);padding:9px 11px;background:#fff}
+  .seg{display:inline-flex;border:1px solid var(--hairline);border-radius:999px;overflow:hidden;background:#fff}
+  .segbtn{border:0;background:none;padding:8px 16px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);cursor:pointer;transition:.2s}
+  .segbtn.active{background:var(--ink);color:var(--ivory)}
+  .intentbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .intentbar input[type=text],.intentbar select{border:1px solid var(--hairline);padding:9px 11px;background:#fff;font-size:13px}
+  .intentbar input[type=text]{flex:1;min-width:150px}
+  .intentcount{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-left:auto}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:22px}
+  .kpi{background:#fff;border:1px solid var(--hairline);padding:15px 16px}
+  .kpi b{display:block;font-family:var(--serif);font-size:27px;font-weight:500;line-height:1.1}
+  .kpi span{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+  .kpi.hi{border-top:2px solid var(--gold)}
+
+  /* sub-navigation inside the dashboard, so it reads as three short sections
+     instead of one long scroll */
+  .subtabs{display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--hairline);flex-wrap:wrap}
+  .subtab{background:none;border:0;border-bottom:2px solid transparent;padding:10px 4px;margin-right:14px;
+    font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);cursor:pointer;transition:.15s}
+  .subtab:hover{color:var(--ink)}
+  .subtab.active{color:var(--ink);border-bottom-color:var(--gold)}
+  .subhint{color:var(--muted);font-size:12.5px;line-height:1.6;margin-top:2px}
+  /* most-viewed needs the room; colours is a short list, so give it the narrow column */
+  .split-2-1{display:grid;grid-template-columns:1.7fr 1fr;gap:18px;margin-bottom:18px}
+  .showall{margin-top:14px}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+  /* the three text panels (search / filters / FAQ) are short lists — three across saves
+     a lot of vertical space vs stacking them full width. drops to 2 then 1 as it narrows */
+  .trio{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:18px}
+  .card2{background:#fff;border:1px solid var(--hairline);padding:20px}
+  .card2 h3{font-family:var(--serif);font-size:18px;font-weight:500;margin-bottom:4px}
+  .card2 .ph{color:var(--muted);font-size:12px;line-height:1.5;margin-bottom:14px}
+  /* keep the three panels a similar height — long lists scroll inside instead of
+     stretching one column way past the others */
+  .trio .card2 > div:last-child{max-height:340px;overflow-y:auto}
+  .trio .termrow{font-size:12.5px;margin-bottom:6px}
+  .trio .termn{width:120px}
+  .card{background:#fff;border:1px solid var(--hairline);padding:22px}
+  .card h3{font-family:var(--serif);font-size:20px;font-weight:500;margin-bottom:14px}
+
+  .barrow{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:13.5px}
+  .barrow .nm{width:150px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* rows that carry a photo + style type */
+  .prow{margin-bottom:12px}
+  .prow .nm{display:flex;flex-direction:column;gap:2px;line-height:1.25}
+  .prow .nm b{font-weight:500;overflow:hidden;text-overflow:ellipsis}
+  .prow .nm .ptype{font-style:normal;font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--gold-deep);overflow:hidden;text-overflow:ellipsis}
+  .pthumb{width:34px;height:45px;flex:none;object-fit:cover;background:var(--panel);
+    border:1px solid var(--hairline);display:block}
+  .pthumb-x{background:var(--panel)}
+  .pcell{display:flex;align-items:center;gap:10px}
+  .pcell .pthumb{width:30px;height:40px}
+  /* collapsible glossary — the dashboard should explain itself instead of
+     relying on anyone remembering what each number counts */
+  .glossary{margin:-2px 0 26px;border:1px solid var(--hairline);background:#fff}
+  .glossary summary{cursor:pointer;padding:13px 18px;font-size:11px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--gold-deep);list-style:none;user-select:none}
+  .glossary summary::-webkit-details-marker{display:none}
+  .glossary summary::after{content:"+";float:right;font-size:14px;line-height:1}
+  .glossary[open] summary::after{content:"\2212"}
+  .glossary summary:hover{background:var(--panel)}
+  .glossary dl{margin:0;padding:2px 18px 4px;border-top:1px solid var(--hairline)}
+  .glossary dt{margin-top:14px;font-weight:500;font-size:13.5px;color:var(--ink)}
+  .glossary dd{margin:3px 0 0;font-size:12.5px;line-height:1.6;color:var(--muted)}
+  .glossary .gnote{margin:16px 18px 16px;padding-top:12px;border-top:1px solid var(--hairline);
+    font-size:12.5px;line-height:1.6;color:var(--muted)}
+  .kpi em{display:block;margin-top:5px;font-style:normal;font-size:10.5px;letter-spacing:.04em;
+    text-transform:none;color:var(--muted);line-height:1.3}
+  .pblock{margin-bottom:4px}
+  .termrow{display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:13px}
+  .termn{width:150px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:7px}
+  .termbar{flex:1;height:7px;background:var(--panel);border-radius:4px;overflow:hidden}
+  .termbar i{display:block;height:100%;background:var(--gold)}
+  .termc{width:32px;flex:none;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+  .fgroup{margin-bottom:20px}
+  .fgroup-h{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-deep);margin-bottom:10px}
+  .fdot{width:11px;height:11px;border-radius:50%;border:1px solid var(--hairline);flex:none;display:inline-block}
+  .cdots{display:flex;flex-wrap:wrap;gap:5px 10px;margin:-4px 0 12px 44px;font-size:11px;color:var(--muted)}
+  .cdot{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+  .cdot i{width:10px;height:10px;border-radius:50%;border:1px solid var(--hairline);display:inline-block}
+  .ptype-cell{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold-deep);white-space:nowrap}
+  .barrow .tr{flex:1;height:8px;background:var(--panel);position:relative}
+  .barrow .tr i{position:absolute;inset:0 auto 0 0;background:var(--gold);display:block}
+  .barrow .vl{width:74px;text-align:right;flex:none;color:var(--muted);font-size:12px}
+  .dot{width:12px;height:12px;border-radius:50%;flex:none;border:1px solid var(--hairline)}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:9px 8px;border-bottom:1px solid var(--hairline)}
+  td{padding:9px 8px;border-bottom:1px solid var(--hairline);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--panel);padding:1px 5px}
+
+  .note{background:var(--panel);border-left:2px solid var(--gold);padding:13px 15px;font-size:13px;color:var(--muted);margin-bottom:20px}
+  .note b{color:var(--ink);font-weight:500}
+  #toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,90px);background:var(--ink);color:var(--ivory);
+    padding:12px 22px;font-size:13px;z-index:60;transition:transform .3s}
+  #toast.on{transform:translate(-50%,0)}
+  /* 900 not 820: iPad Pro 11" portrait is 834px wide and was falling through */
+  @media(max-width:1000px){ .trio{grid-template-columns:1fr 1fr} }
+  @media(max-width:820px){ .split-2-1{grid-template-columns:1fr} }
+  @media(max-width:900px){ .split{grid-template-columns:1fr} .barrow .nm{width:110px} }
+  @media(max-width:620px){
+    .trio{grid-template-columns:1fr}
+    /* phone: two even KPI columns instead of auto-fit (which left a stumpy 2-wide row
+       and an orphan gap next to the odd card); tighter numbers and padding */
+    .kpis{grid-template-columns:1fr 1fr;gap:10px}
+    .kpi{padding:13px 13px}
+    .kpi b{font-size:23px}
+    .kpi span{font-size:10px;letter-spacing:.12em}
+    /* sub-tabs on ONE row — the wrap + big right-margin was dropping the 3rd tab to a
+       second line with the divider cutting through it. Even thirds, smaller text. */
+    .subtabs{flex-wrap:nowrap;gap:0;justify-content:space-between}
+    .subtab{margin-right:0;flex:1;text-align:center;font-size:10.5px;letter-spacing:.08em;padding:11px 2px}
+    /* the intent table has 6 columns — let it scroll sideways instead of crushing,
+       and pin a sensible min-width so columns stay legible */
+    .tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px}
+    .tablewrap table{min-width:540px}
+    table{font-size:12.5px}
+    th,td{padding:9px 8px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="login">
+  <div class="box">
+    <h1>LaFemme</h1>
+    <p>Insights — staff access only.</p>
+    <div class="f"><label for="em">Email</label><input type="email" id="em" autocomplete="username" /></div>
+    <div class="f"><label for="pw">Password</label><input type="password" id="pw" autocomplete="current-password" /></div>
+    <button class="btn btn-gold" id="signin" style="width:100%">Sign in</button>
+    <div class="err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app" class="hide">
+  <header>
+    <div class="wrap">
+      <div class="hd">
+        <div class="brand">LaFemme <small>Insights</small></div>
+        <div class="who">
+          <span id="uEmail"></span>
+          <span class="pill" id="uRole"></span>
+          <button class="btn btn-sm" id="signout">Sign out</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab active" data-v="dash">Dashboard</button>
+        <button class="tab" data-v="audit">Audit trail</button>
+        <button class="tab admin-only hide" data-v="users">Users</button>
+        <button class="tab admin-only hide" data-v="admin">Data</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- DASHBOARD -->
+  <section id="vDash" class="wrap">
+    <div class="bar">
+      <label style="font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)">From</label>
+      <input type="date" id="dFrom" />
+      <label style="font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)">To</label>
+      <input type="date" id="dTo" />
+      <button class="btn btn-sm" id="apply">Apply</button>
+      <button class="btn btn-sm" id="q7">Last 7 days</button>
+      <button class="btn btn-sm" id="q30">Last 30 days</button>
+      <div class="seg" id="typeSeg" role="group" aria-label="Filter by type">
+        <button class="segbtn active" data-type="all">All</button>
+        <button class="segbtn" data-type="f">Gowns</button>
+        <button class="segbtn" data-type="m">Suits</button>
+      </div>
+      <button class="btn btn-sm" id="csv" style="margin-left:auto">Export CSV</button>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi hi"><b id="kWomen">–</b><span>Evening gowns viewed</span><em id="kWomenSub"></em></div>
+      <div class="kpi hi"><b id="kMen">–</b><span>Men suits viewed</span><em id="kMenSub"></em></div>
+      <div class="kpi"><b id="kVisits">–</b><span>Visits</span></div>
+      <div class="kpi hi"><b id="kTotal">–</b><span>Total reach-outs</span></div>
+      <div class="kpi"><b id="kWa">–</b><span>Chat button opens</span></div>
+      <div class="kpi"><b id="kAsk">–</b><span>Price enquiries</span></div>
+      <div class="kpi"><b id="kBook">–</b><span>Booking clicks</span></div>
+    </div>
+
+    <!-- sub-sections so the dashboard isn't one long scroll; all data loads at once,
+         these just switch what's shown -->
+    <div class="subtabs" role="tablist">
+      <button class="subtab active" data-sub="overview">Overview</button>
+      <button class="subtab" data-sub="pieces">Pieces</button>
+      <button class="subtab" data-sub="behaviour">What they wanted</button>
+    </div>
+
+    <!-- OVERVIEW: the numbers + what they mean -->
+    <div class="subpane" data-pane="overview">
+    <details class="glossary">
+      <summary>What do these numbers mean?</summary>
+      <dl>
+        <dt>Evening gowns viewed</dt>
+        <dd>How many times someone looked closely at a gown — opening its photo, plus flipping
+            through its colours. The small line on the card splits the two.</dd>
+
+        <dt>Men suits viewed</dt>
+        <dd>The same thing on the suits side.</dd>
+
+        <dt>Visits</dt>
+        <dd>How many times the website was opened. The same person opening it twice counts twice,
+            so read it as traffic, not as people.</dd>
+
+        <dt>Total reach-outs</dt>
+        <dd>Every time a customer started a conversation: chat button opens + price enquiries +
+            booking clicks. This is the number to watch — it's the closest thing to a lead.</dd>
+
+        <dt>Chat button opens</dt>
+        <dd>Taps on the general "chat with us" buttons — the floating WhatsApp button, the one in
+            the Book-a-fitting section, and the showroom notice. Not tied to any piece.</dd>
+
+        <dt>Price enquiries</dt>
+        <dd>Taps on "Ask price" inside a piece's photo popup. Always tied to a specific piece,
+            which is what makes it the strongest signal on the page.</dd>
+
+        <dt>Booking clicks</dt>
+        <dd>"Book a fitting" on a piece, or sending the booking form.</dd>
+
+        <dt>Most viewed pieces</dt>
+        <dd>What customers opened most in this date range. The coloured dots under each row show
+            which colours of that piece they actually looked at.</dd>
+
+        <dt>Most wanted colours</dt>
+        <dd>Colour popularity across the whole catalogue, not per piece.</dd>
+
+        <dt>What people searched</dt>
+        <dd>The exact words customers typed into the search box, most frequent first. A word that keeps coming up for something you don't carry is a demand signal.</dd>
+
+        <dt>Which filters they used</dt>
+        <dd>Which colours, styles, fabrics and brands customers tapped in the filter panel — what they were actively looking for.</dd>
+
+        <dt>Rental questions opened</dt>
+        <dd>Which rental FAQ questions customers expanded — deposit, fitting fee, cleaning, and so on. Heavy interest in one question tells you what's on people's minds before they book.</dd>
+
+        <dt>Highest intent — price enquiries</dt>
+        <dd>Views against price enquiries for each piece. A high ask rate means people who see it
+            want it — worth restocking. Many views with no enquiries usually means the photo pulls
+            people in but the piece doesn't close.</dd>
+      </dl>
+      <p class="gnote"><b>Not counted:</b> scrolling past pieces, switching between the Gowns and
+         Suits tabs, and using the filters. Only deliberate actions are recorded.</p>
+    </details>
+    <p class="subhint">The numbers above are for the selected date range. Use the <b>Pieces</b> and <b>What they wanted</b> tabs for the detail behind them.</p>
+    </div>
+
+    <!-- PIECES: most-viewed (with colours beside it) + the intent table -->
+    <div class="subpane hide" data-pane="pieces">
+    <div class="split-2-1">
+      <div class="card">
+        <h3>Most viewed pieces</h3>
+        <div id="topStyles"><p style="color:var(--muted);font-size:13px">No data yet.</p></div>
+      </div>
+      <div class="card">
+        <h3>Most wanted colours</h3>
+        <div id="topColours"><p style="color:var(--muted);font-size:13px">No data yet.</p></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Highest intent — price enquiries</h3>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:14px">A piece that gets <b>viewed</b> a lot is pretty. A piece that gets <b>price-asked</b> a lot is sellable. Restock from this list.</p>
+      <div class="intentbar">
+        <input type="text" id="intentSearch" placeholder="Search a piece…" />
+        <select id="intentSort">
+          <option value="asks">Sort: most price asks</option>
+          <option value="views">Sort: most viewed</option>
+          <option value="rate">Sort: best ask rate</option>
+        </select>
+        <span class="intentcount" id="intentCount"></span>
+      </div>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th>Piece</th><th>Style</th><th>Side</th><th>Views</th><th>Price asks</th><th>Ask rate</th></tr></thead>
+        <tbody id="intent"><tr><td colspan="6" style="color:var(--muted)">No data yet.</td></tr></tbody>
+      </table>
+      </div>
+      <button class="btn btn-sm showall hide" id="intentMore">Show all</button>
+    </div>
+    </div>
+
+    <!-- BEHAVIOUR: search / filters / FAQ -->
+    <div class="subpane hide" data-pane="behaviour">
+    <div class="trio">
+      <div class="card2">
+        <h3>What people searched</h3>
+        <p class="ph">The words customers typed into the search box. Repeated searches for something you don't stock are a shopping list.</p>
+        <div id="searchTerms">No data yet.</div>
+      </div>
+
+      <div class="card2">
+        <h3>Which filters they used</h3>
+        <p class="ph">Every filter a customer tapped — colours, styles, fabrics and brands they were looking for.</p>
+        <div id="filterUse">No data yet.</div>
+      </div>
+
+      <div class="card2">
+        <h3>Rental questions opened</h3>
+        <p class="ph">Which FAQ questions customers expanded. A question opened a lot is a concern worth answering up front.</p>
+        <div id="faqOpens">No data yet.</div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <!-- AUDIT -->
+  <section id="vAudit" class="wrap hide">
+    <h2>Audit trail</h2>
+    <div class="note"><b>Immutable.</b> Nobody — including admins — can edit or delete these records. Every sign-in, dashboard open, export, user change and data purge is written here permanently.</div>
+    <div class="card">
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Target</th><th>Detail</th></tr></thead>
+        <tbody id="auditRows"><tr><td colspan="5" style="color:var(--muted)">Loading…</td></tr></tbody>
+      </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- USERS (admin) -->
+  <section id="vUsers" class="wrap hide">
+    <h2>Users &amp; roles</h2>
+    <div class="note">
+      <b>admin</b> — read, change roles, purge data. &nbsp;·&nbsp; <b>viewer</b> — read only.<br />
+      To add someone: Supabase dashboard → Authentication → Users → Add user. They arrive here as <b>viewer</b>; promote them below. Every change is audited.
+    </div>
+    <div class="card">
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th>Email</th><th>Role</th><th>Added</th><th></th></tr></thead>
+        <tbody id="userRows"><tr><td colspan="4" style="color:var(--muted)">Loading…</td></tr></tbody>
+      </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADMIN DATA -->
+  <section id="vAdmin" class="wrap hide">
+    <h2>Data</h2>
+    <div class="note"><b>Purge is permanent.</b> It deletes analytics events older than the date you choose. The deletion itself is written to the audit trail (who, when, how many rows).</div>
+    <div class="card" style="max-width:460px">
+      <div class="f"><label for="purgeBefore">Delete events recorded before</label><input type="date" id="purgeBefore" /></div>
+      <button class="btn btn-bad" id="purge">Purge events</button>
+    </div>
+  </section>
+</div>
+
+<div id="toast"></div>
+
+<script src="vendor/supabase.js"></script>
+<script>
+/* ===================================================================
+   CONFIG — same project as analytics.js
+   =================================================================== */
+const SUPABASE_URL      = "https://djrnozqgrkpbxoaebaeo.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqcm5venFncmtwYnhvYWViYWVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5MjI5ODcsImV4cCI6MjA5OTQ5ODk4N30.GRak9yFiaknsX5WVxQ_Zue70k5m-zOrpXcb2vBut5tA";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false,
+    /* pass-through lock: some browsers deadlock on navigator.locks and auth calls hang forever */
+    lock: async (_n, _t, fn) => await fn()
+  }
+});
+const $  = id => document.getElementById(id);
+const toast = m => { const t = $("toast"); t.textContent = m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"), 2600); };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+let ME = null;   // { email, role }
+function withTimeout(p, ms, label){ return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error((label || "Request") + " timed out — check your internet and try again")), ms))]); }
+function logAction(action, detail){ try { Promise.resolve(sb.rpc("log_action", { p_action: action, p_detail: detail || {} })).catch(()=>{}); } catch(e){} }
+
+/* ---------- auth ---------- */
+$("signin").addEventListener("click", async () => {
+  const err = $("loginErr"); err.textContent = "Signing in…";
+  try {
+    const { data, error } = await withTimeout(sb.auth.signInWithPassword({ email: $("em").value.trim(), password: $("pw").value }), 15000, "Sign-in");
+    if (error){ err.textContent = error.message; return; }
+    await boot(data && data.user);
+  } catch(e){ err.textContent = (e && e.message) ? e.message : "Sign-in failed"; }
+});
+$("pw").addEventListener("keydown", e => { if (e.key === "Enter") $("signin").click(); });
+$("signout").addEventListener("click", async () => {
+  logAction("logout");
+  try { await sb.auth.signOut(); } catch(e){}
+  location.reload();
+});
+
+async function boot(user) {
+  const err = $("loginErr");
+  try {
+    if (!user){ const r = await withTimeout(sb.auth.getUser(), 12000, "Session"); user = r.data && r.data.user; }
+    if (!user){ err.textContent = "No session — please try signing in again."; return; }
+    const { data: prof, error } = await withTimeout(sb.from("profiles").select("email, role").eq("id", user.id).maybeSingle(), 12000, "Profile check");
+    if (error) { err.textContent = "Couldn't verify access: " + error.message; return; }
+    if (!prof) { err.textContent = "No profile found — ask an admin to set you up."; return; }
+    ME = prof;
+
+    $("login").classList.add("hide");
+    $("app").classList.remove("hide");
+    $("uEmail").textContent = prof.email;
+    $("uRole").textContent  = prof.role;
+    document.querySelectorAll(".admin-only").forEach(el => el.classList.toggle("hide", prof.role !== "admin"));
+
+    logAction("login");
+    logAction("dashboard_open");
+
+    const to = new Date(), from = new Date(Date.now() - 29 * 864e5);
+    $("dFrom").value = iso(from); $("dTo").value = iso(to);
+    $("purgeBefore").value = iso(new Date(Date.now() - 365 * 864e5));
+    await loadDash();
+  } catch(e){ err.textContent = (e && e.message) ? e.message : "Login error"; }
+}
+const iso = d => d.toISOString().slice(0, 10);
+
+/* ---------- views ---------- */
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", async () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+  t.classList.add("active");
+  const v = t.dataset.v;
+  ["Dash","Audit","Users","Admin"].forEach(n => $("v" + n).classList.toggle("hide", n.toLowerCase() !== v));
+  if (v === "audit") loadAudit();
+  if (v === "users") loadUsers();
+}));
+
+/* ---------- dashboard ---------- */
+$("apply").addEventListener("click", loadDash);
+$("q7").addEventListener("click",  () => { $("dFrom").value = iso(new Date(Date.now() - 6 * 864e5));  $("dTo").value = iso(new Date()); loadDash(); });
+$("q30").addEventListener("click", () => { $("dFrom").value = iso(new Date(Date.now() - 29 * 864e5)); $("dTo").value = iso(new Date()); loadDash(); });
+
+function range() {
+  const f = new Date($("dFrom").value + "T00:00:00");
+  const t = new Date($("dTo").value   + "T00:00:00"); t.setDate(t.getDate() + 1);   // inclusive
+  return { p_from: f.toISOString(), p_to: t.toISOString() };
+}
+
+let LAST = { styles: [], colours: [] };
+let dashType = "all", intentSort = "asks";
+
+async function loadDash() {
+  const r = range();
+  logAction("date_range_change", r);
+
+  const [{ data: o }, { data: st }, { data: co }] = await Promise.all([
+    sb.rpc("stats_overview",    r),
+    sb.rpc("stats_top_styles",  { ...r, p_limit: 15 }),
+    sb.rpc("stats_top_colours", { ...r, p_limit: 12 })
+  ]);
+  if (!o) return toast("Could not load stats");
+
+  /* A piece counts as "viewed" when someone opens it AND when they flip through its
+     colours — both mean the customer stopped to look. We show the total but keep the
+     split visible, so a bigger number never looks unexplained. women_colour/men_colour
+     only exist after the stats_overview update; before that these read as 0. */
+  const wOpen = Number(o.women_views) || 0, wCol = Number(o.women_colour) || 0;
+  const mOpen = Number(o.men_views)   || 0, mCol = Number(o.men_colour)   || 0;
+  const split = (a, b) => b ? `${a} opened · ${b} colour looks` : `${a} opened`;
+  $("kWomen").textContent    = wOpen + wCol;
+  $("kWomenSub").textContent = split(wOpen, wCol);
+  $("kMen").textContent      = mOpen + mCol;
+  $("kMenSub").textContent   = split(mOpen, mCol);
+  $("kVisits").textContent = o.visits;
+  const wa = Number(o.wa_clicks) || 0, ap = Number(o.ask_price) || 0, bk = Number(o.book_clicks) || 0;
+  $("kTotal").textContent  = wa + ap + bk;
+  $("kWa").textContent     = o.wa_clicks;
+  $("kAsk").textContent    = o.ask_price;
+  $("kBook").textContent   = o.book_clicks;
+
+  LAST.styles  = st || [];
+  LAST.colours = co || [];
+  if (!Object.keys(PIECES).length) await loadPieces();   // photos + style types, fetched once
+  await loadColourSplit(r);                              // which colour, on which piece
+  await loadSearchAndFilters(r);                         // search words + filter taps
+  renderTopStyles();
+  renderColours();
+  renderIntent();
+  renderSearchTerms();
+  renderFilterUse();
+  renderFaqOpens();
+}
+
+const NODATA = `<p style="color:var(--muted);font-size:13px">No data yet.</p>`;
+function typeFilter(arr){ return dashType === "all" ? (arr || []) : (arr || []).filter(s => (s.gender || "f") === dashType); }
+
+function renderTopStyles(){
+  const styles = typeFilter(LAST.styles);
+  const max = Math.max(1, ...styles.map(s => Number(s.views)));
+  $("topStyles").innerHTML = styles.length
+    ? styles.map(s => {
+        const p = pieceOf(s), t = typeText(p);
+        return `
+        <div class="pblock">
+        <div class="barrow prow">
+          ${thumbHtml(p, s.style_name)}
+          <span class="nm">
+            <b title="${esc(s.style_name)}">${esc(s.style_name)}</b>
+            <i class="ptype">${t ? esc(t) : (s.gender === "m" ? "Men suit" : "Evening gown")}</i>
+          </span>
+          <span class="tr"><i style="width:${(Number(s.views) / max * 100).toFixed(1)}%"></i></span>
+          <span class="vl">${s.views}</span>
+        </div>
+        ${colourDots(s)}
+        </div>`;
+      }).join("")
+    : NODATA;
+}
+
+const COLHEX = { black:"#2A2724", grey:"#5F6165", white:"#F2EDE2", navy:"#28324A", blue:"#A7BED3",
+  green:"#8CA07E", pink:"#E7C3BC", red:"#8C3242", purple:"#6B5586", gold:"#C6A15B",
+  beige:"#C0996B", silver:"#C9CBCE", yellow:"#E4CE86", other:"#BDB6AA" };
+
+/* ---------- piece lookup: photo + style type for the charts ----------
+   stats_top_styles() aggregates by name, so we match the same way (name + gender).
+   Seven names are shared by more than one piece; those rows are already merged by
+   the RPC, so we show one representative photo and the union of their style types. */
+const CAT_LABELS = {
+  fitted:"Fitted", mermaid:"Mermaid", aline:"A-Line", ballgown:"Ballgown", flare:"Flare",
+  tube:"Tube", corset:"Corset", cape:"Cape", sleeves:"Sleeves", halter:"Halter",
+  offshoulder:"Off-Shoulder", oneshoulder:"One-Shoulder", vneck:"V-Neck", slit:"Slit",
+  ruffle:"Ruffle", overskirt:"Overskirt", short:"Short", midi:"Midi",
+  twopiece:"Two-Piece", threepiece:"Three-Piece", doublebreasted:"Double-Breasted",
+  oriental:"Oriental / 中装"
+};
+let PIECES = {};                                   // "name|gender" -> { img, cats, prefix }
+let PID = {};                                      // product id     -> "name|gender"
+let CSPLIT = {};                                   // "name|gender" -> { colour_family: count }
+const pkey = (name, gender) => (name || "").trim().toLowerCase() + "|" + (gender || "");
+
+async function loadPieces(){
+  try {
+    const { data, error } = await withTimeout(
+      sb.from("products").select("id, name, gender, prefix, category, variants"), 12000, "Pieces");
+    if (error || !data) return;
+    const map = {}, ids = {};
+    data.forEach(p => {
+      const k = pkey(p.name, p.gender);
+      ids[p.id] = k;
+      const v0 = (p.variants || [])[0] || {};
+      if (!map[k]) map[k] = { img: v0.img || "", cats: [], prefix: p.prefix || "" };
+      (p.category || []).forEach(c => { if (!map[k].cats.includes(c)) map[k].cats.push(c); });
+      if (!map[k].img && v0.img) map[k].img = v0.img;
+    });
+    PIECES = map; PID = ids;
+  } catch(e){ /* charts still work without photos */ }
+}
+
+/* Which colours people actually looked at, per piece.
+   stats_top_colours is a site-wide total ("pink is popular"); this answers the more
+   useful question — pink on WHICH piece. Read straight from events, since the colour
+   switch already records style_id + colour_family. */
+async function loadColourSplit(r){
+  CSPLIT = {};
+  try {
+    const { data, error } = await withTimeout(
+      sb.from("events").select("style_id, colour_family")
+        .eq("event_type", "colour_switch")
+        .gte("occurred_at", r.p_from).lt("occurred_at", r.p_to)
+        .limit(10000), 12000, "Colours");
+    if (error || !data) return;
+    data.forEach(e => {
+      const k = PID[e.style_id]; if (!k || !e.colour_family) return;
+      (CSPLIT[k] || (CSPLIT[k] = {}))[e.colour_family] =
+        (CSPLIT[k][e.colour_family] || 0) + 1;
+    });
+  } catch(e){ /* the bars still render without the colour split */ }
+}
+
+function colourDots(s){
+  const m = CSPLIT[pkey(s.style_name, s.gender)];
+  if (!m) return "";
+  const list = Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  if (!list.length) return "";
+  return `<div class="cdots">` + list.map(([f, n]) =>
+    `<span class="cdot" title="${esc(f)} — ${n}"><i style="background:${COLHEX[f] || COLHEX.other}"></i>${n}</span>`
+  ).join("") + `</div>`;
+}
+
+/* What customers typed, and which filters they tapped. Both read straight from events
+   (search stores q; filter_use stores filter_key + filter_value), so no SQL is needed.
+   Terms are grouped case-insensitively and counted. */
+let SEARCHES = [], FILTERS = {}, FAQS = [], BEHAV_ERR = "";
+async function loadSearchAndFilters(r){
+  SEARCHES = []; FILTERS = {}; FAQS = []; BEHAV_ERR = "";
+  try {
+    const { data, error } = await withTimeout(
+      sb.from("events").select("event_type, q, filter_key, filter_value")
+        .in("event_type", ["search", "filter_use", "faq_open"])
+        .gte("occurred_at", r.p_from).lt("occurred_at", r.p_to)
+        .limit(10000), 12000, "Searches");
+    /* an empty panel used to look identical whether the query returned nothing or failed
+       outright, so a permissions problem read as "no customers did this yet". Keep the
+       reason and show it. */
+    if (error){ BEHAV_ERR = error.message || "the query was refused"; return; }
+    if (!data){ BEHAV_ERR = "no response from the database"; return; }
+    const terms = {}, faqs = {};
+    data.forEach(e => {
+      if (e.event_type === "search" && e.q) {
+        const key = e.q.trim().toLowerCase();
+        if (key) terms[key] = (terms[key] || 0) + 1;
+      } else if (e.event_type === "faq_open" && e.q) {
+        faqs[e.q] = (faqs[e.q] || 0) + 1;
+      } else if (e.event_type === "filter_use" && e.filter_key && e.filter_value && e.filter_value !== "all") {
+        (FILTERS[e.filter_key] || (FILTERS[e.filter_key] = {}))[e.filter_value] =
+          (FILTERS[e.filter_key][e.filter_value] || 0) + 1;
+      }
+    });
+    SEARCHES = Object.entries(terms).sort((a, b) => b[1] - a[1]);
+    FAQS = Object.entries(faqs).sort((a, b) => b[1] - a[1]);
+  } catch(e){ BEHAV_ERR = (e && e.message) || String(e); }
+}
+
+/* what an empty behaviour panel should say: nothing recorded yet, or couldn't read it */
+function behavEmpty(){
+  return BEHAV_ERR
+    ? `<p style="color:var(--bad);font-size:13px;line-height:1.6">Couldn't load this — ${esc(BEHAV_ERR)}.<br><span style="color:var(--muted)">The other panels use a different route to the database, so they can still work while this one doesn't.</span></p>`
+    : NODATA;
+}
+
+/* rental FAQ labels: the event stores a short slug, shown here as a readable question */
+const FAQ_LABELS = {
+  "rental period": "How long is the rental period?",
+  "cost to rent": "How much does it cost to rent?",
+  "fitting fee": "Is there a fitting fee?",
+  "deposit": "Is there a deposit?",
+  "cleaning and alterations": "What about cleaning and alterations?",
+  "how early to book": "How early should I book?"
+};
+function renderFaqOpens(){
+  const box = $("faqOpens");
+  if (!box) return;
+  if (!FAQS.length){ box.innerHTML = behavEmpty(); return; }
+  const max = FAQS[0][1];
+  box.innerHTML = FAQS.map(([slug, n]) =>
+    `<div class="termrow">
+       <span class="termn" title="${esc(FAQ_LABELS[slug] || slug)}">${esc(FAQ_LABELS[slug] || slug)}</span>
+       <span class="termbar"><i style="width:${(n / max * 100).toFixed(1)}%"></i></span>
+       <span class="termc">${n}</span>
+     </div>`).join("");
+}
+
+const FILTER_TITLES = { category: "Style", material: "Fabric", colour: "Colour", brand: "Brand" };
+function renderSearchTerms(){
+  const box = $("searchTerms");
+  if (!box) return;
+  if (!SEARCHES.length){ box.innerHTML = behavEmpty(); return; }
+  const max = SEARCHES[0][1];
+  box.innerHTML = SEARCHES.slice(0, 40).map(([term, n]) =>
+    `<div class="termrow">
+       <span class="termn">${esc(term)}</span>
+       <span class="termbar"><i style="width:${(n / max * 100).toFixed(1)}%"></i></span>
+       <span class="termc">${n}</span>
+     </div>`).join("");
+}
+function renderFilterUse(){
+  const box = $("filterUse");
+  if (!box) return;
+  const groups = Object.keys(FILTERS);
+  if (!groups.length){ box.innerHTML = behavEmpty(); return; }
+  const order = ["category", "material", "colour", "brand"];
+  groups.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  box.innerHTML = groups.map(key => {
+    const items = Object.entries(FILTERS[key]).sort((a, b) => b[1] - a[1]);
+    const max = items[0][1];
+    return `<div class="fgroup">
+      <div class="fgroup-h">${FILTER_TITLES[key] || key}</div>
+      ${items.map(([val, n]) => {
+        const dot = key === "colour" ? `<i class="fdot" style="background:${COLHEX[val] || COLHEX.other}"></i>` : "";
+        return `<div class="termrow">
+          <span class="termn">${dot}${esc(val)}</span>
+          <span class="termbar"><i style="width:${(n / max * 100).toFixed(1)}%"></i></span>
+          <span class="termc">${n}</span>
+        </div>`;
+      }).join("")}
+    </div>`;
+  }).join("");
+}
+
+function pieceOf(s){ return PIECES[pkey(s.style_name, s.gender)] || null; }
+function typeText(p){
+  if (!p || !p.cats.length) return "";
+  return p.cats.slice(0, 2).map(c => CAT_LABELS[c] || c).join(" · ");
+}
+function thumbHtml(p, name){
+  return p && p.img
+    ? `<img class="pthumb" src="${esc(p.img)}" alt="" loading="lazy">`
+    : `<span class="pthumb pthumb-x" aria-hidden="true"></span>`;
+}
+function renderColours(){
+  const cmax = Math.max(1, ...LAST.colours.map(c => Number(c.hits)));
+  $("topColours").innerHTML = LAST.colours.length
+    ? LAST.colours.map(c => `
+        <div class="barrow">
+          <span class="dot" style="background:${COLHEX[c.colour_family] || "#ccc"}"></span>
+          <span class="nm" style="width:90px">${esc(c.colour_family)}</span>
+          <span class="tr"><i style="width:${(Number(c.hits) / cmax * 100).toFixed(1)}%"></i></span>
+          <span class="vl">${c.hits}</span>
+        </div>`).join("")
+    : NODATA;
+}
+
+let intentExpanded = false;
+function renderIntent(){
+  const q = ($("intentSearch").value || "").trim().toLowerCase();
+  let rows = typeFilter(LAST.styles).filter(s => !q || (s.style_name || "").toLowerCase().includes(q));
+  rows = rows.slice().sort((a, b) => {
+    if (intentSort === "views") return Number(b.views) - Number(a.views);
+    if (intentSort === "rate"){
+      const ra = Number(a.views) ? Number(a.asks) / Number(a.views) : 0;
+      const rb = Number(b.views) ? Number(b.asks) / Number(b.views) : 0;
+      return rb - ra;
+    }
+    return Number(b.asks) - Number(a.asks);
+  });
+  $("intentCount").textContent = rows.length + " piece" + (rows.length === 1 ? "" : "s");
+
+  /* show the top 5 by default so the section stays short; the button reveals the rest.
+     While searching, show everything that matches — the point is to find a piece. */
+  const LIMIT = 5;
+  const searching = !!q;
+  const shown = (intentExpanded || searching) ? rows : rows.slice(0, LIMIT);
+  const more = $("intentMore");
+  if (more){
+    if (!searching && rows.length > LIMIT){
+      more.classList.remove("hide");
+      more.textContent = intentExpanded ? "Show less" : `Show all ${rows.length}`;
+    } else {
+      more.classList.add("hide");
+    }
+  }
+
+  $("intent").innerHTML = shown.length
+    ? shown.map(s => {
+        const v = Number(s.views), a = Number(s.asks);
+        const p = pieceOf(s), t = typeText(p);
+        return `<tr>
+          <td class="pcell">${thumbHtml(p, s.style_name)}<span>${esc(s.style_name)}</span></td>
+          <td class="ptype-cell">${t ? esc(t) : "—"}</td>
+          <td>${s.gender === "m" ? "Men" : "Women"}</td>
+          <td>${v}</td>
+          <td><b>${a}</b></td>
+          <td>${v ? (a / v * 100).toFixed(0) + "%" : "–"}</td>
+        </tr>`;
+      }).join("")
+    : `<tr><td colspan="6" style="color:var(--muted)">No data yet.</td></tr>`;
+}
+
+/* dashboard filter controls (client-side, no refetch) */
+document.querySelectorAll("#typeSeg .segbtn").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll("#typeSeg .segbtn").forEach(x => x.classList.remove("active"));
+  b.classList.add("active");
+  dashType = b.dataset.type;
+  renderTopStyles(); renderIntent();
+}));
+$("intentSearch").addEventListener("input", renderIntent);
+$("intentSort").addEventListener("change", () => { intentSort = $("intentSort").value; renderIntent(); });
+const intentMore = $("intentMore");
+if (intentMore) intentMore.addEventListener("click", () => { intentExpanded = !intentExpanded; renderIntent(); });
+
+/* sub-section switcher — all data is already loaded, this only toggles which pane shows */
+document.querySelectorAll(".subtab").forEach(t => t.addEventListener("click", () => {
+  document.querySelectorAll(".subtab").forEach(x => x.classList.remove("active"));
+  t.classList.add("active");
+  const pane = t.dataset.sub;
+  document.querySelectorAll(".subpane").forEach(p => p.classList.toggle("hide", p.dataset.pane !== pane));
+}));
+
+/* ---------- csv ---------- */
+$("csv").addEventListener("click", async () => {
+  logAction("export_csv", range());
+  const lines = ["piece,side,views,price_asks"];
+  LAST.styles.forEach(s => lines.push(`"${s.style_name}",${s.gender === "m" ? "men" : "women"},${s.views},${s.asks}`));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+  a.download = `lafemme-insights-${$("dFrom").value}_${$("dTo").value}.csv`;
+  a.click();
+  toast("Exported — recorded in the audit trail");
+});
+
+/* ---------- audit ---------- */
+const ACTION_LABEL = {
+  login:"Signed in", logout:"Signed out",
+  portal_open:"Opened the catalogue editor", dashboard_open:"Opened the stats dashboard",
+  add:"Added a piece", edit:"Edited a piece", delete:"Deleted a piece",
+  cover_update:"Replaced a cover photo", cover_reset:"Reset a cover photo",
+  catalogue_export:"Exported the catalogue", export_csv:"Exported analytics CSV",
+  date_range_change:"Changed the date range", profile_update:"Changed a user's access",
+  purge:"Purged old analytics"
+};
+function actionText(a){ return ACTION_LABEL[a] || String(a || "").replace(/_/g," "); }
+function detailText(r){
+  const a = r.action, d = r.detail || r.after || {};
+  if (a === "add" || a === "edit" || a === "delete") return d.id ? ("Piece: " + d.id) : "";
+  if (a === "cover_update" || a === "cover_reset") return d.slot ? ("Cover " + d.slot) : "";
+  if (a === "catalogue_export") return [d.pieces != null ? d.pieces + " pieces" : "", d.new_images != null ? d.new_images + " new photos" : ""].filter(Boolean).join(" · ");
+  if (a === "date_range_change" || a === "export_csv"){ const f = (d.p_from || "").slice(0,10), t = (d.p_to || "").slice(0,10); return (f || t) ? (f + " → " + t) : ""; }
+  if (a === "profile_update") return d.role ? ("Access set to " + d.role) : "";
+  if (a === "purge") return d.before ? ("Deleted events before " + d.before) : "";
+  return "";
+}
+async function loadAudit() {
+  const { data, error } = await sb.from("audit_log").select("*").order("at", { ascending: false }).limit(200);
+  if (error) return $("auditRows").innerHTML = `<tr><td colspan="5" style="color:var(--bad)">${esc(error.message)}</td></tr>`;
+  $("auditRows").innerHTML = (data || []).length
+    ? data.map(r => {
+        const det = detailText(r);
+        const tgt = r.target_table ? esc(r.target_table) + (r.target_id ? " · " + esc(String(r.target_id)).slice(0, 8) : "") : "—";
+        return `<tr>
+        <td>${new Date(r.at).toLocaleString("en-GB")}</td>
+        <td>${esc(r.actor_email || "—")}</td>
+        <td>${esc(actionText(r.action))}</td>
+        <td>${tgt}</td>
+        <td style="color:var(--muted)">${esc(det)}</td>
+      </tr>`;
+      }).join("")
+    : `<tr><td colspan="5" style="color:var(--muted)">Nothing recorded yet.</td></tr>`;
+}
+
+/* ---------- users (admin) ---------- */
+async function loadUsers() {
+  const { data, error } = await sb.from("profiles").select("*").order("created_at");
+  if (error) return $("userRows").innerHTML = `<tr><td colspan="4" style="color:var(--bad)">${esc(error.message)}</td></tr>`;
+  $("userRows").innerHTML = data.map(u => `<tr>
+      <td>${esc(u.email)}</td>
+      <td>
+        <select data-uid="${u.id}" class="roleSel" ${u.email === ME.email ? "disabled" : ""}>
+          <option value="viewer" ${u.role === "viewer" ? "selected" : ""}>viewer</option>
+          <option value="admin"  ${u.role === "admin"  ? "selected" : ""}>admin</option>
+        </select>
+      </td>
+      <td style="color:var(--muted)">${new Date(u.created_at).toLocaleDateString("en-GB")}</td>
+      <td>${u.email === ME.email ? '<span style="color:var(--muted);font-size:12px">you</span>' : ""}</td>
+    </tr>`).join("");
+
+  document.querySelectorAll(".roleSel").forEach(sel => sel.addEventListener("change", async () => {
+    const { error } = await sb.from("profiles").update({ role: sel.value }).eq("id", sel.dataset.uid);
+    toast(error ? "Failed: " + error.message : "Role updated — recorded in the audit trail");
+    loadUsers();
+  }));
+}
+
+/* ---------- purge (admin) ---------- */
+$("purge").addEventListener("click", async () => {
+  const before = $("purgeBefore").value;
+  if (!before) return toast("Pick a date first");
+  if (!confirm(`Permanently delete all analytics events recorded before ${before}?\n\nThis cannot be undone. The deletion will be audited.`)) return;
+  const { data, error } = await sb.rpc("admin_purge_events", { p_before: new Date(before + "T00:00:00").toISOString() });
+  if (error) return toast("Failed: " + error.message);
+  toast(`Deleted ${data} event${data === 1 ? "" : "s"} — audited`);
+  loadDash();
+});
+
+/* ---------- start ---------- */
+sb.auth.getSession().then(({ data }) => { if (data && data.session) boot(data.session.user); }).catch(()=>{});
+</script>
+</body>
+</html>
