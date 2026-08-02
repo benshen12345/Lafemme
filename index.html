@@ -2054,7 +2054,29 @@ window.addEventListener("popstate", () => { if (filterPanel && filterPanel.class
 if (filterToggle)   filterToggle.addEventListener("click", openFilters);
 if (filterCloseBtn) filterCloseBtn.addEventListener("click", closeFilters);
 if (filterBackdrop) filterBackdrop.addEventListener("click", closeFilters);
-if (filterApplyBtn) filterApplyBtn.addEventListener("click", closeFilters);
+/* "Show 26" has to actually show them. Filtering shrinks the document, so when the drawer
+   closes and body scrolling is unlocked the browser silently CLAMPS the old scroll offset to
+   the new (much shorter) page — tap Show from the Booking section and you land on the footer,
+   from the grid you land somewhere random in it. Where you end up depends on how much the
+   page shrank, which is not a behaviour, it's an accident.
+
+   Only Apply does this. ✕ / backdrop / Esc / the back gesture all mean "never mind" — those
+   still leave the reader exactly where they were.
+
+   The scroll has to wait: closeFilters() calls history.back(), and popstate restores its own
+   scroll position a frame or two later, which would overwrite anything set before it. */
+function showResults(){
+  const anchor = document.getElementById("resultCount") || document.getElementById("grid");
+  if (!anchor) return;
+  setTimeout(() => {
+    const y = Math.max(0, anchor.getBoundingClientRect().top + window.pageYOffset - 96);
+    /* a smooth glide across 20,000px reads as broken — snap when it's a long way,
+       glide when the reader was already at the grid */
+    const far = Math.abs(y - window.pageYOffset) > 1600;
+    window.scrollTo({ top: y, behavior: (REDUCED || far) ? "auto" : "smooth" });
+  }, REDUCED ? 0 : 380);
+}
+if (filterApplyBtn) filterApplyBtn.addEventListener("click", () => { closeFilters(); showResults(); });
 if (filterClearBtn) filterClearBtn.addEventListener("click", () => {
   state.category = "all"; state.material = "all"; state.color = "all"; state.brand = "all";
   clearSearchInput();
