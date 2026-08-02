@@ -9,6 +9,46 @@
 <link rel="preload" as="script" href="vendor/supabase.js" />
 <title>LaFemme Gowns by Nee — Evening Gowns &amp; Men Suits</title>
 <meta name="description" content="LaFemme Gowns by Nee — gowns and suits for dinner, gala, graduation and ROM. 4-day rentals, fitted in-studio by appointment. Enquire on WhatsApp." />
+<link rel="canonical" href="https://lafemmegown.com/" />
+
+<!-- ===================== SITE ICON =====================
+     The LF monogram, gold on ink, so it stays legible on both a light and a dark
+     browser tab. All paths are RELATIVE (not "/favicon.ico") so the site still
+     shows its mark if it is ever served from a subfolder instead of the domain root.
+     favicon.ico also sits at the root because browsers probe /favicon.ico directly,
+     without reading these tags at all. Icons are generated from the same monogram
+     used in the header, so they can be rebuilt from the source art at any time. -->
+<link rel="icon" href="favicon.ico" sizes="32x32" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" sizes="any" />
+<link rel="icon" href="favicon-16.png" type="image/png" sizes="16x16" />
+<link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" sizes="180x180" />
+<link rel="manifest" href="site.webmanifest" />
+<meta name="apple-mobile-web-app-title" content="LaFemme" />
+<meta name="application-name" content="LaFemme" />
+<!-- address-bar tint: follows whichever theme the phone is in -->
+<meta name="theme-color" content="#FAF7F2" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#26211A" media="(prefers-color-scheme: dark)" />
+
+<!-- ===================== LINK PREVIEW =====================
+     Almost every enquiry arrives through a shared WhatsApp link, so the preview card
+     is effectively the shopfront. og:image must be an ABSOLUTE url — WhatsApp,
+     Facebook and X all refuse relative ones. -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="LaFemme Gowns by Nee" />
+<meta property="og:title" content="LaFemme Gowns by Nee — Evening Gowns &amp; Men Suits" />
+<meta property="og:description" content="Gowns and suits for the nights that matter — 4-day rentals, fitted to you in-studio. Bukit Jalil, Kuala Lumpur." />
+<meta property="og:url" content="https://lafemmegown.com/" />
+<meta property="og:image" content="https://lafemmegown.com/og-image.jpg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LaFemme Gowns by Nee — evening gowns and men suits, Bukit Jalil, Kuala Lumpur" />
+<meta property="og:locale" content="en_MY" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="LaFemme Gowns by Nee — Evening Gowns &amp; Men Suits" />
+<meta name="twitter:description" content="Gowns and suits for the nights that matter — 4-day rentals, fitted to you in-studio. Bukit Jalil, Kuala Lumpur." />
+<meta name="twitter:image" content="https://lafemmegown.com/og-image.jpg" />
+
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <!-- fonts loaded async so the stylesheet request no longer blocks first paint; display=swap shows text immediately with a fallback face -->
@@ -75,6 +115,11 @@
     color-scheme:dark;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  /* `hidden` has to actually hide. The browser's own rule is [hidden]{display:none}, and
+     ANY author `display` outranks it — which is why the search ✕ and the filter badge
+     stayed on screen after JS set .hidden = true (the ✕ sat in an empty search box and
+     the badge showed a meaningless "0"). Applies to #searchClear, #searchDrop, #filterCount. */
+  [hidden]{display:none !important}
   html{scroll-behavior:smooth;scroll-padding-top:84px;overflow-x:clip}
   body{
     background:var(--ivory);color:var(--ink);overflow-x:clip;
@@ -374,6 +419,25 @@
   .filter-backdrop.floating{display:block;position:fixed;inset:0;background:rgba(20,16,12,.5);z-index:190;
     opacity:0;pointer-events:none;transition:opacity .3s ease}
   .filter-backdrop.floating.open{opacity:1;pointer-events:auto}
+
+  /* ---------- filter block: same scroll fade as the rest of the page ----------
+     The heading, tabs and search bar all carry .reveal; the facets did not, so they
+     were the one block that snapped in at full opacity. The panel now carries .reveal
+     too, but ONLY while it is sitting inline in the section — hence the #id scoping.
+
+     Two reasons the drawer/overlay modes must opt out, both of them bugs waiting to
+     happen (see 架构文档 16.8):
+       1. In those modes the panel is position:fixed. Its own transform, and any
+          ancestor's, is exactly what broke the overlay before — a transformed box
+          becomes the containing block and the panel stops tracking the viewport.
+       2. It lives off-screen at left:-110%, so the IntersectionObserver never marks
+          it .in — leave .reveal active there and the drawer opens completely blank.
+     Both rules therefore pin it visible and hand the transition back to `left`,
+     which is what animates the slide. */
+  #filterPanel.reveal{opacity:0;transform:translateY(26px);transition:opacity .8s ease,transform .8s ease}
+  #filterPanel.reveal.in{opacity:1;transform:none}
+  #filterPanel.reveal.floating{opacity:1;transform:none;transition:left .32s cubic-bezier(.4,0,.2,1)}
+
   .result-count{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted);text-align:right;margin:0 2px 20px}
   .swatch-all{background:none;border:0;color:var(--muted);font-size:11px;letter-spacing:.2em;text-transform:uppercase;cursor:pointer;padding:6px 6px 6px 0;transition:color .3s ease}
   .swatch-all:hover,.swatch-all.active{color:var(--ink)}
@@ -480,7 +544,9 @@
     .filters::-webkit-scrollbar{display:none}
 
     /* ---------- mobile filter drawer ---------- */
-    .filter-toggle{display:inline-flex;align-items:center;gap:8px;margin:0 auto 22px;padding:10px 20px;
+    /* flex + width:fit-content, NOT inline-flex: `margin:0 auto` cannot centre an
+       inline-level box, so the button used to sit hard against the left edge */
+    .filter-toggle{display:flex;width:fit-content;align-items:center;gap:8px;margin:0 auto 22px;padding:10px 20px;
       border:1px solid var(--hairline);border-radius:999px;background:transparent;color:var(--ink);
       font-family:var(--sans);font-size:11px;letter-spacing:.2em;text-transform:uppercase;cursor:pointer}
     .filter-count{background:var(--gold);color:#1b1712;border-radius:999px;min-width:18px;height:18px;
@@ -493,6 +559,9 @@
       transition:left .32s cubic-bezier(.4,0,.2,1);
       display:flex;flex-direction:column;-webkit-backface-visibility:hidden;backface-visibility:hidden}
     .filter-panel.open{left:0}
+    /* phone drawer: it is fixed and parked off-screen, so the scroll reveal must not
+       apply — same reasoning as the .floating rule above */
+    #filterPanel.reveal{opacity:1;transform:none;transition:left .32s cubic-bezier(.4,0,.2,1)}
     .filter-panel-head{display:flex;align-items:center;justify-content:space-between;flex:0 0 auto;padding:20px 20px 14px}
     .filter-panel-title{font-family:var(--serif);font-size:21px;color:var(--ink)}
     .filter-close{background:none;border:0;color:var(--muted);font-size:19px;cursor:pointer;padding:4px 6px;line-height:1}
@@ -801,6 +870,8 @@
     *,*::before,*::after{animation-duration:.01ms !important;animation-delay:0s !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
     html{scroll-behavior:auto}
     .reveal{opacity:1;transform:none}
+    /* #id beats the plain .reveal rule above, so the filter panel needs naming here too */
+    #filterPanel.reveal{opacity:1;transform:none}
     .hero h1 .w span{transform:none}
     .hero .kicker,.hero p.sub,.hero-ctas{opacity:1}
     .hero-rule{width:120px}
@@ -925,13 +996,13 @@
       <button id="searchClear" class="search-clear" type="button" aria-label="Clear search" hidden>✕</button>
       <div id="searchDrop" class="search-drop" hidden></div>
     </div>
-    <button id="filterToggle" class="filter-toggle" type="button" aria-expanded="false" aria-controls="filterPanel">
+    <button id="filterToggle" class="filter-toggle reveal" type="button" aria-expanded="false" aria-controls="filterPanel">
       <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M3 5.5h14M5.5 10h9M8.5 14.5h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
       <span>Filters</span>
       <span id="filterCount" class="filter-count" hidden>0</span>
     </button>
     <div id="filterBackdrop" class="filter-backdrop"></div>
-    <div id="filterPanel" class="filter-panel">
+    <div id="filterPanel" class="filter-panel reveal">
       <div class="filter-panel-head">
         <span class="filter-panel-title">Filters</span>
         <button id="filterClose" class="filter-close" type="button" aria-label="Close filters">✕</button>
@@ -960,7 +1031,7 @@
       </div>
     </div>
 
-    <div class="result-count" id="resultCount" aria-live="polite"></div>
+    <div class="result-count reveal" id="resultCount" aria-live="polite"></div>
     <div id="menNotice" class="men-notice">
       <div class="men-notice-in">
         <span class="men-notice-ico" aria-hidden="true">✦</span>

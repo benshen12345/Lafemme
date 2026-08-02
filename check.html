@@ -4,6 +4,13 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>LaFemme — file check</title>
+<!-- site icon — same LF monogram as the public site (see index.html) -->
+<link rel="icon" href="favicon.ico" sizes="32x32" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" sizes="any" />
+<link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" sizes="180x180" />
+<meta name="theme-color" content="#FAF7F2" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#26211A" media="(prefers-color-scheme: dark)" />
 <style>
   body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:#FAF7F2;color:#1C1A17;
        max-width:760px;margin:0 auto;padding:40px 24px;line-height:1.6}
@@ -33,11 +40,13 @@
 <div class="row"><b>images/ folder &nbsp;<span style="color:#6E675C;font-weight:400">— gown photos</span></b><span class="tag wait" id="t2">checking…</span></div>
 <div class="row"><b>images/ folder &nbsp;<span style="color:#6E675C;font-weight:400">— cover photos</span></b><span class="tag wait" id="t3">checking…</span></div>
 <div class="row"><b>analytics.js &nbsp;<span style="color:#6E675C;font-weight:400">— visitor tracking</span></b><span class="tag wait" id="t4">checking…</span></div>
+<div class="row"><b>site icon &nbsp;<span style="color:#6E675C;font-weight:400">— the logo in the browser tab</span></b><span class="tag wait" id="t5">checking…</span></div>
 
 <div class="verdict" id="verdict"><h2>Running checks…</h2></div>
 
 <img id="probe1" src="images/al-aurora-black-t.webp" alt="">
 <img id="probe2" src="images/hero-1.webp" alt="">
+<img id="probe3" src="favicon-32.png" alt="">
 
 <script src="catalogue.js"></script>
 <script src="analytics.js"></script>
@@ -49,7 +58,7 @@ const set = (id, ok, txt) => {
   return ok;
 };
 
-const r = { cat:false, img:false, hero:false, an:false };
+const r = { cat:false, img:false, hero:false, an:false, ico:false };
 
 // 1. catalogue.js
 r.cat = (typeof STYLES !== "undefined" && STYLES.length)
@@ -64,11 +73,14 @@ r.an = (typeof window.__track === "function")
 // 2 & 3. images (wait for the probes to load or fail)
 function done() {
   const p1 = document.getElementById("probe1"), p2 = document.getElementById("probe2");
+  const p3 = document.getElementById("probe3");
   r.img  = p1.naturalWidth  > 0 ? set("t2", true, "found") : set("t2", false, "MISSING");
   r.hero = p2.naturalWidth  > 0 ? set("t3", true, "found") : set("t3", false, "MISSING");
+  /* the icon set is small and easy to forget when uploading file-by-file on a phone */
+  r.ico  = p3.naturalWidth  > 0 ? set("t5", true, "found") : set("t5", false, "MISSING");
 
   const v = document.getElementById("verdict");
-  if (r.cat && r.img && r.hero && r.an) {
+  if (r.cat && r.img && r.hero && r.an && r.ico) {
     v.innerHTML = '<h2 style="color:#2F6B48">Everything is in place.</h2>' +
       '<p>Your folder is correct. Open <code>index.html</code> from <b>this same folder</b> and the gowns will show.</p>';
   } else {
