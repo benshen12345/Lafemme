@@ -488,7 +488,15 @@
   }
   .swatch::after{content:"";position:absolute;inset:0;background:linear-gradient(160deg,rgba(255,255,255,.35),rgba(255,255,255,0) 45%)}
   .card .ph:hover .swatch{transform:scale(1.06)}
-  .cardimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .8s cubic-bezier(.19,1,.22,1)}
+  /* object-position MUST match .lb-img (`center top`). Both boxes are 2:3 and both use
+     `cover`, but the card was left on the CSS default `center center` — so any photo
+     taller than 2:3 showed a different slice here than in the popup, and the gown
+     visibly jumped down the moment the card was clicked (Vesper, 565x900, moved 16px
+     in the grid box and ~30px in the popup). Photos that are exactly 2:3 never
+     overflow, which is why only *some* pieces did it. Anchoring both to the top pins
+     the face and neckline in place on every device — including phones, where the popup
+     box is 3:4 and only the amount of hem on show changes. */
+  .cardimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;transition:transform .8s cubic-bezier(.19,1,.22,1)}
   .dots-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
   .dot{width:15px;height:15px;border-radius:50%;border:1px solid var(--hairline);padding:0;cursor:pointer;transition:transform .2s ease}
   .dot:hover{transform:scale(1.2)}
@@ -906,8 +914,8 @@
       <a href="#" id="navFilter">Filters</a>
       <a href="#about">About</a>
       <a href="#faq">FAQ</a>
+      <a href="#booking">Booking</a>
       <a href="#visit">Visit</a>
-      <a href="#booking">Book a Fitting</a>
     </nav>
     <div style="display:flex;align-items:center;gap:14px">
       <button id="langBtn" class="tbtn" aria-label="Switch to Chinese / 切换为中文">EN</button>
@@ -920,8 +928,8 @@
     <a href="#" id="menuFilter">Filters</a>
     <a href="#about">About</a>
     <a href="#faq">FAQ</a>
+    <a href="#booking">Booking</a>
     <a href="#visit">Visit</a>
-    <a href="#booking">Book a Fitting</a>
     <button id="langBtnM" style="text-align:left;background:none;border:0;padding:12px 0;font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--hairline)">EN</button>
   </nav>
 </header>
@@ -1068,8 +1076,44 @@
   </div>
 </section>
 
+<!-- ===================== FAQ ===================== -->
+<section class="section tinted" id="faq" data-aura="blush">
+  <div class="wrap">
+    <div class="section-head reveal" style="margin-left:auto;margin-right:auto;text-align:center;max-width:560px">
+      <span class="kicker">Good to Know</span>
+      <h2 class="h-serif">Rental questions, answered</h2>
+    </div>
+    <div class="faq reveal">
+      <details data-q="rental period">
+        <summary>How long is the rental period?</summary>
+        <div class="a">The standard rental period is 4 days. If you need an extended period, an extension surcharge applies — message us on WhatsApp for the extension rates and details.</div>
+      </details>
+      <details data-q="cost to rent">
+        <summary>How much does it cost to rent?</summary>
+        <div class="a">Rental prices start from RM300+ — each piece is priced by its design and detailing. Send us a piece code on WhatsApp for its exact rental price, or visit our showroom and we'll help you find your dream outfit.</div>
+      </details>
+      <details data-q="fitting fee">
+        <summary>Is there a fitting fee?</summary>
+        <div class="a">Yes — RM10 per person, per hour. If you rent an outfit during your fitting appointment, the fitting fee is fully waived. Need extra fitting time? Just message us for the applicable charges.</div>
+      </details>
+      <details data-q="deposit">
+        <summary>Is there a deposit?</summary>
+        <div class="a">Yes — a security deposit is collected when you pick up your outfit, and fully refunded once it's returned in good condition with no damage, permanent stains, or missing items. It secures your piece throughout the rental period.</div>
+      </details>
+      <details data-q="cleaning and alterations">
+        <summary>What about cleaning and alterations?</summary>
+        <div class="a">Dry-cleaning is included — return the piece as-is and we handle the rest. Basic fit-pinning is done free in-studio; more complex alterations are quoted individually.</div>
+      </details>
+      <details data-q="how early to book">
+        <summary>How early should I book?</summary>
+        <div class="a">As early as possible — our gowns are first come, first served. Most clients book around 3 months before their event to secure their preferred gown. Once you've found the one, we recommend confirming early to ensure it's available for your special day.</div>
+      </details>
+    </div>
+  </div>
+</section>
+
 <!-- ===================== BOOKING ===================== -->
-<section class="section tinted" id="booking" data-aura="blush">
+<section class="section" id="booking" data-aura="gold">
   <div class="wrap">
     <div class="section-head reveal">
       <span class="kicker">Book a Fitting</span>
@@ -1212,42 +1256,6 @@
 </section>
 
 
-<!-- ===================== FAQ ===================== -->
-<section class="section" id="faq" data-aura="gold">
-  <div class="wrap">
-    <div class="section-head reveal" style="margin-left:auto;margin-right:auto;text-align:center;max-width:560px">
-      <span class="kicker">Good to Know</span>
-      <h2 class="h-serif">Rental questions, answered</h2>
-    </div>
-    <div class="faq reveal">
-      <details data-q="rental period">
-        <summary>How long is the rental period?</summary>
-        <div class="a">The standard rental period is 4 days. If you need an extended period, an extension surcharge applies — message us on WhatsApp for the extension rates and details.</div>
-      </details>
-      <details data-q="cost to rent">
-        <summary>How much does it cost to rent?</summary>
-        <div class="a">Rental prices start from RM300+ — each piece is priced by its design and detailing. Send us a piece code on WhatsApp for its exact rental price, or visit our showroom and we'll help you find your dream outfit.</div>
-      </details>
-      <details data-q="fitting fee">
-        <summary>Is there a fitting fee?</summary>
-        <div class="a">Yes — RM10 per person, per hour. If you rent an outfit during your fitting appointment, the fitting fee is fully waived. Need extra fitting time? Just message us for the applicable charges.</div>
-      </details>
-      <details data-q="deposit">
-        <summary>Is there a deposit?</summary>
-        <div class="a">Yes — a security deposit is collected when you pick up your outfit, and fully refunded once it's returned in good condition with no damage, permanent stains, or missing items. It secures your piece throughout the rental period.</div>
-      </details>
-      <details data-q="cleaning and alterations">
-        <summary>What about cleaning and alterations?</summary>
-        <div class="a">Dry-cleaning is included — return the piece as-is and we handle the rest. Basic fit-pinning is done free in-studio; more complex alterations are quoted individually.</div>
-      </details>
-      <details data-q="how early to book">
-        <summary>How early should I book?</summary>
-        <div class="a">As early as possible — our gowns are first come, first served. Most clients book around 3 months before their event to secure their preferred gown. Once you've found the one, we recommend confirming early to ensure it's available for your special day.</div>
-      </details>
-    </div>
-  </div>
-</section>
-
 <!-- ===================== VISIT ===================== -->
 <section class="section tinted" id="visit" data-aura="blush">
   <div class="wrap visit-grid">
@@ -1315,7 +1323,7 @@
         <button class="btn btn-gold" id="lbBook">Add to fitting list</button>
         <a class="btn" id="lbAsk" href="#" target="_blank" rel="noopener">Ask price on WhatsApp</a>
       </div>
-      <p id="lbNote" style="margin:14px 0 0;font-size:12px;color:var(--muted);line-height:1.5">Added pieces are saved to your list. To book, open <b style="color:var(--ink);font-weight:600">Book a Fitting</b> from the top menu (<b style="color:var(--ink);font-weight:600">☰</b> on mobile), or scroll down to the form.</p>
+      <p id="lbNote" style="margin:14px 0 0;font-size:12px;color:var(--muted);line-height:1.5">Added pieces are saved to your list. To book, open <b style="color:var(--ink);font-weight:600">Booking</b> from the top menu (<b style="color:var(--ink);font-weight:600">☰</b> on mobile), or scroll down to the form.</p>
     </div>
   </div>
 </div>
@@ -2678,7 +2686,7 @@ window.__appReady = true;   // tells the failsafe the page booted correctly
 /* ==================== i18n: full-site EN / 中文 toggle ==================== */
 const I18N = {
   /* nav / buttons / CTA */
-  "Collection":"礼服系列","About":"关于我们","FAQ":"常见问题","Visit":"到店","Book a Fitting":"预约试穿","Menu":"菜单",
+  "Collection":"礼服系列","About":"关于我们","FAQ":"常见问题","Visit":"到店","Booking":"预约","Book a Fitting":"预约试穿","Menu":"菜单",
   "View Collection":"浏览系列","Add to fitting list":"加入试穿清单","Ask price on WhatsApp":"在 WhatsApp 询价",
   "Send via WhatsApp":"通过 WhatsApp 发送","Chat on WhatsApp":"用 WhatsApp 联系",
   "Open in Waze":"用 Waze 打开","Google Maps":"Google 地图",
@@ -2769,8 +2777,8 @@ const MIXED = {
     zh:'已保存到你的清单——这还未完成预约。填写下方表单并点「<b style="color:var(--ink);font-weight:600">通过 WhatsApp 发送</b>」即可；你选择的款式会自动附上。'
   },
   lbNote:{
-    en:'Added pieces are saved to your list. To book, open <b style="color:var(--ink);font-weight:600">Book a Fitting</b> from the top menu (<b style="color:var(--ink);font-weight:600">☰</b> on mobile), or scroll down to the form.',
-    zh:'已加入的款式会保存到清单。预约时从顶部菜单打开「<b style="color:var(--ink);font-weight:600">预约试穿</b>」（手机上是 <b style="color:var(--ink);font-weight:600">☰</b>），或向下滚动到表单。'
+    en:'Added pieces are saved to your list. To book, open <b style="color:var(--ink);font-weight:600">Booking</b> from the top menu (<b style="color:var(--ink);font-weight:600">☰</b> on mobile), or scroll down to the form.',
+    zh:'已加入的款式会保存到清单。预约时从顶部菜单打开「<b style="color:var(--ink);font-weight:600">预约</b>」（手机上是 <b style="color:var(--ink);font-weight:600">☰</b>），或向下滚动到表单。'
   },
   noResP:{
     en:'Try another colour, or reset to <b>All</b> to see the full collection.',
