@@ -525,6 +525,19 @@
   .men-msg p{color:var(--muted);margin-bottom:24px}
   .card .ph:hover .cardimg{transform:scale(1.06)}
   .lb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top}
+  /* The popup paints the cached thumbnail first, then the full photo lands. Doing that by
+     swapping src on ONE <img> is a hard cut — on a laptop-sized picture a sequin or lace
+     gown snaps from soft to sharp in a single frame, and the eye reads that snap as the
+     photo shifting. (Measured: the pieces that "move" are exactly the heavily textured
+     ones — Scarlette, Aria, Jasmine — while plain satin looks rock steady. No pixel of
+     it is actual movement.)
+
+     So: two layers in the same box, same object-fit and object-position. #lbLo holds the
+     thumbnail, #lbImg holds the full photo and fades in over it once it has DECODED.
+     Nothing is ever replaced in place, so nothing can jump — and that stays true however
+     a future photo is exported, which is the point. */
+  .lb-lo{z-index:0}
+  #lbImg{z-index:1;transition:opacity .32s ease}
   .glare{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .3s ease;background:radial-gradient(320px at var(--gx,50%) var(--gy,50%),rgba(255,255,255,.4),transparent 60%)}
   .ph:hover .glare{opacity:1}
   .badge{
@@ -1309,7 +1322,7 @@
 <div id="lb" role="dialog" aria-modal="true" aria-labelledby="lbTitle">
   <div class="lb-panel">
     <button id="lbClose" aria-label="Close piece details">×</button>
-    <div class="lb-ph"><img class="lb-img" id="lbImg" alt=""><button class="lb-nav lb-prev" id="lbPrev" aria-label="Previous colour">‹</button><button class="lb-nav lb-next" id="lbNext" aria-label="Next colour">›</button></div>
+    <div class="lb-ph"><img class="lb-img lb-lo" id="lbLo" alt="" aria-hidden="true"><img class="lb-img" id="lbImg" alt=""><button class="lb-nav lb-prev" id="lbPrev" aria-label="Previous colour">‹</button><button class="lb-nav lb-next" id="lbNext" aria-label="Next colour">›</button></div>
     <div class="lb-body">
       <span class="kicker" id="lbCat"></span>
       <h3 id="lbTitle"></h3>
@@ -2137,19 +2150,38 @@ function openLb(i, vi){
   track("card_open", { gender: st.g, style_id: st.i, style_name: st.n, style_ref: v0.ref, colour: v0.c, colour_family: v0.f });
   lastFocus = document.activeElement;
   const lbImg = document.getElementById("lbImg");
+  const lbLo  = document.getElementById("lbLo");
   const lbPh  = lbImg.parentElement;
 
-  /* initial photo: show the cached thumbnail instantly, then upgrade to hi-res once
-     decoded (kills the "shows the last gown" flash). lbToken guards a fast re-open. */
+  /* initial photo: thumbnail on the lower layer straight away (so there is never a blank
+     panel or a flash of the last gown), full photo cross-faded in on the upper layer once
+     it has decoded. Waiting for decode matters \u2014 `load` only means the bytes arrived, and
+     fading in an undecoded image just moves the snap one frame later.
+     lbToken guards a fast re-open: a late-arriving photo for a gown you already closed
+     must not paint over the one you are looking at now. */
   const setImgDirect = (v) => {
     const hiSrc = v.hi || v.img, myToken = ++lbToken;
     lbImg.style.transition = ""; lbImg.style.transform = "";
-    lbImg.src = v.img; lbImg.alt = `${pieceName(st)} \u2014 ${v.c}`;
-    if (hiSrc !== v.img) {
-      const up = new Image();
-      up.onload = () => { if (myToken === lbToken) lbImg.src = hiSrc; };
-      up.src = hiSrc;
+    lbImg.alt = `${pieceName(st)} \u2014 ${v.c}`;
+    if (lbLo){ lbLo.src = v.img; lbLo.style.opacity = ""; }
+
+    if (hiSrc === v.img){                       // no separate full-size file for this colour
+      lbImg.style.opacity = ""; lbImg.src = v.img; return;
     }
+    /* hide the sharp layer until it is genuinely ready; the thumbnail underneath is what
+       the customer looks at meanwhile, exactly as before */
+    lbImg.style.opacity = "0";
+    const up = new Image();
+    const reveal = (src) => {
+      if (myToken !== lbToken) return;
+      lbImg.src = src; lbImg.style.opacity = "";
+    };
+    up.onload = () => {
+      if (myToken !== lbToken) return;
+      (up.decode ? up.decode().catch(() => {}) : Promise.resolve()).then(() => reveal(hiSrc));
+    };
+    up.onerror = () => reveal(v.img);           // full photo missing -> keep the thumbnail
+    up.src = hiSrc;
   };
 
   /* per-colour text + actions (everything except the photo itself) */
@@ -2192,7 +2224,14 @@ function openLb(i, vi){
     const n = st.v.length;
     idx = ((idx % n) + n) % n;
     const v = st.v[idx];
-    if (dir) { sliding = true; ++lbToken; slideSwap(lbPh, lbImg, v.hi || v.img, `${pieceName(st)} \u2014 ${v.c}`, dir, () => { sliding = false; }); }
+    if (dir) {
+      sliding = true; ++lbToken;
+      /* the lower layer still shows the OLD colour's thumbnail; the outgoing photo slides
+         off and would uncover it, so hide it for the duration of the slide */
+      if (lbLo) lbLo.style.opacity = "0";
+      lbImg.style.opacity = "";
+      slideSwap(lbPh, lbImg, v.hi || v.img, `${pieceName(st)} \u2014 ${v.c}`, dir, () => { sliding = false; });
+    }
     else setImgDirect(v);
     cur = idx;
     paintMeta();
