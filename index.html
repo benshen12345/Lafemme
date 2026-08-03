@@ -2163,25 +2163,42 @@ function openLb(i, vi){
      must not paint over the one you are looking at now. */
   const setImgDirect = (v) => {
     const hiSrc = v.hi || v.img, myToken = ++lbToken;
-    lbImg.style.transition = ""; lbImg.style.transform = "";
+    lbImg.style.transform = "";
     lbImg.alt = `${pieceName(st)} \u2014 ${v.c}`;
     if (lbLo){ lbLo.src = v.img; lbLo.style.opacity = ""; }
 
-    if (hiSrc === v.img){                       // no separate full-size file for this colour
-      lbImg.style.opacity = ""; lbImg.src = v.img; return;
-    }
-    /* hide the sharp layer until it is genuinely ready; the thumbnail underneath is what
-       the customer looks at meanwhile, exactly as before */
+    /* Two things have to be dealt with first, and both are about the gown that was on
+       screen BEFORE this one.
+       (1) #lbImg is still holding the last gown's full photo, and an <img> goes on
+           painting its previous picture until a freshly assigned src has decoded for
+           that element. Park it on this gown's own thumbnail, and the worst stale frame
+           possible becomes identical to the layer underneath - nothing can jump.
+       (2) #lbImg carries a .32s opacity transition, so merely setting opacity to 0 FADES
+           the last gown out across a third of a second on top of the new one. Hide it
+           with the transition switched off and commit that synchronously (the same
+           forced-reflow trick slideSwap uses), then hand the transition back for the
+           fade-in.
+       Together these are what stops the photo appearing to shift when one gown is opened
+       straight after another. */
+    lbImg.style.transition = "none";
     lbImg.style.opacity = "0";
-    const up = new Image();
+    lbImg.src = v.img;
+    void lbImg.offsetWidth;
+    lbImg.style.transition = "";
+
+    /* Un-hide only once THIS element can paint the frame. decodeReady waits on lbImg,
+       not on the preloader: a decoded preloader says nothing about whether the <img>
+       actually on screen is ready. The cap is a safety net, and even if it fires early
+       the parked thumbnail above means nothing wrong can appear. */
     const reveal = (src) => {
       if (myToken !== lbToken) return;
-      lbImg.src = src; lbImg.style.opacity = "";
+      lbImg.src = src;
+      decodeReady(lbImg, 600).then(() => { if (myToken === lbToken) lbImg.style.opacity = ""; });
     };
-    up.onload = () => {
-      if (myToken !== lbToken) return;
-      (up.decode ? up.decode().catch(() => {}) : Promise.resolve()).then(() => reveal(hiSrc));
-    };
+
+    if (hiSrc === v.img){ reveal(v.img); return; }   // no separate full-size file for this colour
+    const up = new Image();
+    up.onload  = () => { if (myToken === lbToken) reveal(hiSrc); };
     up.onerror = () => reveal(v.img);           // full photo missing -> keep the thumbnail
     up.src = hiSrc;
   };
