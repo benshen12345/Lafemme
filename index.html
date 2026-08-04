@@ -212,8 +212,28 @@
     -webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);
     box-shadow:0 1px 0 var(--hairline);padding:13px 0;
   }
-  .nav{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px}
+  /* The bar spans the full window instead of sitting inside the 1160px page container.
+     Two reasons. (1) On a wide monitor the 1160px cap left 396px of empty bar on each
+     side at 1920 — the tinted bar ran edge to edge while its contents huddled in the
+     middle. (2) The hero underneath was never in that container anyway: `.hero-split`
+     is a full-bleed 40/60 grid and `.hero-left` insets by a percentage, so at 1585px
+     the hero copy starts at x=88 while the logo started at x=229. Edge-anchoring the
+     bar lines it up with the hero; the trade is that it no longer lines up with the
+     1160px sections further down (Collection, About…).
+
+     Columns are `auto 1fr auto`, NOT `1fr auto 1fr`. With `1fr auto 1fr` the links are
+     centred in the bar, but the two side columns hold different content — the logo is
+     181.7px, the EN + Noir buttons are 207.3px — so the visible gaps came out 49.9px on
+     the left and 24.3px on the right. That 25.6px difference is exactly the width
+     difference, and it got worse as the bar narrowed (106 : 47 at 1024px). Centring the
+     links inside a single flexible middle column makes both gaps equal by construction,
+     at any width. The cost is that the link row itself sits 12.8px left of the page
+     centre — half the width difference. Equal gaps read as "aligned"; a mathematically
+     centred row between unequal neighbours does not. */
+  .nav{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;
+       max-width:none;padding:0 clamp(16px,3vw,48px)}
   .nav > .brand{justify-self:start}
+  .nav > .links{justify-self:center}
   .nav > div{justify-self:end}
   .brand{display:flex;align-items:center;gap:12px;line-height:1}
   .mono{height:42px;width:auto;flex:none}
