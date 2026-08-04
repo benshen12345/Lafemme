@@ -334,17 +334,30 @@
      then jumps" everyone could see, and it was arithmetic, not taste.
      Travel exactly ONE tile and the seam disappears: 2.2W / 1.2W = 1.8333 → -183.333%.
      Do not round this to -183%: the leftover 0.333% is ~0.7px of jump per loop on a
-     200px-wide word, small but visible on a slow linear animation. */
+     200px-wide word, small but visible on a slow linear animation.
+
+     The 6s cycle is 3s of sweep and 3s of rest. The rest position matters as much as the
+     travel: at `background-position:0` the highlight sits at 1.012W — 1.2% past the right
+     edge of the text — so parking there leaves the last word permanently lit, which is the
+     exact thing that looked like a bug. Parking at **-41.667%** offsets the tile by +0.5W,
+     putting the highlight at 1.512W (half a word clear of the right edge) while the
+     previous repeat sits at -0.688W (clear of the left): no highlight anywhere on the
+     glyphs, the whole line rests at flat --gold-deep. The sweep then ends at
+     -41.667 - 183.333 = **-225%**, exactly one tile further on, so the loop is seamless. */
   .shimmer{
     font-family:var(--script);font-style:italic;font-weight:500;
     font-size:1.06em;line-height:1.1;letter-spacing:.005em;
     display:inline-block;padding:0 .04em .06em;
     background:linear-gradient(100deg,var(--gold-deep) 20%,var(--gold-hi) 46%,var(--gold-deep) 70%);
     background-size:220% 100%;
+    background-position:-41.667% 0;
     -webkit-background-clip:text;background-clip:text;color:transparent;
-    animation:shine 4s linear infinite;
+    animation:shine 6s linear infinite;
   }
-  @keyframes shine{to{background-position:-183.333% 0}}
+  @keyframes shine{
+    0%,50%{background-position:-41.667% 0}   /* 3s at rest — no highlight on the glyphs */
+    100%  {background-position:-225% 0}      /* 3s sweep — exactly one tile further on */
+  }
   /* script letters have long descenders — give the reveal box room or they get clipped */
   .hero-copy h1 .w{padding-bottom:.14em}
   .hero-rule{height:1px;background:var(--gold);width:0;margin:24px 0;animation:growrule 1.1s ease 1.3s forwards}
@@ -749,8 +762,9 @@
     margin:14px 0 26px;display:inline-block;padding:0 .04em .08em;
     background:linear-gradient(100deg,var(--gold-deep) 20%,var(--gold-hi) 46%,var(--gold-deep) 70%);
     background-size:220% 100%;
+    background-position:-41.667% 0;
     -webkit-background-clip:text;background-clip:text;color:transparent;
-    animation:shine 4s linear infinite;   /* seamless period — see the note on .shimmer */
+    animation:shine 6s linear infinite;   /* 3s sweep + 3s rest — see the note on .shimmer */
   }
   .about-wrap h2{font-size:clamp(46px,6vw,78px);line-height:1.15;margin:18px 0 26px}
   /* kicker and the script title were sharing a line because one is inline and the other
@@ -840,20 +854,20 @@
     margin-top:21px;   /* = label height (13px) + its margin (8px), so the box top
                           lines up with the top of the first white input, not the label */
   }
-  /* The terms now sit in the right-hand column, directly under the "Prefer to just chat?"
-     card, so the top margin is gone — .book-col's gap does that job. The border was
-     --hairline (#E6DFD3) on --panel (#F3EEE5): 1px of near-nothing against a background
-     only four shades away, which is why the box read as loose text rather than a panel.
-     --gold at 1px reads as a deliberate frame and matches the bullet dots inside it. */
-  .book-col{display:flex;flex-direction:column;gap:24px}
-  .apt-terms{padding:28px 26px;border:1px solid var(--gold);background:var(--panel)}
-  .apt-terms h3{font-family:var(--serif);font-size:21px;font-weight:500;margin-bottom:16px;color:var(--ink)}
+  /* Full width, under the form + chat card — it was tried inside the right-hand column
+     and put back: six bullets in a 419px column ran 480px tall, so the right side became
+     874px against the form's 700px and the bottom-left went empty.
+     The border stays --gold. It used to be --hairline (#E6DFD3) on --panel (#F3EEE5) —
+     1px of near-nothing against a background four shades away, which is why the box read
+     as loose text rather than a panel. */
+  .apt-terms{margin-top:52px;padding:32px 34px;border:1px solid var(--gold);background:var(--panel)}
+  .apt-terms h3{font-family:var(--serif);font-size:23px;font-weight:500;margin-bottom:18px;color:var(--ink)}
   .apt-terms ul{list-style:none;padding:0;margin:0}
-  .apt-terms li{position:relative;padding-left:18px;margin-bottom:10px;font-size:13.5px;color:var(--muted);line-height:1.6}
+  .apt-terms li{position:relative;padding-left:20px;margin-bottom:11px;font-size:14.5px;color:var(--muted);line-height:1.65}
   .apt-terms li::before{content:"";position:absolute;left:0;top:10px;width:5px;height:5px;background:var(--gold);border-radius:50%}
   .apt-terms li b{color:var(--ink);font-weight:500}
-  .apt-thanks{margin:18px 0 0;padding-top:14px;border-top:1px solid var(--hairline);font-family:var(--serif);font-style:italic;font-size:15.5px;color:var(--gold-deep)}
-  @media(max-width:640px){ .apt-terms{padding:22px 18px} }
+  .apt-thanks{margin:20px 0 0;padding-top:16px;border-top:1px solid var(--hairline);font-family:var(--serif);font-style:italic;font-size:17px;color:var(--gold-deep)}
+  @media(max-width:640px){ .apt-terms{margin-top:36px;padding:24px 20px} }
   .book-side h3{font-family:var(--serif);font-size:26px;font-weight:500;margin-bottom:12px}
   .book-side p{font-size:14.5px;color:var(--muted);margin-bottom:14px}
 
@@ -1362,7 +1376,6 @@
         <p class="form-note">Submitting opens WhatsApp with your booking details prefilled. We'll confirm your slot in the chat.</p>
       </form>
 
-      <div class="book-col">
       <aside class="book-side reveal">
         <h3>Prefer to just chat?</h3>
         <p>Message us directly and we'll help you pick a date — or send a photo of the style you're looking for.</p>
@@ -1373,8 +1386,9 @@
              list below. It is a term, so the terms list is the one that keeps it. -->
         <p style="margin-bottom:0">Walk-ins welcome, but booked sessions get the fitting room to themselves. Rentals are 4 days with a refundable deposit — dry-cleaning is on us.</p>
       </aside>
+    </div>
 
-      <div class="apt-terms reveal">
+    <div class="apt-terms reveal">
       <h3>Appointment terms &amp; conditions</h3>
       <ul>
         <li>Please WhatsApp us to book your fitting appointment. We will confirm your date and time via WhatsApp.</li>
@@ -1385,7 +1399,6 @@
         <li>During peak seasons the showroom may be busy with customer pickups and returns. We appreciate your patience and understanding.</li>
       </ul>
       <p class="apt-thanks">Thank you for your cooperation — we look forward to welcoming you to LaFemme.</p>
-      </div>
     </div>
   </div>
 </section>
