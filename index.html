@@ -615,7 +615,18 @@
     display:grid;grid-template-columns:.95fr 1.05fr;align-items:start;position:relative;
     animation:lbpop .45s cubic-bezier(.19,1,.22,1);
   }
-  @keyframes lbpop{from{opacity:0;transform:translateY(24px) scale(.98)}to{opacity:1;transform:none}}
+  /* NO scale() here. The open animation scales the whole panel about its own centre, and on
+     the two-column desktop layout the photo sits in the LEFT column - off that centre - so
+     growing .98 -> 1 slides the photo box's centre 4.72px to the LEFT over the 450ms of the
+     animation. The full photo usually finishes decoding inside that same window, so the
+     drift lands exactly on the moment the picture sharpens and reads as "the photo jumped
+     when the new one came in". On phones and portrait iPads the panel is ONE column, the
+     photo box IS the panel, and scaling about the centre moves it 0.15px - which is exactly
+     why the same gowns never moved there. Measured, 4 pieces x 6 viewports, per frame:
+     1440x820 / 1366x700 / 1093x614 / 1024x768 (2-col) = -4.72px each; 820x1180 / 390x844
+     (1-col) = -0.15px. With the scale dropped: 0.00px on all six. The rise + fade keep the
+     entrance; only the sideways drift is gone. */
+  @keyframes lbpop{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
   .lb-ph{position:relative;aspect-ratio:2/3;min-height:0;background:var(--panel);overflow:hidden}
   .lb-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:40px;height:40px;border-radius:50%;border:0;background:rgba(20,16,12,.42);color:#fff;font-size:24px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .2s ease;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
   .lb-nav:hover{background:rgba(20,16,12,.66)}
