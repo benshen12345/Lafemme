@@ -216,7 +216,14 @@
     -webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);
     box-shadow:0 1px 0 var(--hairline);padding:13px 0;
   }
-  /* The bar spans the full window instead of sitting inside the 1160px page container.
+  /* The bar breaks out of the 1160px page container and runs edge to edge — up to 1900px.
+     Below that width the cap never binds, so every laptop and tablet size gets the full
+     edge-to-edge bar. Past it (2560 and other ultra-wides) the bar stops growing and
+     centres, leaving ~370px of margin each side: without the cap the logo and the buttons
+     end up pinned to the extreme corners of a very wide monitor with an ocean between them,
+     and the six links either stay a small cluster in the middle (900px cap → 580px gaps) or
+     spread until they read as six unrelated words (no cap → 316px between adjacent links).
+     1900 is the width at which the row still reads as one bar.
      Two reasons. (1) On a wide monitor the 1160px cap left 396px of empty bar on each
      side at 1920 — the tinted bar ran edge to edge while its contents huddled in the
      middle. (2) The hero underneath was never in that container anyway: `.hero-split`
@@ -240,7 +247,7 @@
      both at 1280-1440. Scaling it keeps that clearance proportional to the window. */
   .nav{display:grid;grid-template-columns:auto 1fr auto;align-items:center;
        gap:clamp(20px,3.5vw,64px);
-       max-width:none;padding:0 clamp(16px,3vw,48px)}
+       max-width:1900px;padding:0 clamp(16px,3vw,48px)}
   .nav > .brand{justify-self:start}
   /* The link row spreads to fill the middle column instead of huddling at 649px wide with
      ~224px of dead air on each side — once the bar went full-width, a tight cluster in the
