@@ -124,8 +124,9 @@
   .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   .f{margin-bottom:16px}
   .f label{display:block;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
-  .f input[type=text],.f select{width:100%;border:1px solid var(--hairline);background:var(--field);padding:11px 12px;border-radius:0}
-  .f input:focus,.f select:focus{border-color:var(--gold);outline:none}
+  .f input[type=text],.f select,.f textarea{width:100%;border:1px solid var(--hairline);background:var(--field);padding:11px 12px;border-radius:0}
+  .f textarea{line-height:1.55;resize:vertical;min-height:64px;display:block}
+  .f input:focus,.f select:focus,.f textarea:focus{border-color:var(--gold);outline:none}
   .sub{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin:2px 0 9px}
   .chips{display:flex;flex-wrap:wrap;gap:8px}
   .chips label{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--hairline);border-radius:999px;
@@ -306,10 +307,24 @@
       <div class="sub">Silhouette / cut / neckline</div>
       <div class="chips" id="iCats"></div>
     </div>
-    <div class="f" style="margin-bottom:0">
+    <div class="f">
       <label>Fabric — tick all that apply</label>
       <div class="sub">Material / embellishment (optional)</div>
       <div class="chips" id="iMats"></div>
+    </div>
+    <div class="f" style="margin-bottom:0" id="descBlock">
+      <label for="iDescEn">“Suitable for” line — optional</label>
+      <div class="sub">Shown in the customer popup, under Colours</div>
+      <small style="color:var(--muted);font-size:11.5px;line-height:1.5;margin:-4px 0 9px;display:block">
+        Leave both blank and the site writes the line itself from the style tags above — every piece already has one.
+        Fill these in only when a piece deserves its own words. Both languages or neither: if you fill in one and not
+        the other, customers on the other language see the automatic line instead.
+      </small>
+      <textarea id="iDescEn" rows="2" placeholder="English — e.g. Weddings, engagement dinners and portrait shoots — floor-length with a fitted waist."></textarea>
+      <textarea id="iDescZh" rows="2" style="margin-top:8px" placeholder="中文 —— 例如：婚礼、订婚宴与影楼拍摄 —— 落地长度，腰线修身。"></textarea>
+      <small id="descMissing" class="hide" style="color:var(--bad);font-size:11.5px;line-height:1.5;margin-top:8px;display:block">
+        The database has no description columns yet — run <b>sql/supabase-add-description.sql</b> in Supabase, then reload this page. Until then anything typed here is not saved.
+      </small>
     </div>
   </div>
 
@@ -603,7 +618,19 @@ async function loadList(){
   PRODUCTS = data || [];
   fillColourFilter();
   fillStyleFilter();
+  syncDescBlock();
   renderList();
+}
+/* Whether products carries description_en / description_zh. select("*") returns every
+   column the table has, so one loaded row answers it - no extra query, no guessing.
+   An empty table can't answer, so assume yes and let the upsert speak for itself. */
+function hasDescCols(){
+  return !PRODUCTS.length || Object.prototype.hasOwnProperty.call(PRODUCTS[0], "description_en");
+}
+function syncDescBlock(){
+  const missing = PRODUCTS.length && !hasDescCols();
+  $("descMissing").classList.toggle("hide", !missing);
+  ["iDescEn","iDescZh"].forEach(id => { $(id).disabled = !!missing; });
 }
 $("reloadBtn").addEventListener("click", loadList);
 $("fGender").addEventListener("change", renderList);
@@ -824,6 +851,7 @@ function resetForm(){
   editId = null; editAddedAt = null;
   $("formTitle").textContent = "Add a new piece";
   $("iName").value = ""; $("iPrefix").value = ""; $("iGender").value = "f";
+  $("iDescEn").value = ""; $("iDescZh").value = "";
   document.querySelectorAll("#iCats input, #iMats input").forEach(c => c.checked = false);
   $("vars").innerHTML = ""; addVarRow();
   $("delBtn").classList.add("hide");
@@ -837,6 +865,7 @@ window.editPiece = function(id){
   editId = p.id; editAddedAt = p.added_at;
   $("formTitle").textContent = "Edit — " + (p.name || "");
   $("iName").value = p.name || ""; $("iPrefix").value = p.prefix || ""; $("iGender").value = p.gender || "f";
+  $("iDescEn").value = p.description_en || ""; $("iDescZh").value = p.description_zh || "";
   document.querySelectorAll("#iCats input").forEach(c => c.checked = (p.category||[]).includes(c.value));
   document.querySelectorAll("#iMats input").forEach(c => c.checked = (p.material||[]).includes(c.value));
   $("vars").innerHTML = "";
@@ -1211,6 +1240,15 @@ async function save(){
     }
     const types = [...new Set([...category, ...material])];
     const rec = { id, gender, prefix, name, types, category, material, variants, added_at: editAddedAt || today() };
+    /* Only send the description columns if this database actually has them. Naming a
+       column that does not exist makes PostgREST reject the whole upsert, which would
+       break saving for every piece - so a database where the migration has not been run
+       keeps working exactly as before, minus these two fields. hasDescCols() reads the
+       loaded rows (loadList uses select("*")), so it tells the truth without a probe. */
+    if (hasDescCols()){
+      rec.description_en = $("iDescEn").value.trim() || null;
+      rec.description_zh = $("iDescZh").value.trim() || null;
+    }
     busy(true, "Saving to the site…");
     const { error } = await sb.from("products").upsert(rec);
     if (error) throw error;

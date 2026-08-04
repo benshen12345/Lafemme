@@ -649,13 +649,13 @@
   .lb-prev{left:10px}
   .lb-next{right:10px}
   .lb-ph .swatch{position:absolute;inset:0}
-  .lb-body{padding:44px 40px}
-  .lb-body h3{font-family:var(--serif);font-size:36px;font-weight:500;margin:8px 0 10px}
-  .tagrow{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+  .lb-body{padding:34px 40px}
+  .lb-body h3{font-family:var(--serif);font-size:36px;font-weight:500;margin:6px 0 8px}
+  .tagrow{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
   .tag{border:1px solid var(--hairline);border-radius:999px;padding:4px 12px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
   .lb-body .desc{color:var(--muted);margin:4px 0 22px}
-  .lb-tab{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:24px}
-  .lb-tab td{padding:9px 0;border-bottom:1px solid var(--hairline);vertical-align:top}
+  .lb-tab{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:18px}
+  .lb-tab td{padding:8px 0;border-bottom:1px solid var(--hairline);vertical-align:top}
   .lb-tab td:first-child{color:var(--muted);width:38%;font-size:11px;letter-spacing:.18em;text-transform:uppercase;padding-top:12px}
   .lb-cta{display:flex;gap:12px;flex-wrap:wrap}
   #lbClose{position:absolute;top:12px;right:12px;z-index:4;width:38px;height:38px;border-radius:50%;
@@ -1358,6 +1358,7 @@
       <div class="tagrow" id="lbTags"></div>
       <table class="lb-tab">
         <tr><td>Colours</td><td><div class="dots-row" id="lbDots"></div></td></tr>
+        <tr><td>Suitable for</td><td id="lbFor"></td></tr>
         <tr><td>Reference</td><td id="lbRef"></td></tr>
         <tr><td>Rental</td><td>4 days · dry-cleaning included · refundable deposit</td></tr>
       </table>
@@ -1505,6 +1506,78 @@ const MAT_LABELS_I18N = {
 };
 const MAT_ORDER = ["sequin","satin","chiffon","tulle","lace","velvet","organza","silk","crepe","mesh","feather","glitter","sparkle","shimmer","diamond","crystal","beaded","pearl","fringe","embroidered","floral"];
 function ML(m){ return (MAT_LABELS_I18N[LANG] && MAT_LABELS_I18N[LANG][m]) || MAT_LABELS_I18N.en[m] || m; }
+
+/* ---------- "Suitable for" line in the popup ----------
+   Priority: whatever the studio typed in admin (products.description_en / _zh, carried
+   here as st.de / st.dz) wins. With nothing typed, the line is built from the tags the
+   piece already carries, so all 185 existing pieces have one from day one and anything
+   uploaded later gets one automatically without another editing chore.
+
+   Only the SILHOUETTE decides the occasion. The style tags are three different kinds of
+   thing mixed in one list - silhouettes (mermaid, ballgown, fitted), details (vneck,
+   sleeves, slit) and men's cuts (twopiece, threepiece) - and a V-neck tells a customer
+   nothing about where the gown is worn. CUT_ORDER is walked most-specific first, so a
+   piece tagged both `fitted` and `mermaid` is read as a mermaid; `fitted` sits last
+   because 75 of the 185 pieces carry it and it is the weakest signal in the set.
+
+   The second half of each line describes the CUT rather than the fabric on purpose: the
+   fabric and the detail tags are already on screen as chips directly above this row, and
+   repeating them would fill a new row with words the customer just read. */
+const CUT_ORDER = {
+  f: ["oriental","overskirt","cape","ballgown","mermaid","flare","aline","corset","midi","short","tube","fitted"],
+  m: ["oriental","threepiece","doublebreasted","twopiece"]
+};
+const BLURB = {
+  f: {
+    oriental:  {en:"Tea ceremonies, engagements, Lunar New Year. Mandarin collar.",
+                zh:"过大礼、订婚、农历新年。立领设计。"},
+    overskirt: {en:"Weddings and receptions. The overskirt lifts off for a second look.",
+                zh:"婚礼与婚宴。外裙可拆，一衣两穿。"},
+    cape:      {en:"Evening dinners, bridal portraits, stage. Draped cape overlay.",
+                zh:"晚宴、婚纱照、舞台。披肩式罩纱。"},
+    ballgown:  {en:"Weddings, formal balls, anniversary dinners. Full skirt, defined waist.",
+                zh:"婚礼、正式舞会、周年晚宴。收腰大裙摆。"},
+    mermaid:   {en:"Evening dinners, wedding receptions, award nights. Fitted hip, flared hem.",
+                zh:"晚宴、婚宴、颁奖礼。臀部修身，裙摆展开。"},
+    flare:     {en:"Wedding receptions, balls, evening dinners. Fitted top, sweeping hem.",
+                zh:"婚宴、舞会、晚宴。上身修身，裙摆开阔。"},
+    aline:     {en:"Wedding receptions, bridesmaids, family celebrations. Widens from the waist.",
+                zh:"婚宴、姐妹团、家庭喜宴。自腰线柔和展开。"},
+    corset:    {en:"Evening dinners and photo shoots. Structured, laced bodice.",
+                zh:"晚宴与拍摄。束腰式上身，版型立体。"},
+    midi:      {en:"Registrations, tea receptions, semi-formal parties. Below the knee.",
+                zh:"注册结婚、茶会、半正式聚会。及小腿长度。"},
+    short:     {en:"Birthday parties, afternoon tea, graduation dinners. Above the knee.",
+                zh:"生日派对、下午茶、谢师宴。及膝以上。"},
+    tube:      {en:"Evening dinners and parties. Strapless — bring a shawl for cold venues.",
+                zh:"晚宴与派对。无肩带，场地冷可配披肩。"},
+    fitted:    {en:"Evening dinners, engagement parties, portrait shoots. Close-cut, floor-length.",
+                zh:"晚宴、订婚宴、影楼拍摄。贴身剪裁，落地长度。"},
+    _:         {en:"Evening dinners, wedding receptions and formal occasions.",
+                zh:"晚宴、婚宴与正式场合。"}
+  },
+  m: {
+    oriental:       {en:"Tea ceremonies, engagements, Lunar New Year. Mandarin-collar suit.",
+                     zh:"过大礼、订婚、农历新年。立领中式西装。"},
+    threepiece:     {en:"Weddings, formal dinners, award nights. Jacket, waistcoat and trousers.",
+                     zh:"婚礼、正式晚宴、颁奖礼。外套、马甲与西裤。"},
+    doublebreasted: {en:"Weddings, business dinners, formal occasions. Double-breasted jacket.",
+                     zh:"婚礼、商务晚宴、正式场合。双排扣设计。"},
+    twopiece:       {en:"Weddings, registrations, business occasions. Jacket and trousers.",
+                     zh:"婚礼、注册结婚、商务场合。外套与西裤。"},
+    _:              {en:"Weddings, formal dinners and business occasions.",
+                     zh:"婚礼、正式晚宴与商务场合。"}
+  }
+};
+function pieceBlurb(st){
+  const typed = (LANG === "zh" ? st.dz : st.de);
+  if (typed && typed.trim()) return typed.trim();
+  const g = (st.g === "m") ? "m" : "f";
+  const cats = st.cat || [];
+  const key = CUT_ORDER[g].find(k => cats.includes(k)) || "_";
+  const row = BLURB[g][key] || BLURB[g]._;
+  return (LANG === "zh") ? row.zh : row.en;
+}
 
 /* ---------- what a piece is called on screen ----------
    The men's suits were auto-named "colour + style" when the photos were imported
@@ -2235,6 +2308,9 @@ function openLb(i, vi){
     const v = st.v[cur];
     const meta = { gender: st.g, style_id: st.i, style_name: st.n, style_ref: v.ref, colour: v.c, colour_family: v.f };
     document.getElementById("lbRef").textContent = v.ref;
+    /* Set on open only, like everything else in here - applyLang() closes an open popup
+       precisely so it re-opens in the chosen language, so there is nothing to keep in sync. */
+    document.getElementById("lbFor").textContent = pieceBlurb(st);
     const ask = document.getElementById("lbAsk");
     /* prefill WhatsApp with the exact piece + colour + a link to the photo. location.origin
        makes the link auto-match whatever domain the site runs on. */
@@ -2627,15 +2703,25 @@ async function loadCatalogue(){
         ]);
         if (Array.isArray(tax)) applyTaxonomy(tax);
       } catch (e) { /* no taxonomy table yet / offline -> just use built-ins */ }
-      /* catalogue */
-      const { data, error } = await Promise.race([
-        sb.from("products").select("id,gender,prefix,name,category,material,variants,added_at").order("added_at", { ascending: false }),
+      /* catalogue.
+         description_en / description_zh are newer columns. PostgREST answers a select
+         naming a column that does not exist with a 400 for the WHOLE request - so asking
+         for them unconditionally would drop the live catalogue back to catalogue.js on any
+         database that has not had the migration run yet. Ask for them, and on any failure
+         ask again without them. The popup falls back to the generated line either way, so
+         the narrow path costs nothing visible. */
+      const BASE_COLS = "id,gender,prefix,name,category,material,variants,added_at";
+      const get = (cols) => Promise.race([
+        sb.from("products").select(cols).order("added_at", { ascending: false }),
         timeout()
       ]);
+      let { data, error } = await get(BASE_COLS + ",description_en,description_zh");
+      if (error) ({ data, error } = await get(BASE_COLS));
       if (!error && Array.isArray(data) && data.length) {
         styles = data.map(r => ({
           i: r.id, g: r.gender, a: r.added_at, p: r.prefix,
-          n: r.name, cat: r.category || [], mat: r.material || [], v: r.variants || []
+          n: r.name, cat: r.category || [], mat: r.material || [], v: r.variants || [],
+          de: r.description_en || "", dz: r.description_zh || ""
         }));
       }
     }
@@ -2857,7 +2943,7 @@ const I18N = {
   /* visit */
   "Visit the Studio":"到店拜访","Monday – Saturday":"周一至周六","Sunday":"周日","By appointment":"预约制","Fittings":"试穿",
   /* lightbox */
-  "Colours":"颜色","Reference":"编号","Rental":"租期",
+  "Colours":"颜色","Suitable for":"适合场合","Reference":"编号","Rental":"租期",
   "4 days · dry-cleaning included · refundable deposit":"4 天 · 含干洗 · 可退按金",
   /* footer / misc */
   "Evening gowns & men suits — rental studio · Bukit Jalil, Kuala Lumpur.":"晚礼服 & 男士西装 — 租赁工作室 · 吉隆坡 Bukit Jalil。",
