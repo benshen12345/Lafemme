@@ -230,10 +230,25 @@
      at any width. The cost is that the link row itself sits 12.8px left of the page
      centre — half the width difference. Equal gaps read as "aligned"; a mathematically
      centred row between unequal neighbours does not. */
-  .nav{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;
+  /* The grid gap IS the breathing room on either side of the link row — once the row
+     stretches to fill its column (see `.nav > .links`), the only thing keeping the links
+     off the logo and off the buttons is this gap. At a flat 16px the row ran right up to
+     both at 1280-1440. Scaling it keeps that clearance proportional to the window. */
+  .nav{display:grid;grid-template-columns:auto 1fr auto;align-items:center;
+       gap:clamp(20px,3.5vw,64px);
        max-width:none;padding:0 clamp(16px,3vw,48px)}
   .nav > .brand{justify-self:start}
-  .nav > .links{justify-self:center}
+  /* The link row spreads to fill the middle column instead of huddling at 649px wide with
+     ~224px of dead air on each side — once the bar went full-width, a tight cluster in the
+     middle made the whole thing read as "heavy at both ends, nothing in between".
+     `width:100%` + `space-between` rather than a fluid `gap:Nvw`: the row can then never be
+     wider than the column it sits in, so it cannot overflow at any viewport, and the gaps
+     shrink on their own as the window narrows. The 900px cap stops the links drifting apart
+     into six unrelated words on an ultra-wide monitor — past that width the row stays a
+     group and the extra space goes back to the two side gaps. The `gap` further up is now
+     a MINIMUM (space-between never packs tighter than it), which is what keeps the
+     900-1150px band legible. */
+  .nav > .links{justify-self:center;width:100%;max-width:900px;justify-content:space-between}
   .nav > div{justify-self:end}
   .brand{display:flex;align-items:center;gap:12px;line-height:1}
   .mono{height:42px;width:auto;flex:none}
@@ -244,7 +259,13 @@
   [data-theme="noir"] .llock{filter:invert(1)}
   .brand .b1{font-family:var(--serif);font-size:24px;letter-spacing:.02em}
   .brand .b2{font-size:9px;letter-spacing:.4em;text-transform:uppercase;color:var(--gold-deep);margin-top:4px}
-  .links{display:flex;align-items:center;gap:60px}
+  /* With `space-between` doing the real spacing, this gap is only a FLOOR — it never
+     changes how the row looks when there is room. What it does control is the row's
+     min-content width (six labels + five gaps), and that is what the grid refuses to
+     shrink below. Flat 60px made that floor 649px, which overflowed the bar between
+     1151px and ~1250px once the side gaps grew. Letting the floor scale keeps the row
+     fitting all the way down to where the links move into the menu button. */
+  .links{display:flex;align-items:center;gap:clamp(24px,4vw,60px)}
   .links a{font-size:10px;letter-spacing:.32em;text-transform:uppercase;position:relative;padding:4px 0;font-weight:400}
   .links a::after{content:"";position:absolute;left:0;bottom:0;height:1px;width:0;background:var(--gold);transition:width .35s ease}
   .links a:hover::after{width:100%}
@@ -884,7 +905,10 @@
     .mono{height:34px}
     .wordmark{height:24px}
     .wrap.nav{padding-left:16px;padding-right:16px}
-    .nav{gap:10px}
+    /* 10px was fine when the link row was a fixed-width cluster; now that it stretches,
+       this gap is the only clearance beside the logo and the buttons — 20 matches the
+       floor of the clamp above so the 1150/1151 boundary doesn't visibly snap. */
+    .nav{gap:20px}
     /* the 40% hero column gets cramped before it stacks — pull the deep left inset in
        so the copy keeps its width at half-screen laptop widths */
     .hero-left{padding:120px 6% 64px 8%}
