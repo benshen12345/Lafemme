@@ -615,18 +615,34 @@
     display:grid;grid-template-columns:.95fr 1.05fr;align-items:start;position:relative;
     animation:lbpop .45s cubic-bezier(.19,1,.22,1);
   }
-  /* NO scale() here. The open animation scales the whole panel about its own centre, and on
-     the two-column desktop layout the photo sits in the LEFT column - off that centre - so
-     growing .98 -> 1 slides the photo box's centre 4.72px to the LEFT over the 450ms of the
-     animation. The full photo usually finishes decoding inside that same window, so the
-     drift lands exactly on the moment the picture sharpens and reads as "the photo jumped
-     when the new one came in". On phones and portrait iPads the panel is ONE column, the
-     photo box IS the panel, and scaling about the centre moves it 0.15px - which is exactly
-     why the same gowns never moved there. Measured, 4 pieces x 6 viewports, per frame:
-     1440x820 / 1366x700 / 1093x614 / 1024x768 (2-col) = -4.72px each; 820x1180 / 390x844
-     (1-col) = -0.15px. With the scale dropped: 0.00px on all six. The rise + fade keep the
-     entrance; only the sideways drift is gone. */
-  @keyframes lbpop{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+  /* This entrance is a FADE ONLY - deliberately no transform of any kind. Two separate
+     problems, both caused by animating transform on this panel, both invisible on a phone
+     and both plainly visible on a laptop:
+
+     (1) scale(.98) -> 1 scaled the panel about its OWN CENTRE. On the two-column desktop
+         layout the photo sits in the LEFT column, off that centre, so growing 98% -> 100%
+         slid the photo box's centre 4.72px to the LEFT across the 450ms. The full photo
+         usually finishes decoding inside that same window, so the drift landed exactly on
+         the moment the picture sharpens and read as "the photo jumped when the new one came
+         in". On phones and portrait iPads the panel is ONE column, the photo box IS the
+         panel, its centre and the scaling centre coincide, and it moved 0.15px - which is
+         precisely why the same gowns never moved there. Measured per frame, 4 pieces x 6
+         viewports: 1440x820 / 1366x700 / 1093x614 / 1024x768 (2-col) = -4.72px each;
+         820x1180 / 390x844 (1-col) = -0.15px. Scale removed -> 0.00px on all six.
+
+     (2) translateY(24px) -> 0 parked the panel on FRACTIONAL pixel rows while it rose. The
+         panel's own 1px top border (--hairline, #E6DFD3) then got smeared across two device
+         rows at roughly half brightness, and snapped back to one crisp line the instant the
+         transform hit `none`. Nothing was created or destroyed - the border is there the
+         whole time - but the snap at the end reads as a white line appearing after a bounce.
+         Measured at the border row, panel top edge: mid-rise 94/189 across two rows, settled
+         220 on one row; identical settled value before and after this change.
+
+     So: any transform on a container drags every child that is not on the transform's origin,
+     and any fractional offset softens hairlines until it lands. Both effects are geometric,
+     not repaint bugs, and neither can be tuned away while the transform is still animating -
+     they can only be removed. The fade alone still gives the panel an entrance. */
+  @keyframes lbpop{from{opacity:0}to{opacity:1}}
   .lb-ph{position:relative;aspect-ratio:2/3;min-height:0;background:var(--panel);overflow:hidden}
   .lb-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:40px;height:40px;border-radius:50%;border:0;background:rgba(20,16,12,.42);color:#fff;font-size:24px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .2s ease;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
   .lb-nav:hover{background:rgba(20,16,12,.66)}
