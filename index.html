@@ -145,6 +145,10 @@
   .section{padding:110px 0;position:relative;z-index:1}
   .section-head{max-width:620px;margin-bottom:56px}
   .section-head h2{font-size:clamp(34px,4.6vw,52px);margin:14px 0 16px}
+  /* a section whose heading IS the small label (Collection) — keep the semantics, drop
+     the display size. The margin also has to be reset: the big-heading rule opens 14px
+     above, which would push the label away from the section's top edge. */
+  .section-head h2.kicker{font-size:10px;margin:0 0 12px}
   .section-head p{color:var(--muted)}
   .rule{height:1px;background:var(--hairline);border:0}
   .tinted{background:var(--panel);transition:background .8s ease}
@@ -716,7 +720,17 @@
   .about-wrap{max-width:920px;margin:0 auto;text-align:center}
   /* body paragraphs keep the readable 720px measure even though the container is wider,
      so long lines don't run edge to edge while the title gets its full width */
-  .about-wrap p{color:var(--muted);margin-bottom:16px;max-width:720px;margin-left:auto;margin-right:auto}
+  /* 800px, not 720px, and the stats row is capped to match. The three blocks used to be
+     three different widths — stats 872, title 779, copy 720 — so their left edges landed
+     at 355 / 401 / 431 on a 1597px screen: a 76px spread with nothing to line up against.
+     At 800 the copy and the stats share an edge and the title sits within 10px of it.
+     `text-wrap:balance` is the other half: the first paragraph used to break 666 / 689 /
+     504, and a last line 185px shorter than the one above it cuts a wedge out of centred
+     text. Balanced it runs 619 / 626 / 614. Unsupported browsers ignore the property and
+     get exactly what they get today. */
+  .about-wrap p{color:var(--muted);margin-bottom:16px;max-width:800px;margin-left:auto;margin-right:auto;text-wrap:balance}
+  .about-wrap .h-script{text-wrap:balance}
+  .about-wrap .trust{max-width:800px;margin-left:auto;margin-right:auto}
   .h-script{
     font-family:var(--script);font-style:italic;font-weight:500;
     letter-spacing:.005em;
@@ -751,6 +765,16 @@
      window at ~950-1000px, so the columns are set explicitly at each breakpoint below
      instead. */
   .trust{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:34px}
+  /* About arrives one block at a time instead of all at once. No JS: the existing
+     IntersectionObserver already puts `.in` on the wrapper, and these rules hang off it.
+     Delays stay small — 0.1s steps, everything on screen inside half a second — because
+     anyone scrolling quickly should not catch the last block still moving. */
+  #about .reveal > *{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s ease}
+  #about .reveal.in > *{opacity:1;transform:none}
+  #about .reveal.in > :nth-child(2){transition-delay:.10s}
+  #about .reveal.in > :nth-child(3){transition-delay:.20s}
+  #about .reveal.in > :nth-child(4){transition-delay:.30s}
+  #about .reveal.in > :nth-child(5){transition-delay:.40s}
   .trust div{border-top:1px solid var(--gold);padding-top:14px}
   .trust b{display:block;font-family:var(--serif);font-size:24px;font-weight:500;margin-bottom:4px}
   .trust span{font-size:13px;color:var(--muted)}
@@ -961,9 +985,10 @@
 
   /* ---------- reduced motion ---------- */
   @media (prefers-reduced-motion: reduce){
-    *,*::before,*::after{animation-duration:.01ms !important;animation-delay:0s !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+    *,*::before,*::after{animation-duration:.01ms !important;animation-delay:0s !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;transition-delay:0s !important}
     html{scroll-behavior:auto}
     .reveal{opacity:1;transform:none}
+    #about .reveal > *{opacity:1;transform:none}
     /* #id beats the plain .reveal rule above, so the filter panel needs naming here too */
     #filterPanel.reveal{opacity:1;transform:none}
     .hero h1 .w span{transform:none}
@@ -1033,8 +1058,8 @@
       <div class="hero-copy">
         <span class="kicker">Evening Gowns &amp; Men Suits · Bukit Jalil, KL</span>
         <h1 class="h-serif">
-          <span class="w"><span>LaFemme</span></span><br/>
-          <span class="w"><span><em class="shimmer">Gowns&nbsp;by&nbsp;Nee</em></span></span>
+          <span class="w"><span>Dressed for</span></span><br/>
+          <span class="w"><span><em class="shimmer">the&nbsp;moment.</em></span></span>
         </h1>
         <div class="hero-rule" aria-hidden="true"></div>
         <p class="sub">Gowns and suits for the nights that matter — 4-day rentals, fitted to you in-studio.</p>
@@ -1074,9 +1099,13 @@
 <section class="section tinted" id="collection" data-aura="blush">
   <div class="wrap">
     <div class="section-head reveal">
-      <span class="kicker">The Collection</span>
-      <h2 class="h-serif">Dressed for your occasion</h2>
-      <p>Evening gowns by style — ROM, Sleeves Collection, Midi and Ballgown — plus suits and tuxedos for him. Every piece rents for 4 days. Tap any piece for details; rental prices are shared on WhatsApp.</p>
+      <!-- No display heading here on purpose: the hero sits directly above and already
+           says what this is, and "Dressed for your occasion" collided with the hero's
+           "Dressed for the moment." The label is still an <h2> so the document outline
+           and screen-reader landmarks keep a heading for this section — it is only
+           styled down to the small-caps kicker. -->
+      <h2 class="kicker">The Collection</h2>
+      <p>Tap any piece for details — rental prices are shared on WhatsApp.</p>
     </div>
 
     <div class="tabs reveal" role="tablist" aria-label="Choose evening gowns or men suits">
@@ -1150,7 +1179,7 @@
   <div class="wrap about-wrap">
     <div class="reveal">
       <span class="kicker">About the Studio</span>
-      <h2 class="h-script">Dressed for the moment.</h2>
+      <h2 class="h-script">Yours for the evening.</h2>
       <p>LaFemme Gowns by Nee is a gown and suit rental studio in Pusat Bandar Bukit Jalil, Kuala Lumpur. We keep a curated wardrobe of evening gowns and men's suits for the occasions that matter — annual dinners, galas, convocations and ROM ceremonies.</p>
       <p>Rather than buying a gown you'll wear once, rent one that fits you properly. Visits are by appointment, so the fitting room is yours alone.</p>
       <div class="trust">
@@ -2931,11 +2960,16 @@ const I18N = {
   "Evening Gowns & Men Suits · Bukit Jalil, KL":"晚礼服 & 男士西装 · 吉隆坡 Bukit Jalil",
   "Gowns and suits for the nights that matter — 4-day rentals, fitted to you in-studio.":"为重要的夜晚准备的礼服与西装——4 天租期，到店为你量身试穿。",
   /* collection */
-  "The Collection":"礼服系列","Dressed for your occasion":"为每一个场合盛装",
-  "Evening gowns by style — ROM, Sleeves Collection, Midi and Ballgown — plus suits and tuxedos for him. Every piece rents for 4 days. Tap any piece for details; rental prices are shared on WhatsApp.":"按款式浏览晚礼服——ROM、长袖系列、Midi 与大摆礼服——以及男士西装与礼服。每件租期 4 天。点击任意款式查看详情；租金通过 WhatsApp 告知。",
+  "The Collection":"礼服系列",
+  "Tap any piece for details — rental prices are shared on WhatsApp.":"点击任意款式查看详情——租金通过 WhatsApp 告知。",
   "Evening Gowns":"晚礼服","Men Suits":"男士西装","Nothing in that combination":"该组合暂无款式",
   "Style":"款式","Fabric":"材质","Colour":"颜色",
   "Filters":"筛选","Clear all":"清除全部",
+  /* The two display slogans — the hero h1 and the About h2 — are deliberately NOT in
+     here. --serif and --script are both Cormorant Garamond, a Latin-only face: Chinese
+     set in it falls back to a system font and loses the italic script look, and the gold
+     gradient that is clipped to the glyphs reads wrong on CJK shapes. Everything else on
+     the page translates; these two stay English on purpose. */
   /* about */
   "About the Studio":"关于工作室",
   "LaFemme Gowns by Nee is a gown and suit rental studio in Pusat Bandar Bukit Jalil, Kuala Lumpur. We keep a curated wardrobe of evening gowns and men's suits for the occasions that matter — annual dinners, galas, convocations and ROM ceremonies.":"LaFemme Gowns by Nee 是一家位于吉隆坡 Pusat Bandar Bukit Jalil 的礼服与西装租赁工作室。我们为重要场合——年会、晚宴、毕业典礼与注册结婚——精选晚礼服与男士西装。",
