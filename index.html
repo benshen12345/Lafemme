@@ -318,24 +318,33 @@
   }
   .hero-copy{max-width:460px}
   .hero-copy .kicker{display:block;color:var(--gold-deep);opacity:0;animation:fadeup .9s ease .5s forwards}
-  .hero-copy h1{font-size:clamp(46px,4.8vw,82px);line-height:1.02;margin:22px 0 8px;color:var(--ink);font-weight:500}
+  .hero-copy h1{font-size:clamp(46px,4.8vw,82px);line-height:1.02;margin:22px 0 8px;color:var(--gold-deep);font-weight:500}
   .hero-copy h1 .w{display:inline-block;overflow:hidden;vertical-align:bottom}
   .hero-copy h1 .w span{display:inline-block;transform:translateY(110%);animation:riseword .9s cubic-bezier(.19,1,.22,1) forwards}
   .hero-copy h1 .w:nth-child(1) span{animation-delay:.65s}
   .hero-copy h1 .w:nth-child(3) span{animation-delay:.8s}
   @keyframes riseword{to{transform:translateY(0)}}
+  /* Flat gold, no sweep. The old treatment clipped a moving gradient to the glyphs and
+     it had a real bug, not just a taste problem: the tile was 220% of the element and the
+     animation travelled `background-position: 0 -> -220%`. Percentage background-position
+     resolves against (container − image) = −120% of the width, so −220% moves the tile
+     2.64W. With the tile repeating every 2.2W that is 2.64 / 2.2 = **1.2 sweeps per loop**
+     — one full pass, then a second highlight entering just as the animation snapped back
+     to the start. That is the "it flashes again on the last word" everyone could see.
+     A seamless version exists (travel exactly one tile: `-183.333%`), but a permanently
+     moving highlight on a headline is restless, so it is gone.
+     A STATIC version of the same gradient was tried and rejected: with deep→hi→deep frozen
+     in place the middle words wash out to near-invisible (#F6E6C5 on ivory). Flat
+     --gold-deep keeps every word the same weight, and it is exactly what the
+     prefers-reduced-motion fallback already rendered. */
   .shimmer{
     font-family:var(--script);font-style:italic;font-weight:500;
     font-size:1.06em;line-height:1.1;letter-spacing:.005em;
     display:inline-block;padding:0 .04em .06em;
-    background:linear-gradient(100deg,var(--gold-deep) 20%,var(--gold-hi) 46%,var(--gold-deep) 70%);
-    background-size:220% 100%;
-    -webkit-background-clip:text;background-clip:text;color:transparent;
-    animation:shine 4s linear infinite;
+    color:var(--gold-deep);
   }
   /* script letters have long descenders — give the reveal box room or they get clipped */
   .hero-copy h1 .w{padding-bottom:.14em}
-  @keyframes shine{to{background-position:-220% 0}}
   .hero-rule{height:1px;background:var(--gold);width:0;margin:24px 0;animation:growrule 1.1s ease 1.3s forwards}
   @keyframes growrule{to{width:120px}}
   .hero-copy p.sub{color:var(--muted);font-size:17px;max-width:410px;opacity:0;animation:fadeup .9s ease 1.45s forwards}
@@ -736,10 +745,7 @@
     letter-spacing:.005em;
     font-size:clamp(40px,5.2vw,66px);line-height:1.12;
     margin:14px 0 26px;display:inline-block;padding:0 .04em .08em;
-    background:linear-gradient(100deg,var(--gold-deep) 20%,var(--gold-hi) 46%,var(--gold-deep) 70%);
-    background-size:220% 100%;
-    -webkit-background-clip:text;background-clip:text;color:transparent;
-    animation:shine 4s linear infinite;
+    color:var(--gold-deep);   /* flat gold — see the note on .shimmer */
   }
   .about-wrap h2{font-size:clamp(46px,6vw,78px);line-height:1.15;margin:18px 0 26px}
   /* kicker and the script title were sharing a line because one is inline and the other
@@ -994,7 +1000,6 @@
     .hero h1 .w span{transform:none}
     .hero .kicker,.hero p.sub,.hero-ctas{opacity:1}
     .hero-rule{width:120px}
-    .shimmer,.h-script{animation:none;color:var(--gold-deep);background:none;-webkit-background-clip:initial;background-clip:initial}
     .ribbon .track{animation:none}
     #cur,#waFab::before{display:none}
   }
