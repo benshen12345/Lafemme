@@ -753,30 +753,20 @@
   .step p{font-size:14.5px;color:var(--muted)}
 
   /* ---------- about ---------- */
-  /* v113: About used to be one centred 920px text column. The studio photo gave it a
-     right-hand image, so above 1080 the copy is a left-aligned column in a 2-up grid.
-     The old centred rules — auto margins, text-wrap:balance, the nowrap script title —
-     existed to fix centred-ragged-text problems (the 76px left-edge spread and the
-     666/689/504 line breaks noted below) that a left-aligned column does not have, so
-     they are not carried into the 2-up layout. They are still applied verbatim at
-     <=1080, where the grid stacks and the copy re-centres — that IS the old layout. */
-  .about-grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,.82fr);
-              gap:clamp(40px,4.5vw,84px);align-items:center}
-  .about-copy{text-align:left}
-  .about-copy p{color:var(--muted);margin-bottom:16px;max-width:60ch}
-  .about-copy .kicker{display:block}
-  .about-copy .h-script{display:inline-block;white-space:normal;max-width:100%}
-  .about-photo{margin:0;overflow:hidden;border:1px solid var(--hairline)}
-  .about-photo img{display:block;width:100%;height:auto;aspect-ratio:4/5;object-fit:cover;object-position:50% 46%}
-  /* --- the centred-column reasoning, kept because <=1080 still uses it ---
-     Body paragraphs kept a readable measure even though the container was wider.
-     800px, not 720px, and the stats row capped to match: the three blocks used to be
+  .about-wrap{max-width:920px;margin:0 auto;text-align:center}
+  /* body paragraphs keep the readable 720px measure even though the container is wider,
+     so long lines don't run edge to edge while the title gets its full width */
+  /* 800px, not 720px, and the stats row is capped to match. The three blocks used to be
      three different widths — stats 872, title 779, copy 720 — so their left edges landed
      at 355 / 401 / 431 on a 1597px screen: a 76px spread with nothing to line up against.
      At 800 the copy and the stats share an edge and the title sits within 10px of it.
      `text-wrap:balance` is the other half: the first paragraph used to break 666 / 689 /
      504, and a last line 185px shorter than the one above it cuts a wedge out of centred
-     text. Balanced it runs 619 / 626 / 614. Unsupported browsers ignore the property. */
+     text. Balanced it runs 619 / 626 / 614. Unsupported browsers ignore the property and
+     get exactly what they get today. */
+  .about-wrap p{color:var(--muted);margin-bottom:16px;max-width:800px;margin-left:auto;margin-right:auto;text-wrap:balance}
+  .about-wrap .h-script{text-wrap:balance}
+  .about-wrap .trust{max-width:800px;margin-left:auto;margin-right:auto}
   .h-script{
     font-family:var(--script);font-style:italic;font-weight:500;
     letter-spacing:.005em;
@@ -788,7 +778,7 @@
     -webkit-background-clip:text;background-clip:text;color:transparent;
     animation:shine 6s linear infinite;   /* 3s sweep + 3s rest — see the note on .shimmer */
   }
-  .about-copy h2{font-size:clamp(38px,3.6vw,60px);line-height:1.15;margin:16px 0 24px}
+  .about-wrap h2{font-size:clamp(46px,6vw,78px);line-height:1.15;margin:18px 0 26px}
   /* kicker and the script title were sharing a line because one is inline and the other
      inline-block; force each onto its own row so the title sits under the label.
      The title needs more room than the 720px body column — at 66px it wants ~790px — so
@@ -796,6 +786,8 @@
      wider than the parent, so an inline-block title centred by the parent's text-align
      is used instead: that stays centred at any width. The body copy keeps the narrow
      720px measure for readability. */
+  .about-wrap .kicker{display:block}
+  .about-wrap .h-script{display:inline-block;white-space:nowrap;max-width:92vw}
   .portrait{
     position:relative;aspect-ratio:4/5;overflow:hidden;border:1px solid var(--hairline);
     background:
@@ -942,12 +934,29 @@
   /* the storefront photo replaces the map placeholder: the two nav buttons beside it
      already handle "get me there", so this slot does the thing they cannot — show the
      shopfront the customer is looking for once they are standing in the block. */
-  .mapbox-photo{padding:0;overflow:hidden;display:block}
-  .mapbox-photo img{position:absolute;inset:0;width:100%;height:100%;
-                    object-fit:cover;object-position:50% 45%;display:block}
-  .mapbox-cap{position:absolute;left:0;right:0;bottom:0;padding:14px 16px;
-              font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#fff;
-              background:linear-gradient(to top,rgba(0,0,0,.66),rgba(0,0,0,0))}
+  /* The photo melts into the page the way the cover reel does: a soft band at each
+     edge masked to transparent, so there is no boundary line and nothing inside the
+     picture is dimmed. A single element cannot carry two mask gradients reliably
+     across browsers (mask-composite is still uneven), so — exactly like .reel /
+     .reel-in above — the horizontal fade sits on the frame and the vertical fade on
+     the <img> nested inside it. The panel border and the gold grid background come
+     off with it: a hard rectangle drawn around a soft-edged photo defeats the point. */
+  .mapbox-photo{padding:0;display:block;border:0;background:none}
+  .mapbox-frame{
+    position:absolute;inset:0;overflow:hidden;transform:translateZ(0);contain:paint;
+    -webkit-mask-image:linear-gradient(to right, rgba(0,0,0,0) 0%, #000 13%, #000 87%, rgba(0,0,0,0) 100%);
+            mask-image:linear-gradient(to right, rgba(0,0,0,0) 0%, #000 13%, #000 87%, rgba(0,0,0,0) 100%);
+  }
+  .mapbox-frame img{
+    position:absolute;inset:0;width:100%;height:100%;display:block;
+    object-fit:cover;object-position:50% 45%;
+    -webkit-mask-image:linear-gradient(to bottom, rgba(0,0,0,0) 0%, #000 13%, #000 87%, rgba(0,0,0,0) 100%);
+            mask-image:linear-gradient(to bottom, rgba(0,0,0,0) 0%, #000 13%, #000 87%, rgba(0,0,0,0) 100%);
+  }
+  /* the dark caption plate is gone too — it would have re-drawn the bottom edge the
+     mask just dissolved. Plain muted type, sitting in the faded band. */
+  .mapbox-cap{position:absolute;left:0;right:0;bottom:4px;text-align:center;
+              font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
   .mapbox .pin svg{margin:0 auto 12px;display:block;animation:bob 2.6s ease-in-out infinite}
   @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
   .mapbox .pin p{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
@@ -1007,14 +1016,6 @@
        page itself is narrow (iPad Pro portrait 1024 included). Stack them straight to
        one column here — that's why the 50+/100+/4-day row never breaks into a 2+1. */
     .trust{grid-template-columns:1fr;max-width:340px;margin-left:auto;margin-right:auto}
-    /* stacked About = the pre-v113 centred column, rules and all */
-    .about-grid{grid-template-columns:1fr;gap:44px}
-    .about-copy{text-align:center;max-width:920px;margin:0 auto}
-    .about-copy p{max-width:800px;margin-left:auto;margin-right:auto;text-wrap:balance}
-    .about-copy .h-script{text-wrap:balance;white-space:nowrap;max-width:92vw}
-    .about-copy h2{font-size:clamp(46px,6vw,78px);margin:18px 0 26px}
-    .about-copy .trust{max-width:800px;margin-left:auto;margin-right:auto}
-    .about-photo{max-width:520px;margin:0 auto}
   }
   @media (max-width:900px){
     /* Tablet portrait is 744-834px wide and the full bar needs ~881px, so the links
@@ -1038,7 +1039,7 @@
   }
   @media (max-width:640px){
     /* one line no longer fits on a phone — let the title wrap again */
-    .about-copy .h-script{white-space:normal;max-width:100%}
+    .about-wrap .h-script{white-space:normal;max-width:100%}
     .mono{height:34px}
     .wordmark{height:22px}
     .brand{gap:9px}
@@ -1248,8 +1249,8 @@
 
 <!-- ===================== ABOUT ===================== -->
 <section class="section" id="about" data-aura="gold">
-  <div class="wrap about-grid">
-    <div class="about-copy reveal">
+  <div class="wrap about-wrap">
+    <div class="reveal">
       <span class="kicker">About the Studio</span>
       <h2 class="h-script">Yours for the evening.</h2>
       <p>LaFemme Gowns by Nee is a gown and suit rental studio in Pusat Bandar Bukit Jalil, Kuala Lumpur. We keep a curated wardrobe of evening gowns and men's suits for the occasions that matter — annual dinners, galas, convocations and ROM ceremonies.</p>
@@ -1260,9 +1261,6 @@
         <div><b>4-day</b><span>rentals · dry-cleaning included</span></div>
       </div>
     </div>
-    <figure class="about-photo reveal">
-      <img src="images/studio-gowns.webp" alt="Inside the LaFemme studio — evening gowns racked by colour" loading="lazy" decoding="async" width="960" height="1280"/>
-    </figure>
   </div>
 </section>
 
@@ -1467,7 +1465,7 @@
       <p class="form-note">Fittings are by appointment — WhatsApp us before dropping by. Parking available around Pusat Bandar Bukit Jalil.</p>
     </div>
     <div class="mapbox mapbox-photo reveal">
-      <img src="images/studio-shopfront.webp" alt="LaFemme storefront signage at Pusat Bandar Bukit Jalil" loading="lazy" decoding="async" width="960" height="1280"/>
+      <div class="mapbox-frame"><img src="images/studio-shopfront.webp" alt="LaFemme storefront signage at Pusat Bandar Bukit Jalil" loading="lazy" decoding="async" width="960" height="1280"/></div>
       <span class="mapbox-cap">Look for this signage</span>
     </div>
   </div>
