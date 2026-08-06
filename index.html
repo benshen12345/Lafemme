@@ -922,45 +922,30 @@
   .wayfind{font-size:14px;line-height:1.6;color:var(--gold);
            margin:16px 0 0;padding:11px 0 11px 16px;border-left:2px solid var(--gold)}
   .visit-grid .btns{display:flex;gap:14px;flex-wrap:wrap}
+  /* The map placeholder is gone — the slot now holds the storefront photo. The two
+     nav buttons beside it already handle "get me there", so this does the one thing
+     they cannot: show the shopfront the customer is looking for once they are
+     standing in the block. The rules that drew the old gold map marker (and its bob
+     keyframes) went with it — nothing referenced them any more. */
   .mapbox{
-    position:relative;border:1px solid var(--hairline);min-height:380px;
-    background:
-      repeating-linear-gradient(0deg,transparent 0 39px,rgba(198,161,91,.12) 39px 40px),
-      repeating-linear-gradient(90deg,transparent 0 39px,rgba(198,161,91,.12) 39px 40px),
-      var(--panel);
+    position:relative;min-height:380px;overflow:hidden;
+    border:1px solid var(--gold);background:var(--panel);
     display:flex;align-items:center;justify-content:center;transition:background .8s ease;
   }
-  .mapbox .pin{text-align:center;padding:24px}
-  /* the storefront photo replaces the map placeholder: the two nav buttons beside it
-     already handle "get me there", so this slot does the thing they cannot — show the
-     shopfront the customer is looking for once they are standing in the block. */
-  /* The photo melts into the page the way the cover reel does: a soft band at each
-     edge masked to transparent, so there is no boundary line and nothing inside the
-     picture is dimmed. A single element cannot carry two mask gradients reliably
-     across browsers (mask-composite is still uneven), so — exactly like .reel /
-     .reel-in above — the horizontal fade sits on the frame and the vertical fade on
-     the <img> nested inside it. The panel border and the gold grid background come
-     off with it: a hard rectangle drawn around a soft-edged photo defeats the point. */
-  .mapbox-photo{padding:0;display:block;border:0;background:none}
-  .mapbox-frame{
-    position:absolute;inset:0;overflow:hidden;transform:translateZ(0);contain:paint;
-    -webkit-mask-image:linear-gradient(to right, rgba(0,0,0,0) 0%, #000 13%, #000 87%, rgba(0,0,0,0) 100%);
-            mask-image:linear-gradient(to right, rgba(0,0,0,0) 0%, #000 13%, #000 87%, rgba(0,0,0,0) 100%);
-  }
-  .mapbox-frame img{
+  /* A soft mask fade was tried first and read as unfinished: everything else in this
+     section (the hours rules, the two outlined buttons, the wayfinding rule) has a
+     hard 1px edge, so the one soft-edged element looked like a rendering fault rather
+     than a decision. The gold hairline puts the photo back into that vocabulary. */
+  .mapbox-photo{padding:0;display:block}
+  /* The photo is a bright midday shot dropped into a warm ivory / gold section. The
+     frame stops it floating; the filter is what stops it shouting — pulling the
+     saturation down and warming it slightly lands the blues inside the palette.
+     Note this travels with the CSS, not the file: swap the photo and re-check here. */
+  .mapbox-photo img{
     position:absolute;inset:0;width:100%;height:100%;display:block;
     object-fit:cover;object-position:50% 45%;
-    -webkit-mask-image:linear-gradient(to bottom, rgba(0,0,0,0) 0%, #000 13%, #000 87%, rgba(0,0,0,0) 100%);
-            mask-image:linear-gradient(to bottom, rgba(0,0,0,0) 0%, #000 13%, #000 87%, rgba(0,0,0,0) 100%);
+    filter:saturate(.72) contrast(.94) sepia(.10) brightness(1.02);
   }
-  /* the dark caption plate is gone too — it would have re-drawn the bottom edge the
-     mask just dissolved. Plain muted type, sitting in the faded band. */
-  .mapbox-cap{position:absolute;left:0;right:0;bottom:4px;text-align:center;
-              font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
-  .mapbox .pin svg{margin:0 auto 12px;display:block;animation:bob 2.6s ease-in-out infinite}
-  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-  .mapbox .pin p{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
-  /* In production, replace .mapbox contents with your Google Maps embed iframe */
 
   /* ---------- floating WhatsApp ---------- */
   #waFab{
@@ -1465,8 +1450,7 @@
       <p class="form-note">Fittings are by appointment — WhatsApp us before dropping by. Parking available around Pusat Bandar Bukit Jalil.</p>
     </div>
     <div class="mapbox mapbox-photo reveal">
-      <div class="mapbox-frame"><img src="images/studio-shopfront.webp" alt="LaFemme storefront signage at Pusat Bandar Bukit Jalil" loading="lazy" decoding="async" width="960" height="1280"/></div>
-      <span class="mapbox-cap">Look for this signage</span>
+      <img src="images/studio-shopfront.webp" alt="LaFemme storefront signage at Pusat Bandar Bukit Jalil" loading="lazy" decoding="async" width="960" height="1280"/>
     </div>
   </div>
 </section>
@@ -3091,7 +3075,6 @@ const I18N = {
   "As early as possible — our gowns are first come, first served. Most clients book around 3 months before their event to secure their preferred gown. Once you've found the one, we recommend confirming early to ensure it's available for your special day.":"越早越好——礼服采先到先得。多数客人会在活动前约 3 个月预订，以锁定心仪礼服。一旦找到那一件，建议尽早确认，确保在你的重要日子如期可用。",
   /* visit */
   "Level 2 — directly above HALO&YOU (unit H-12). Take the lift beside their entrance.":"二楼——就在楼下 HALO&YOU（H-12）的正上方，搭他们入口旁的电梯上来。",
-  "Look for this signage":"认这个招牌",
   "Visit the Studio":"到店拜访","Monday – Saturday":"周一至周六","Sunday":"周日","By appointment":"预约制","Fittings":"试穿",
   /* lightbox */
   "Colours":"颜色","Suitable for":"适合场合","Reference":"编号","Rental":"租期",
