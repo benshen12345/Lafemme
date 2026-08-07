@@ -2451,7 +2451,12 @@ function openLb(i, vi){
     );
     ask.onclick = () => track("ask_price", meta);
     document.getElementById("lbBook").onclick = () => {
-      track("book_click", meta);
+      /* This button does NOT contact anyone — it adds the piece to the fitting list and
+         leaves the popup open. It used to log the same event name the booking FORM logs
+         when it actually opens WhatsApp, so the dashboard's booking number was mostly
+         browsing. Separate name, separate meaning. `add_fitting` passes the
+         events_event_type_fmt regex and uses only existing columns — see 11.5.3 / 11.5.4. */
+      track("add_fitting", meta);
       /* add this gown + colour to the fitting list (dedup by ref, soft cap FIT_MAX);
          the popup stays open so the customer can keep adding other colours. */
       const btn = document.getElementById("lbBook"), prev = btn.dataset.label || btn.textContent;
@@ -2636,7 +2641,11 @@ document.getElementById("bookForm").addEventListener("submit", e=>{
     v("fNotes") && `${msg("notes")}: ${v("fNotes")}`,
     v("fHeard") && `${msg("heard")}: ${v("fHeard")}`,
   ].filter(Boolean);
-  track("book_click", { style_ref: fittingList.length ? fittingList.map(p => p.ref).join(", ") : null });
+  /* Fires only past the required-field check, on the line before WhatsApp opens — so one
+     row here means one filled-in form actually sent, not an abandoned attempt. Renamed so
+     the dashboard number can never mix with the old, looser meaning: a date range before
+     this deploys reads 0 instead of silently reading inflated. */
+  track("book_submit", { style_ref: fittingList.length ? fittingList.map(p => p.ref).join(", ") : null });
   window.open(waLink(lines.join("\n")), "_blank");
   /* clear the list after sending so a later, unrelated booking doesn't carry it */
   fittingList = []; saveFit(); renderFittingFor();

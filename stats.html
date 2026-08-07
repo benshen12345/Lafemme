@@ -250,7 +250,7 @@
       <div class="kpi hi"><b id="kTotal">–</b><span>Total reach-outs</span></div>
       <div class="kpi"><b id="kWa">–</b><span>Chat button opens</span></div>
       <div class="kpi"><b id="kAsk">–</b><span>Price enquiries</span></div>
-      <div class="kpi"><b id="kBook">–</b><span>Booking clicks</span></div>
+      <div class="kpi"><b id="kBook">–</b><span>Booking forms sent</span><em id="kBookSub"></em></div>
     </div>
 
     <!-- sub-sections so the dashboard isn't one long scroll; all data loads at once,
@@ -279,7 +279,7 @@
 
         <dt>Total reach-outs</dt>
         <dd>Every time a customer started a conversation: chat button opens + price enquiries +
-            booking clicks. This is the number to watch — it's the closest thing to a lead.</dd>
+            booking forms sent. This is the number to watch — it's the closest thing to a lead.</dd>
 
         <dt>Chat button opens</dt>
         <dd>Taps on the general "chat with us" buttons — the floating WhatsApp button, the one in
@@ -289,8 +289,14 @@
         <dd>Taps on "Ask price" inside a piece's photo popup. Always tied to a specific piece,
             which is what makes it the strongest signal on the page.</dd>
 
-        <dt>Booking clicks</dt>
-        <dd>"Book a fitting" on a piece, or sending the booking form.</dd>
+        <dt>Booking forms sent</dt>
+        <dd>How many times someone filled in the Book-a-fitting form and sent it through to
+            WhatsApp. Only a completed send counts. Tapping "Book a fitting" inside a piece's
+            popup does <b>not</b> count here — that only drops the piece into the fitting list
+            and contacts nobody; it's shown on the small line under this number instead.
+            <br><span style="color:var(--muted)">Counted from 7 Aug 2026. Before that the site
+            recorded both actions under one name, so this tile reads 0 for any earlier date
+            range rather than showing the old, inflated mix.</span></dd>
 
         <dt>Most viewed pieces</dt>
         <dd>What customers opened most in this date range. The coloured dots under each row show
@@ -517,10 +523,11 @@ async function loadDash() {
   const r = range();
   logAction("date_range_change", r);
 
-  const [{ data: o }, { data: st }, { data: co }] = await Promise.all([
+  const [{ data: o }, { data: st }, { data: co }, bookings] = await Promise.all([
     sb.rpc("stats_overview",    r),
     sb.rpc("stats_top_styles",  { ...r, p_limit: 15 }),
-    sb.rpc("stats_top_colours", { ...r, p_limit: 12 })
+    sb.rpc("stats_top_colours", { ...r, p_limit: 12 }),
+    loadBookingCounts(r)
   ]);
   if (!o) return toast("Could not load stats");
 
@@ -536,11 +543,24 @@ async function loadDash() {
   $("kMen").textContent      = mOpen + mCol;
   $("kMenSub").textContent   = split(mOpen, mCol);
   $("kVisits").textContent = o.visits;
-  const wa = Number(o.wa_clicks) || 0, ap = Number(o.ask_price) || 0, bk = Number(o.book_clicks) || 0;
-  $("kTotal").textContent  = wa + ap + bk;
+  /* o.book_clicks is the retired mixed metric — intentionally not read any more. */
+  const wa = Number(o.wa_clicks) || 0, ap = Number(o.ask_price) || 0;
   $("kWa").textContent     = o.wa_clicks;
   $("kAsk").textContent    = o.ask_price;
-  $("kBook").textContent   = o.book_clicks;
+  if (bookings) {
+    $("kBook").textContent    = bookings.sent;
+    $("kTotal").textContent   = wa + ap + bookings.sent;
+    $("kBookSub").textContent = bookings.added
+      ? bookings.added + (bookings.added === 1 ? " piece" : " pieces") + " added to fitting list"
+      : "";
+    $("kBookSub").style.color = "";
+  } else {
+    /* neither number is knowable without this read, so neither pretends to be zero */
+    $("kBook").textContent    = "\u2013";
+    $("kTotal").textContent   = "\u2013";
+    $("kBookSub").textContent = "couldn't read this — " + BOOK_ERR;
+    $("kBookSub").style.color = "var(--bad)";
+  }
 
   LAST.styles  = st || [];
   LAST.colours = co || [];
@@ -683,6 +703,39 @@ async function loadSearchAndFilters(r){
     SEARCHES = Object.entries(terms).sort((a, b) => b[1] - a[1]);
     FAQS = Object.entries(faqs).sort((a, b) => b[1] - a[1]);
   } catch(e){ BEHAV_ERR = (e && e.message) || String(e); }
+}
+
+/* Bookings, read straight from events instead of from stats_overview.
+
+   stats_overview.book_clicks counted TWO different actions under one name: tapping
+   "Book a fitting" inside a piece popup (which only adds that piece to the fitting
+   list — nobody is contacted) and actually submitting the booking form (which opens
+   WhatsApp with the filled-in message). The first is far commoner, so the tile read
+   as leads when most of it was browsing.
+
+   index.html now writes `book_submit` for the real send and `add_fitting` for the list
+   add. stats_overview is deliberately left alone: its book_clicks freezes as the old
+   historical mixed number, and nothing here reads it any more. That also means a date
+   range predating the deploy shows 0 — visibly no-data, rather than silently mixing
+   two meanings, which is the failure this whole split exists to avoid.
+
+   A failed read returns null, NOT zero: "couldn't read it" must never render as
+   "no customers booked". */
+let BOOK_ERR = "";
+async function loadBookingCounts(r){
+  BOOK_ERR = "";
+  try {
+    const { data, error } = await withTimeout(
+      sb.from("events").select("event_type")
+        .in("event_type", ["book_submit", "add_fitting"])
+        .gte("occurred_at", r.p_from).lt("occurred_at", r.p_to)
+        .limit(10000), 12000, "Bookings");
+    if (error){ BOOK_ERR = error.message || "the query was refused"; return null; }
+    if (!data){ BOOK_ERR = "no response from the database"; return null; }
+    let sent = 0, added = 0;
+    data.forEach(e => { if (e.event_type === "book_submit") sent++; else added++; });
+    return { sent, added };
+  } catch(e){ BOOK_ERR = (e && e.message) || String(e); return null; }
 }
 
 /* what an empty behaviour panel should say: nothing recorded yet, or couldn't read it */
