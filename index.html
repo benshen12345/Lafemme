@@ -319,6 +319,11 @@
   #mobileMenu{display:none;flex-direction:column;background:var(--glass);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-top:1px solid var(--hairline);padding:10px 24px 22px}
   #mobileMenu a{padding:12px 0;font-size:13px;letter-spacing:.22em;text-transform:uppercase;border-bottom:1px solid var(--hairline)}
   #mobileMenu.open{display:flex}
+  /* v119 — 横屏手机上这块被切掉。菜单固定 352px 高、从顶栏下面 58px 起,底边落在 410px,
+     而横屏手机屏高普遍 320–414px:568×320 切掉 90px(Visit 和 EN 都点不到)、740×360 切掉
+     50px。菜单挂在固定顶栏下面,滚页面它跟着走,所以滚也滚不出来。竖屏没事,一直没被发现。
+     给它一个上限并允许自己滚 —— 这样跟屏高和项数都解耦,以后菜单再加一项也不会重新坏掉。 */
+  #mobileMenu{max-height:calc(100svh - 58px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 
   /* ---------- hero (split 40/60) ---------- */
   .hero{position:relative;min-height:100svh;overflow:hidden;z-index:1}
@@ -930,10 +935,19 @@
      Level 2" information, which was the useful half of that whole detour. */
   .mapbox{
     position:relative;border:1px solid var(--hairline);min-height:380px;
-    background:
-      repeating-linear-gradient(0deg,transparent 0 39px,rgba(198,161,91,.12) 39px 40px),
-      repeating-linear-gradient(90deg,transparent 0 39px,rgba(198,161,91,.12) 39px 40px),
-      var(--panel);
+    /* v119 — 边缘的半格。原来用 repeating-linear-gradient 从左上角起算、每 40px 一条线;
+       框宽 526px 除以 40 除不尽,余下的 7px 全堆在右边,高度同理堆在顶部 —— 右边一条 7px、
+       顶部一条 25px 的窄格,而且左下两边是齐的,整个不对称。框宽随断点变,窄边宽度也跟着变。
+       先试过 `background-position:center`,实测一点变化都没有:repeating-linear-gradient 在
+       background-size:auto 下整张就是一个铺满全框的 tile,position 对它不起作用。
+       改成普通 1px 线 + 显式 background-size:40px,tile 才真的是 40px,这时 position 才有效,
+       余数就平分到对边去。边上仍是半格,但四边对称 —— 地图本来就该像透过窗口看更大的网格。 */
+    background-color:var(--panel);
+    background-image:
+      linear-gradient(to bottom,rgba(198,161,91,.12) 1px,transparent 1px),
+      linear-gradient(to right ,rgba(198,161,91,.12) 1px,transparent 1px);
+    background-size:100% 40px, 40px 100%;
+    background-position:center center;
     display:flex;align-items:center;justify-content:center;transition:background .8s ease;
   }
   .mapbox .pin{text-align:center;padding:24px}
