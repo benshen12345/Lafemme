@@ -942,14 +942,27 @@
        background-size:auto 下整张就是一个铺满全框的 tile,position 对它不起作用。
        改成普通 1px 线 + 显式 background-size:40px,tile 才真的是 40px,这时 position 才有效,
        余数就平分到对边去。边上仍是半格,但四边对称 —— 地图本来就该像透过窗口看更大的网格。 */
-    background-color:var(--panel);
+    background:var(--panel);
+    display:flex;align-items:center;justify-content:center;transition:background .8s ease;
+  }
+  /* v120 — 网格挪到伪元素上,四边内缩 14px。
+     v119 把网格居中之后,余数平分成两边各 3–4px,正好把一条网格线甩到紧贴 1px 边框的位置,
+     看起来像一条双线。**内缩不能靠 padding + background-origin 做到** —— 试过,不行:
+     background-repeat 会继续往 padding 里反向平铺,background-origin 只挪锚点、不管画到哪;
+     要真的留白得用 background-clip:content-box,但那会把面板底色一起裁掉。
+     所以网格单独放在一个 inset:14px 的伪元素上 —— 间隙由 inset 保证,和框宽、余数都无关,
+     任何宽度下都不可能再有线贴到边框上。 */
+  .mapbox::before{
+    content:"";position:absolute;inset:14px;pointer-events:none;
     background-image:
       linear-gradient(to bottom,rgba(198,161,91,.12) 1px,transparent 1px),
       linear-gradient(to right ,rgba(198,161,91,.12) 1px,transparent 1px);
     background-size:100% 40px, 40px 100%;
     background-position:center center;
-    display:flex;align-items:center;justify-content:center;transition:background .8s ease;
+    transition:opacity .45s ease;
   }
+  /* 照片淡入时网格跟着退场,免得在半透明的那几帧透出来 */
+  .mapbox.shown::before{opacity:0}
   .mapbox .pin{text-align:center;padding:24px}
   .mapbox .pin svg{margin:0 auto 12px;display:block;animation:bob 2.6s ease-in-out infinite}
   @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
@@ -976,7 +989,7 @@
   .mapbox.shown .map-hint{opacity:1}
   .mapbox:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
   @media (prefers-reduced-motion: reduce){
-    .mapbox .pin,.mapbox .mapshot,.map-hint{transition:none}
+    .mapbox .pin,.mapbox .mapshot,.map-hint,.mapbox::before{transition:none}
   }
   /* In production, replace .mapbox contents with your Google Maps embed iframe */
 
