@@ -922,30 +922,49 @@
   .wayfind{font-size:14px;line-height:1.6;color:var(--gold);
            margin:16px 0 0;padding:11px 0 11px 16px;border-left:2px solid var(--gold)}
   .visit-grid .btns{display:flex;gap:14px;flex-wrap:wrap}
-  /* The map placeholder is gone — the slot now holds the storefront photo. The two
-     nav buttons beside it already handle "get me there", so this does the one thing
-     they cannot: show the shopfront the customer is looking for once they are
-     standing in the block. The rules that drew the old gold map marker (and its bob
-     keyframes) went with it — nothing referenced them any more. */
+  /* Reverted in v117: the storefront photo went in at v113 and came out again — a bright
+     midday shopfront never sat right next to the ivory/gold typography, and no amount of
+     framing or colour grading fixed that (v114 tried an edge fade, v115 a gold hairline
+     plus a filter). What follows is the original placeholder, restored byte-for-byte from
+     _archive/v101-html-backup. The wayfinding line above still carries the "we are on
+     Level 2" information, which was the useful half of that whole detour. */
   .mapbox{
-    position:relative;min-height:380px;overflow:hidden;
-    border:1px solid var(--gold);background:var(--panel);
+    position:relative;border:1px solid var(--hairline);min-height:380px;
+    background:
+      repeating-linear-gradient(0deg,transparent 0 39px,rgba(198,161,91,.12) 39px 40px),
+      repeating-linear-gradient(90deg,transparent 0 39px,rgba(198,161,91,.12) 39px 40px),
+      var(--panel);
     display:flex;align-items:center;justify-content:center;transition:background .8s ease;
   }
-  /* A soft mask fade was tried first and read as unfinished: everything else in this
-     section (the hours rules, the two outlined buttons, the wayfinding rule) has a
-     hard 1px edge, so the one soft-edged element looked like a rendering fault rather
-     than a decision. The gold hairline puts the photo back into that vocabulary. */
-  .mapbox-photo{padding:0;display:block}
-  /* The photo is a bright midday shot dropped into a warm ivory / gold section. The
-     frame stops it floating; the filter is what stops it shouting — pulling the
-     saturation down and warming it slightly lands the blues inside the palette.
-     Note this travels with the CSS, not the file: swap the photo and re-check here. */
-  .mapbox-photo img{
+  .mapbox .pin{text-align:center;padding:24px}
+  .mapbox .pin svg{margin:0 auto 12px;display:block;animation:bob 2.6s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  .mapbox .pin .pin-label{display:block;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+  /* v118 — 点开才出照片。默认状态还是金线占位符,页面静止时的视觉语言完全不变;
+     照片只在客人主动要看的时候出现,离开这一段就自动收回去。
+     用交叉淡入淡出,不用 3D flip:flip 是容器上的 transform,会拖动不在变换原点上的
+     子元素,还会把 1px 发丝边框摊成两行(§16.7,v104 那次的坑)。 */
+  .mapbox{cursor:pointer;padding:0;font:inherit;color:inherit;text-align:center;
+          -webkit-appearance:none;appearance:none;width:100%}
+  .mapbox .pin{transition:opacity .45s ease}
+  .mapbox .mapshot{
     position:absolute;inset:0;width:100%;height:100%;display:block;
     object-fit:cover;object-position:50% 45%;
-    filter:saturate(.72) contrast(.94) sepia(.10) brightness(1.02);
+    opacity:0;transition:opacity .55s ease;pointer-events:none;
   }
+  .mapbox.shown .pin{opacity:0}
+  .mapbox.shown .mapshot{opacity:1}
+  /* 提示条只在照片露出来的时候浮上来 */
+  .map-hint{position:absolute;left:0;right:0;bottom:0;padding:12px 16px;opacity:0;
+            transition:opacity .55s ease;pointer-events:none;
+            font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#fff;
+            background:linear-gradient(to top,rgba(0,0,0,.62),rgba(0,0,0,0))}
+  .mapbox.shown .map-hint{opacity:1}
+  .mapbox:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+  @media (prefers-reduced-motion: reduce){
+    .mapbox .pin,.mapbox .mapshot,.map-hint{transition:none}
+  }
+  /* In production, replace .mapbox contents with your Google Maps embed iframe */
 
   /* ---------- floating WhatsApp ---------- */
   #waFab{
@@ -1449,9 +1468,17 @@
       </div>
       <p class="form-note">Fittings are by appointment — WhatsApp us before dropping by. Parking available around Pusat Bandar Bukit Jalil.</p>
     </div>
-    <div class="mapbox mapbox-photo reveal">
-      <img src="images/studio-shopfront.webp" alt="LaFemme storefront signage at Pusat Bandar Bukit Jalil" loading="lazy" decoding="async" width="960" height="1280"/>
-    </div>
+    <button type="button" class="mapbox reveal" id="mapPeek" aria-expanded="false">
+      <span class="pin">
+        <svg width="34" height="44" viewBox="0 0 34 44" fill="none" aria-hidden="true">
+          <path d="M17 1C8.2 1 1 8.1 1 16.9 1 28.9 17 43 17 43s16-14.1 16-26.1C33 8.1 25.8 1 17 1Z" stroke="#C6A15B" stroke-width="2" fill="rgba(198,161,91,.12)"/>
+          <circle cx="17" cy="17" r="5.5" fill="#C6A15B"/>
+        </svg>
+        <span class="pin-label">Tap to see the shopfront</span>
+      </span>
+      <img class="mapshot" alt="LaFemme shopfront signage at Pusat Bandar Bukit Jalil" data-src="images/studio-shopfront.webp" width="960" height="1280" decoding="async"/>
+      <span class="map-hint">Level 2, above HALO&amp;YOU</span>
+    </button>
   </div>
 </section>
 
@@ -2651,6 +2678,59 @@ document.getElementById("bookForm").addEventListener("submit", e=>{
   fittingList = []; saveFit(); renderFittingFor();
 });
 
+/* ---------- Visit:点开看店面 ---------- */
+/* 照片不预载 —— 大多数人不会点,不能让所有人先下 52KB。第一次需要时才给 src;
+   鼠标用户在 pointerenter 就先载,等他真的按下去时通常已经解码完了。
+   ⚠️ <img> 换 src 之后会一直画旧内容直到在这个元素上解码完 —— 这里是首次加载,
+   所以照片没就绪之前占位符不撤,靠 decode() 决定什么时候开始淡入。 */
+(function(){
+  const box = document.getElementById("mapPeek");
+  const sect = document.getElementById("visit");
+  if (!box || !sect) return;
+  const img = box.querySelector(".mapshot");
+  let asked = false;
+  function load(){
+    if (asked) return Promise.resolve();
+    asked = true;
+    img.src = img.dataset.src;
+    return (img.decode ? img.decode() : Promise.resolve()).catch(() => {});
+  }
+  /* 预载挂 pointerdown,不挂 pointerenter。挂 hover 的话,鼠标只要「停在」这个方块上
+     就会下那 52KB —— 光标停在哪儿不是意图。跨设备测试里 1024 / 1080 两档真的这样触发了
+     (X server 的指针默认停在屏幕中心,正好落在这个方块里),那不是测试的假象,
+     是真实用户身上一样会发生的事。pointerdown 是真的按下去了,比 click 早几十毫秒,
+     白赚,而且不会误伤。 */
+  box.addEventListener("pointerdown", load);
+  box.addEventListener("click", () => {
+    const open = !box.classList.contains("shown");
+    if (!open){ setShown(false); return; }
+    load().then(() => setShown(true));
+    track("shopfront_peek");
+  });
+  function setShown(v){
+    box.classList.toggle("shown", v);
+    box.setAttribute("aria-expanded", v ? "true" : "false");
+    const lbl = box.querySelector(".pin-label");
+    if (lbl) lbl.textContent = LBL[LANG] ? LBL[LANG][v ? 1 : 0] : LBL.en[v ? 1 : 0];
+  }
+  const LBL = { en:["Tap to see the shopfront","Tap to close"],
+                zh:["点一下看店面","点一下收起"] };
+  /* applyLang() 的通用 [data-en] 那一趟会把这颗按钮的文字写回「静止态」的那句 ——
+     tagLeaves() 在页面还没打开照片时把它标成了 data-en="Tap to see the shopfront",
+     之后不管当前是不是打开状态,切一次语言就被改回去。
+     所以这里留一个「按当前状态重写一遍文字」的钩子,由 applyLang() 末尾那串统一调。
+     ⚠️ 这就是 v113 品牌筛选那个 bug 的同一个形状 —— 新增会随语言变的动态 UI,
+     「加进 applyLang 的清单」是同一次改动的一部分,没有任何机制会提醒你。 */
+  window.__syncMapPeek = () => setShown(box.classList.contains("shown"));
+  /* 离开这一段就收回去 —— threshold 0,只有整段完全滚出视口才触发,
+     段内的小幅滚动不会把照片弄没。 */
+  if ("IntersectionObserver" in window){
+    new IntersectionObserver(es => {
+      es.forEach(e => { if (!e.isIntersecting && box.classList.contains("shown")) setShown(false); });
+    }, { threshold: 0 }).observe(sect);
+  }
+})();
+
 /* ---------- theme toggle ---------- */
 const themeBtn = document.getElementById("themeBtn");
 themeBtn.addEventListener("click", ()=>{
@@ -3084,6 +3164,7 @@ const I18N = {
   "As early as possible — our gowns are first come, first served. Most clients book around 3 months before their event to secure their preferred gown. Once you've found the one, we recommend confirming early to ensure it's available for your special day.":"越早越好——礼服采先到先得。多数客人会在活动前约 3 个月预订，以锁定心仪礼服。一旦找到那一件，建议尽早确认，确保在你的重要日子如期可用。",
   /* visit */
   "Level 2 — directly above HALO&YOU (unit H-12). Take the lift beside their entrance.":"二楼——就在楼下 HALO&YOU（H-12）的正上方，搭他们入口旁的电梯上来。",
+  "Tap to see the shopfront":"点一下看店面","Level 2, above HALO&YOU":"二楼,HALO&YOU 楼上",
   "Visit the Studio":"到店拜访","Monday – Saturday":"周一至周六","Sunday":"周日","By appointment":"预约制","Fittings":"试穿",
   /* lightbox */
   "Colours":"颜色","Suitable for":"适合场合","Reference":"编号","Rental":"租期",
@@ -3198,6 +3279,7 @@ function applyLang(lang){
      and since the chip is rebuilt (dropping any data-en) the leaf-text pass above could
      not fix it either. It unstuck only when a brand click re-ran renderBrandChips. */
   if (typeof renderBrandChips === 'function') renderBrandChips();
+  if (typeof window.__syncMapPeek === 'function') window.__syncMapPeek();
   if (typeof renderSwatches === 'function') renderSwatches();
   if (typeof updateFilterMeta === 'function') updateFilterMeta();
   if (typeof refreshWaLinks === 'function') refreshWaLinks();
