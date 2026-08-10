@@ -259,6 +259,7 @@
       <button class="subtab active" data-sub="overview">Overview</button>
       <button class="subtab" data-sub="pieces">Pieces</button>
       <button class="subtab" data-sub="behaviour">What they wanted</button>
+      <button class="subtab" data-sub="sessions">Visits</button>
     </div>
 
     <!-- OVERVIEW: the numbers + what they mean -->
@@ -301,6 +302,16 @@
             range includes those days the small line says how many of the number came from that
             reconstruction. Over 20 Jul – 6 Aug it works out at 14 real sends inside 56 old
             "booking clicks", i.e. the retired tile was overstating leads about fourfold.</span></dd>
+
+        <dt>Individual visits</dt>
+        <dd>The "Visits" tab breaks the totals back down into single browsing sessions, so you
+            can see whether anyone is genuinely engaging rather than just how many taps happened.
+            A row is highlighted when that visit ended in a booking.
+            <br><span style="color:var(--muted)">A page reload starts a new row — the site never
+            stores anything on the visitor's device, so it cannot tell that two sessions are the
+            same person. Rows a few minutes apart are almost always one person; read them together.
+            "Screen: narrow" means under 760px wide, which is how the site records it — a laptop
+            with a narrow window counts as narrow, a tablet held sideways does not.</span></dd>
 
         <dt>Most viewed pieces</dt>
         <dd>What customers opened most in this date range. The coloured dots under each row show
@@ -361,6 +372,29 @@
       </table>
       </div>
       <button class="btn btn-sm showall hide" id="intentMore">Show all</button>
+    </div>
+    </div>
+
+    <!-- VISITS: one row per browsing session -->
+    <div class="subpane hide" data-pane="sessions">
+    <div class="card">
+      <h3>Individual visits</h3>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:14px">
+        The tiles above are totals. This is the same data one visit at a time — which is where
+        a real customer becomes visible. On 25 Jul someone spent <b>47 minutes on a phone</b>,
+        opened <b>84 pieces</b>, shortlisted <b>26</b>, asked the price of <b>3</b>, and sent a
+        booking. In the totals that is just "+1 booking".
+        <br><b>A page reload starts a new row.</b> Rows minutes apart on the same day are very
+        likely one person — read them together, the way that 47-minute visit is really three rows.
+        Only visits that opened at least one piece are listed.
+      </p>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th>When</th><th>Length</th><th>Pieces opened</th><th>Shortlisted</th><th>Price asks</th><th>Booking sent</th><th>Screen</th></tr></thead>
+        <tbody id="sessRows"><tr><td colspan="7" style="color:var(--muted)">No data yet.</td></tr></tbody>
+      </table>
+      </div>
+      <p id="sessNote" style="color:var(--muted);font-size:12px;margin-top:10px"></p>
     </div>
     </div>
 
@@ -573,12 +607,14 @@ async function loadDash() {
   if (!Object.keys(PIECES).length) await loadPieces();   // photos + style types, fetched once
   await loadColourSplit(r);                              // which colour, on which piece
   await loadSearchAndFilters(r);                         // search words + filter taps
+  await loadSessions(r);                                 // one row per browsing session
   renderTopStyles();
   renderColours();
   renderIntent();
   renderSearchTerms();
   renderFilterUse();
   renderFaqOpens();
+  renderSessions();
 }
 
 const NODATA = `<p style="color:var(--muted);font-size:13px">No data yet.</p>`;
@@ -780,6 +816,90 @@ async function loadBookingCounts(r){
     });
     return { sent, added, legacySent };
   } catch(e){ BOOK_ERR = (e && e.message) || String(e); return null; }
+}
+
+/* One row per browsing session.
+
+   Everything else on this dashboard is a total, and totals hide the thing the studio most
+   needs to see: whether anyone is actually engaging. The 25 Jul visit is the example —
+   84 pieces opened, 26 shortlisted, 3 price asks, one booking, all from one phone across
+   47 minutes. In the KPI row that is a single "+1".
+
+   ⚠️ visit_id is regenerated on every PAGE LOAD (analytics.js says so explicitly) — it is
+   NOT a person. A reload, or opening a second tab, makes a new one. So this table is
+   labelled "visits", never "visitors", and the note tells the reader to join up rows that
+   sit minutes apart. Auto-merging them by a time gap was considered and rejected: the gap
+   threshold would be a guess, and a wrong merge would invent a customer who never existed.
+   Better to show the raw rows and let the eye join them. */
+let SESSIONS = [], SESS_TRUNC = 0, SESS_ERR = "";
+async function loadSessions(r){
+  SESSIONS = []; SESS_TRUNC = 0; SESS_ERR = "";
+  const CAP = 10000;
+  try {
+    const { data, error } = await withTimeout(
+      sb.from("events").select("visit_id, occurred_at, event_type, device, style_id")
+        .gte("occurred_at", r.p_from).lt("occurred_at", r.p_to)
+        .order("occurred_at", { ascending: true })
+        .limit(CAP), 12000, "Visits");
+    if (error){ SESS_ERR = error.message || "the query was refused"; return; }
+    if (!data){ SESS_ERR = "no response from the database"; return; }
+    /* a full page means rows were left out — say so rather than quietly showing a subset */
+    if (data.length >= CAP) SESS_TRUNC = CAP;
+    const m = {};
+    data.forEach(e => {
+      const v = e.visit_id; if (!v) return;
+      const t = Date.parse(e.occurred_at);
+      const s = m[v] || (m[v] = { id:v, device:e.device || "", first:t, last:t,
+                                  opens:0, adds:0, asks:0, sent:0 });
+      if (t < s.first) s.first = t;
+      if (t > s.last)  s.last  = t;
+      if (e.event_type === "card_open")   s.opens++;
+      else if (e.event_type === "ask_price") s.asks++;
+      else if (e.event_type === "add_fitting") s.adds++;
+      else if (e.event_type === "book_submit") s.sent++;
+      /* legacy rows, split the same way the booking tile splits them */
+      else if (e.event_type === "book_click"){ if (e.style_id) s.adds++; else s.sent++; }
+    });
+    SESSIONS = Object.values(m)
+      .filter(s => s.opens > 0)
+      .sort((a, b) => (b.sent - a.sent) || (b.asks - a.asks) || (b.opens - a.opens));
+  } catch(e){ SESS_ERR = (e && e.message) || String(e); }
+}
+
+function renderSessions(){
+  const LIMIT = 30;
+  const body = $("sessRows"), note = $("sessNote");
+  if (!body) return;
+  if (SESS_ERR){
+    body.innerHTML = `<tr><td colspan="7" style="color:var(--bad)">Couldn't load this — ${esc(SESS_ERR)}.</td></tr>`;
+    note.textContent = ""; return;
+  }
+  if (!SESSIONS.length){
+    body.innerHTML = `<tr><td colspan="7" style="color:var(--muted)">No visit opened a piece in this range.</td></tr>`;
+    note.textContent = ""; return;
+  }
+  const shown = SESSIONS.slice(0, LIMIT);
+  const fmtWhen = t => { const d = new Date(t);
+    return d.toLocaleDateString(undefined,{day:"2-digit",month:"short"}) + " " +
+           d.toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"}); };
+  const fmtLen = ms => { const min = Math.round(ms / 60000);
+    return min < 1 ? "under a minute" : min + " min"; };
+  body.innerHTML = shown.map(s => `<tr${s.sent ? ' style="background:rgba(198,161,91,.10)"' : ''}>
+      <td>${esc(fmtWhen(s.first))}</td>
+      <td>${esc(fmtLen(s.last - s.first))}</td>
+      <td>${s.opens}</td>
+      <td>${s.adds || ""}</td>
+      <td>${s.asks || ""}</td>
+      <td>${s.sent ? "✓" : ""}</td>
+      <td style="color:var(--muted)">${esc(s.device === "mobile" ? "narrow" : s.device || "—")}</td>
+    </tr>`).join("");
+  const bits = [];
+  bits.push(SESSIONS.length + " visit" + (SESSIONS.length === 1 ? "" : "s") + " opened at least one piece");
+  if (SESSIONS.length > LIMIT) bits.push("showing the " + LIMIT + " most engaged");
+  /* never let a cap look like the whole picture */
+  if (SESS_TRUNC) bits.push("⚠️ hit the " + SESS_TRUNC + "-row read limit, so the oldest part of this range is missing — narrow the dates");
+  bits.push('"narrow" means a screen under 760px wide, which is how the site records it — not necessarily a phone');
+  note.textContent = bits.join(" · ");
 }
 
 /* what an empty behaviour panel should say: nothing recorded yet, or couldn't read it */
