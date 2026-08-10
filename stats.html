@@ -606,9 +606,13 @@ const COLHEX = { black:"#2A2724", grey:"#5F6165", white:"#F2EDE2", navy:"#28324A
   beige:"#C0996B", silver:"#C9CBCE", yellow:"#E4CE86", other:"#BDB6AA" };
 
 /* ---------- piece lookup: photo + style type for the charts ----------
-   stats_top_styles() aggregates by name, so we match the same way (name + gender).
-   Seven names are shared by more than one piece; those rows are already merged by
-   the RPC, so we show one representative photo and the union of their style types. */
+   ⛔ 这里以前写的是「stats_top_styles 按名字聚合,所以那些行已经被 RPC 合并了」——
+   是错的,而且错了很久。函数体实际是 `group by coalesce(e.style_id, e.style_name)`,
+   按款分组。目录里有 7 组同名款(Thalia Stardust 三件、Charcoal Two-Piece / Evelyn /
+   Jasmine / Laura / Misty / Navy Double-Breasted 各两件),RPC 给的是各自独立的行,
+   前端却按名字去查照片和标签,几行查到同一份 —— 于是「Most viewed」里出现两行
+   Thalia Stardust,缩略图、版型标签、颜色点全一样,只有数字不同。
+   现在按 style_id 查,查不到才退回名字。 */
 const CAT_LABELS = {
   fitted:"Fitted", mermaid:"Mermaid", aline:"A-Line", ballgown:"Ballgown", flare:"Flare",
   tube:"Tube", corset:"Corset", cape:"Cape", sleeves:"Sleeves", halter:"Halter",
@@ -617,9 +621,18 @@ const CAT_LABELS = {
   twopiece:"Two-Piece", threepiece:"Three-Piece", doublebreasted:"Double-Breasted",
   oriental:"Oriental / 中装"
 };
+/* 两套索引并存,因为两种口径都还在用:
+   stats_top_styles 是按 style_id 分组的(group by coalesce(style_id, style_name)),
+   所以同名不同款——像 Thalia Stardust 的 mermaid / flare / twopiece 三件——本来就该是三行。
+   看板以前只按 "name|gender" 查照片和标签,三行查到同一份,于是长得一模一样、
+   数字却各拆一半,读起来像重复行。现在优先按 style_id 查,查不到再退回名字。
+   退回这条路必须留着:RPC 加 style_id 那次 SQL 跑之前,返回里没有这一列;
+   而且事件表里 style_id 为 null 的旧行会被 coalesce 成名字。 */
 let PIECES = {};                                   // "name|gender" -> { img, cats, prefix }
+let PBYID  = {};                                   // product id     -> { img, cats, prefix }
 let PID = {};                                      // product id     -> "name|gender"
 let CSPLIT = {};                                   // "name|gender" -> { colour_family: count }
+let CSPLIT_ID = {};                                // product id     -> { colour_family: count }
 const pkey = (name, gender) => (name || "").trim().toLowerCase() + "|" + (gender || "");
 
 async function loadPieces(){
@@ -627,16 +640,19 @@ async function loadPieces(){
     const { data, error } = await withTimeout(
       sb.from("products").select("id, name, gender, prefix, category, variants"), 12000, "Pieces");
     if (error || !data) return;
-    const map = {}, ids = {};
+    const map = {}, byId = {}, ids = {};
     data.forEach(p => {
       const k = pkey(p.name, p.gender);
       ids[p.id] = k;
       const v0 = (p.variants || [])[0] || {};
+      /* 按 id:这一件自己的照片和自己的版型标签,不跟同名的合并 */
+      byId[p.id] = { img: v0.img || "", cats: (p.category || []).slice(), prefix: p.prefix || "" };
+      /* 按名字:保留旧口径当兜底,标签取并集、照片取第一个有图的 */
       if (!map[k]) map[k] = { img: v0.img || "", cats: [], prefix: p.prefix || "" };
       (p.category || []).forEach(c => { if (!map[k].cats.includes(c)) map[k].cats.push(c); });
       if (!map[k].img && v0.img) map[k].img = v0.img;
     });
-    PIECES = map; PID = ids;
+    PIECES = map; PBYID = byId; PID = ids;
   } catch(e){ /* charts still work without photos */ }
 }
 
@@ -645,7 +661,7 @@ async function loadPieces(){
    useful question — pink on WHICH piece. Read straight from events, since the colour
    switch already records style_id + colour_family. */
 async function loadColourSplit(r){
-  CSPLIT = {};
+  CSPLIT = {}; CSPLIT_ID = {};
   try {
     const { data, error } = await withTimeout(
       sb.from("events").select("style_id, colour_family")
@@ -654,7 +670,12 @@ async function loadColourSplit(r){
         .limit(10000), 12000, "Colours");
     if (error || !data) return;
     data.forEach(e => {
-      const k = PID[e.style_id]; if (!k || !e.colour_family) return;
+      if (!e.colour_family) return;
+      if (e.style_id){
+        (CSPLIT_ID[e.style_id] || (CSPLIT_ID[e.style_id] = {}))[e.colour_family] =
+          (CSPLIT_ID[e.style_id][e.colour_family] || 0) + 1;
+      }
+      const k = PID[e.style_id]; if (!k) return;
       (CSPLIT[k] || (CSPLIT[k] = {}))[e.colour_family] =
         (CSPLIT[k][e.colour_family] || 0) + 1;
     });
@@ -662,7 +683,7 @@ async function loadColourSplit(r){
 }
 
 function colourDots(s){
-  const m = CSPLIT[pkey(s.style_name, s.gender)];
+  const m = (s.style_id && CSPLIT_ID[s.style_id]) || CSPLIT[pkey(s.style_name, s.gender)];
   if (!m) return "";
   const list = Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6);
   if (!list.length) return "";
@@ -804,7 +825,9 @@ function renderFilterUse(){
   }).join("");
 }
 
-function pieceOf(s){ return PIECES[pkey(s.style_name, s.gender)] || null; }
+function pieceOf(s){
+  return (s.style_id && PBYID[s.style_id]) || PIECES[pkey(s.style_name, s.gender)] || null;
+}
 function typeText(p){
   if (!p || !p.cats.length) return "";
   return p.cats.slice(0, 2).map(c => CAT_LABELS[c] || c).join(" · ");
