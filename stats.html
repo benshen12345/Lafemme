@@ -294,9 +294,13 @@
             WhatsApp. Only a completed send counts. Tapping "Book a fitting" inside a piece's
             popup does <b>not</b> count here — that only drops the piece into the fitting list
             and contacts nobody; it's shown on the small line under this number instead.
-            <br><span style="color:var(--muted)">Counted from 7 Aug 2026. Before that the site
-            recorded both actions under one name, so this tile reads 0 for any earlier date
-            range rather than showing the old, inflated mix.</span></dd>
+            <br><span style="color:var(--muted)">Recorded as its own event from 7 Aug 2026.
+            Earlier days are <b>reconstructed</b>, not recorded: back then both actions shared one
+            name, but the two wrote different fields — a form send carried no piece id, an
+            "add to fitting list" did — so they can be told apart after the fact. Where a date
+            range includes those days the small line says how many of the number came from that
+            reconstruction. Over 20 Jul – 6 Aug it works out at 14 real sends inside 56 old
+            "booking clicks", i.e. the retired tile was overstating leads about fourfold.</span></dd>
 
         <dt>Most viewed pieces</dt>
         <dd>What customers opened most in this date range. The coloured dots under each row show
@@ -550,9 +554,11 @@ async function loadDash() {
   if (bookings) {
     $("kBook").textContent    = bookings.sent;
     $("kTotal").textContent   = wa + ap + bookings.sent;
-    $("kBookSub").textContent = bookings.added
-      ? bookings.added + (bookings.added === 1 ? " piece" : " pieces") + " added to fitting list"
-      : "";
+    const bits = [];
+    if (bookings.added) bits.push(bookings.added + (bookings.added === 1 ? " piece" : " pieces") + " added to fitting list");
+    /* say so when part of the number is reconstructed rather than recorded */
+    if (bookings.legacySent) bits.push(bookings.legacySent + " estimated before 7 Aug");
+    $("kBookSub").textContent = bits.join(" · ");
     $("kBookSub").style.color = "";
   } else {
     /* neither number is knowable without this read, so neither pretends to be zero */
@@ -741,21 +747,38 @@ async function loadSearchAndFilters(r){
    two meanings, which is the failure this whole split exists to avoid.
 
    A failed read returns null, NOT zero: "couldn't read it" must never render as
-   "no customers booked". */
+   "no customers booked".
+
+   v122 also folds the pre-7-Aug `book_click` rows back in. They were never deleted — only
+   stopped being read — and they are separable, so leaving them out was throwing away the
+   metric's entire baseline (14 real sends over 20 Jul – 6 Aug) for no reason. The split is
+   an inference about old data, so the UI labels that part as estimated rather than passing
+   it off as recorded. */
 let BOOK_ERR = "";
 async function loadBookingCounts(r){
   BOOK_ERR = "";
   try {
     const { data, error } = await withTimeout(
-      sb.from("events").select("event_type")
-        .in("event_type", ["book_submit", "add_fitting"])
+      sb.from("events").select("event_type, style_id")
+        .in("event_type", ["book_submit", "add_fitting", "book_click"])
         .gte("occurred_at", r.p_from).lt("occurred_at", r.p_to)
         .limit(10000), 12000, "Bookings");
     if (error){ BOOK_ERR = error.message || "the query was refused"; return null; }
     if (!data){ BOOK_ERR = "no response from the database"; return null; }
-    let sent = 0, added = 0;
-    data.forEach(e => { if (e.event_type === "book_submit") sent++; else added++; });
-    return { sent, added };
+    let sent = 0, added = 0, legacySent = 0;
+    data.forEach(e => {
+      if (e.event_type === "book_submit") { sent++; return; }
+      if (e.event_type === "add_fitting") { added++; return; }
+      /* legacy `book_click` (pre 7 Aug 2026). The two call sites sent different fields,
+         which is what makes the split possible after the fact:
+           popup "add to fitting list" → the full meta, so style_id is SET
+           booking form submit         → only style_ref, so style_id is NULL
+         Verified against the v112 source before relying on it. The last book_click row
+         is 2026-08-06 and the first book_submit is 2026-08-07, so the two never overlap
+         and adding them cannot double-count. */
+      if (e.style_id) added++; else { sent++; legacySent++; }
+    });
+    return { sent, added, legacySent };
   } catch(e){ BOOK_ERR = (e && e.message) || String(e); return null; }
 }
 
