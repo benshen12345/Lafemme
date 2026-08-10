@@ -381,13 +381,20 @@
       <h3>Individual visits</h3>
       <p style="color:var(--muted);font-size:13px;margin-bottom:14px">
         The tiles above are totals. This is the same data one visit at a time — which is where
-        a real customer becomes visible. On 25 Jul someone spent <b>47 minutes on a phone</b>,
-        opened <b>84 pieces</b>, shortlisted <b>26</b>, asked the price of <b>3</b>, and sent a
-        booking. In the totals that is just "+1 booking".
+        a real customer becomes visible. One evening in late July a single phone spent
+        <b>47 minutes</b> across three reloads, opened <b>84 pieces</b>, shortlisted <b>26</b>,
+        asked the price of <b>3</b> and sent a booking. In the totals that is just "+1 booking".
         <br><b>A page reload starts a new row.</b> Rows minutes apart on the same day are very
         likely one person — read them together, the way that 47-minute visit is really three rows.
         Only visits that opened at least one piece are listed.
       </p>
+      <div class="intentbar">
+        <select id="sessSort">
+          <option value="new">Sort: newest first</option>
+          <option value="deep">Sort: most engaged</option>
+        </select>
+        <span class="intentcount" id="sessCount"></span>
+      </div>
       <div class="tablewrap">
       <table>
         <thead><tr><th>When</th><th>Length</th><th>Pieces opened</th><th>Shortlisted</th><th>Price asks</th><th>Booking sent</th><th>Screen</th></tr></thead>
@@ -860,12 +867,18 @@ async function loadSessions(r){
       /* legacy rows, split the same way the booking tile splits them */
       else if (e.event_type === "book_click"){ if (e.style_id) s.adds++; else s.sent++; }
     });
-    SESSIONS = Object.values(m)
-      .filter(s => s.opens > 0)
-      .sort((a, b) => (b.sent - a.sent) || (b.asks - a.asks) || (b.opens - a.opens));
+    SESSIONS = Object.values(m).filter(s => s.opens > 0);
   } catch(e){ SESS_ERR = (e && e.message) || String(e); }
 }
 
+/* Default to newest-first, not most-engaged.
+   The first version sorted by engagement (booking → price asks → pieces opened) because
+   that surfaces the valuable visits. It read as broken: the first column is a date, so a
+   table that is not in date order looks like the data stopped — the top rows were all from
+   one busy evening in July and Ben reasonably asked why nothing after 26 Jul was recorded.
+   The August rows were there, thirty rows down. A column of dates promises chronology;
+   engagement ranking is the option, not the default. */
+let sessSort = "new";
 function renderSessions(){
   const LIMIT = 30;
   const body = $("sessRows"), note = $("sessNote");
@@ -878,7 +891,10 @@ function renderSessions(){
     body.innerHTML = `<tr><td colspan="7" style="color:var(--muted)">No visit opened a piece in this range.</td></tr>`;
     note.textContent = ""; return;
   }
-  const shown = SESSIONS.slice(0, LIMIT);
+  const ordered = SESSIONS.slice().sort(sessSort === "deep"
+    ? (a, b) => (b.sent - a.sent) || (b.asks - a.asks) || (b.opens - a.opens)
+    : (a, b) => b.first - a.first);
+  const shown = ordered.slice(0, LIMIT);
   const fmtWhen = t => { const d = new Date(t);
     return d.toLocaleDateString(undefined,{day:"2-digit",month:"short"}) + " " +
            d.toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"}); };
@@ -895,12 +911,21 @@ function renderSessions(){
     </tr>`).join("");
   const bits = [];
   bits.push(SESSIONS.length + " visit" + (SESSIONS.length === 1 ? "" : "s") + " opened at least one piece");
-  if (SESSIONS.length > LIMIT) bits.push("showing the " + LIMIT + " most engaged");
+  if (SESSIONS.length > LIMIT)
+    bits.push("showing " + LIMIT + " of them — " + (sessSort === "deep" ? "the most engaged" : "the most recent"));
+  /* the table renders in the browser's timezone while the database stores UTC, so a visit
+     logged at 16:52 UTC shows as 00:52 the next day here — say so before it looks like a bug */
+  bits.push("times are your local timezone; the database stores UTC, so a late-evening visit can show as the next day");
   /* never let a cap look like the whole picture */
   if (SESS_TRUNC) bits.push("⚠️ hit the " + SESS_TRUNC + "-row read limit, so the oldest part of this range is missing — narrow the dates");
   bits.push('"narrow" means a screen under 760px wide, which is how the site records it — not necessarily a phone');
   note.textContent = bits.join(" · ");
+  const c = $("sessCount");
+  if (c) c.textContent = SESSIONS.length + " visit" + (SESSIONS.length === 1 ? "" : "s");
 }
+document.addEventListener("change", e => {
+  if (e.target && e.target.id === "sessSort"){ sessSort = e.target.value; renderSessions(); }
+});
 
 /* what an empty behaviour panel should say: nothing recorded yet, or couldn't read it */
 function behavEmpty(){
