@@ -269,7 +269,16 @@
       <dl>
         <dt>Evening gowns viewed</dt>
         <dd>How many times someone looked closely at a gown — opening its photo, plus flipping
-            through its colours. The small line on the card splits the two.</dd>
+            through its colours. The small line on the card splits the two.
+            <br><span style="color:var(--muted)">From the catalogue redesign of 17 Aug 2026 each
+            colour has its own card, so there is no longer a row of colour dots to flip through.
+            The looks did not stop happening — they moved from the "colour looks" half of this
+            number into the "opened" half, because seeing a colour now means opening its own
+            card. <b>The total stays comparable across the change; the split does not.</b>
+            Over the 60 days to 17 Aug 2026 the two halves ran 1,385 opened against 1,210 colour
+            looks on the gowns side, so expect the small line to shrink to just "opened" while
+            the big number holds. Men suits are unaffected — every suit is a single colour, and
+            its colour-look count was already zero.</span></dd>
 
         <dt>Men suits viewed</dt>
         <dd>The same thing on the suits side.</dd>
@@ -386,7 +395,8 @@
         asked the price of <b>3</b> and sent a booking. In the totals that is just "+1 booking".
         <br><b>A page reload starts a new row.</b> Rows minutes apart on the same day are very
         likely one person — read them together, the way that 47-minute visit is really three rows.
-        Only visits that opened at least one piece are listed.
+        Only visits that opened at least one piece are listed, and "active for" is the span
+        between the first and last thing they did in this table — not how long the tab sat open.
       </p>
       <div class="intentbar">
         <select id="sessSort">
@@ -397,7 +407,7 @@
       </div>
       <div class="tablewrap">
       <table>
-        <thead><tr><th>When</th><th>Length</th><th>Pieces opened</th><th>Shortlisted</th><th>Price asks</th><th>Booking sent</th><th>Screen</th></tr></thead>
+        <thead><tr><th>When</th><th>Active for</th><th>Pieces opened</th><th>Shortlisted</th><th>Price asks</th><th>Booking sent</th><th>Screen</th></tr></thead>
         <tbody id="sessRows"><tr><td colspan="7" style="color:var(--muted)">No data yet.</td></tr></tbody>
       </table>
       </div>
@@ -846,11 +856,20 @@ async function loadSessions(r){
     const { data, error } = await withTimeout(
       sb.from("events").select("visit_id, occurred_at, event_type, device, style_id")
         .gte("occurred_at", r.p_from).lt("occurred_at", r.p_to)
-        .order("occurred_at", { ascending: true })
+        /* Only the five types this table actually counts. page_view alone is one row per
+           page load and colour_switch fires on every colour arrow, so leaving them in
+           roughly quadrupled the payload for columns nobody reads. */
+        .in("event_type", ["card_open","ask_price","add_fitting","book_submit","book_click"])
+        /* ⚠️ NEWEST first. This was `ascending: true`, which meant the row cap kept the
+           OLDEST 10,000 rows and silently threw away everything after them: on a 30-day
+           range the table stopped dead at 28 Jul while the site was still being used in
+           August. A cap on an ascending read discards exactly the rows a dashboard is for. */
+        .order("occurred_at", { ascending: false })
         .limit(CAP), 12000, "Visits");
     if (error){ SESS_ERR = error.message || "the query was refused"; return; }
     if (!data){ SESS_ERR = "no response from the database"; return; }
-    /* a full page means rows were left out — say so rather than quietly showing a subset */
+    /* a full page means rows were left out — say so rather than quietly showing a subset.
+       Reading newest-first, what gets cut is the OLDEST end of the range. */
     if (data.length >= CAP) SESS_TRUNC = CAP;
     const m = {};
     data.forEach(e => {
@@ -917,7 +936,7 @@ function renderSessions(){
      logged at 16:52 UTC shows as 00:52 the next day here — say so before it looks like a bug */
   bits.push("times are your local timezone; the database stores UTC, so a late-evening visit can show as the next day");
   /* never let a cap look like the whole picture */
-  if (SESS_TRUNC) bits.push("⚠️ hit the " + SESS_TRUNC + "-row read limit, so the oldest part of this range is missing — narrow the dates");
+  if (SESS_TRUNC) bits.push("⚠️ hit the " + SESS_TRUNC + "-row read limit — the oldest days in this range are missing, shorten the date range to see them");
   bits.push('"narrow" means a screen under 760px wide, which is how the site records it — not necessarily a phone');
   note.textContent = bits.join(" · ");
   const c = $("sessCount");

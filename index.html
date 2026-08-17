@@ -526,7 +526,23 @@
   #filterPanel.reveal.in{opacity:1;transform:none}
   #filterPanel.reveal.floating{opacity:1;transform:none;transition:left .32s cubic-bezier(.4,0,.2,1)}
 
-  .result-count{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted);text-align:right;margin:0 2px 20px}
+  /* v127：这一行原来只有右边的件数。加了排序之后变成一条 bar，
+     左排序、右件数;窄屏放不下就换行,件数掉到下面一行右对齐。 */
+  .grid-bar{display:flex;align-items:center;justify-content:space-between;
+            gap:12px 16px;flex-wrap:wrap;margin:0 2px 20px}
+  .result-count{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted);
+                text-align:right;margin:0;margin-left:auto}
+  .sort-wrap{display:inline-flex;align-items:center;gap:9px;flex:none}
+  .sort-lbl{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
+  #sortSel{font:inherit;font-size:12.5px;letter-spacing:.05em;color:var(--ink);
+           background-color:transparent;border:0;border-bottom:1px solid var(--hairline);
+           padding:5px 20px 5px 2px;cursor:pointer;border-radius:0;
+           -webkit-appearance:none;appearance:none;
+           background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23A79B86' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+           background-repeat:no-repeat;background-position:right 2px center;background-size:9px 6px;
+           transition:border-color .3s ease}
+  #sortSel:hover{border-bottom-color:var(--gold)}
+  #sortSel:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
   .swatch-all{background:none;border:0;color:var(--muted);font-size:11px;letter-spacing:.2em;text-transform:uppercase;cursor:pointer;padding:6px 6px 6px 0;transition:color .3s ease}
   .swatch-all:hover,.swatch-all.active{color:var(--ink)}
   .swatch-all.active{text-decoration:underline;text-underline-offset:5px;text-decoration-color:var(--gold)}
@@ -1258,7 +1274,13 @@
       </div>
     </div>
 
-    <div class="result-count reveal" id="resultCount" aria-live="polite"></div>
+    <div class="grid-bar reveal">
+      <label class="sort-wrap">
+        <span class="sort-lbl" id="sortLbl">Sort</span>
+        <select id="sortSel" aria-label="Sort pieces"></select>
+      </label>
+      <div class="result-count" id="resultCount" aria-live="polite"></div>
+    </div>
     <div id="menNotice" class="men-notice">
       <div class="men-notice-in">
         <span class="men-notice-ico" aria-hidden="true">✦</span>
@@ -1786,7 +1808,7 @@ function catLabelFor(st, card){
 
 const COLOR_ZH = { black:"黑 黑色", blue:"蓝 蓝色", pink:"粉 粉色 粉红", gold:"金 金色", navy:"藏青 深蓝 藏蓝", red:"红 红色", green:"绿 绿色", purple:"紫 紫色", white:"白 白色", silver:"银 银色", yellow:"黄 黄色", grey:"灰 灰色", beige:"米 米色 米白" };
 const escapeHTML = s => (s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
-let state = { gender:"f", category:"all", material:"all", color:"all", brand:"all", q:"", qTokens:[] };
+let state = { gender:"f", category:"all", material:"all", color:"all", brand:"all", q:"", qTokens:[], sort:"new" };
 const grid      = document.getElementById("grid");
 const chipsBox  = document.getElementById("chips");
 const materialChips = document.getElementById("materialChips");
@@ -1834,16 +1856,24 @@ function refreshWaLinks(){
 }
 
 /* ---------- searchable text per style (name + colours + type labels EN/中文 + ref + image filename) ---------- */
-function buildSearchStr(st){
+function buildSearchStr(st, vv){
   const catEN = st.g === "m" ? "men suit suits tuxedo menswear" : "evening gown gowns dress";
   const catZH = st.g === "m" ? "男士西装 西装 男装 礼服" : "晚礼服 礼服 晚装 裙";
   const catStr = (st.cat || []).map(c => `${c} ${CAT_LABELS_I18N.en[c] || ""} ${CAT_LABELS_I18N.zh[c] || ""}`).join(" ");
   const matStr = (st.mat || []).map(m => `${m} ${MAT_LABELS_I18N.en[m] || ""} ${MAT_LABELS_I18N.zh[m] || ""}`).join(" ");
-  const colStr  = st.v.map(v => `${v.c} ${v.d || ""} ${v.f} ${COLOR_ZH[v.f] || ""} ${v.ref}`).join(" ");
-  const imgWords = st.v.map(v => (v.img || "").split("/").pop().replace(/-t\.webp$|\.webp$/, "").replace(/-/g, " ")).join(" ");
+  /* 一卡一色之后搜索也要按颜色算:搜 "pink" 只该命中粉色那一张,
+     不是同款的九张全亮。传了 vv 就只索引这一个颜色;不传维持旧行为。 */
+  const vs = vv ? [vv] : st.v;
+  const colStr  = vs.map(v => `${v.c} ${v.d || ""} ${v.f} ${COLOR_ZH[v.f] || ""} ${v.ref}`).join(" ");
+  const imgWords = vs.map(v => (v.img || "").split("/").pop().replace(/-t\.webp$|\.webp$/, "").replace(/-/g, " ")).join(" ");
   return `${st.n} ${st.p || ""} ${catStr} ${matStr} ${colStr} ${imgWords} ${catEN} ${catZH}`.toLowerCase();
 }
 let SEARCH_IDX = [];
+/* 网格的扁平清单:每一项是「第 si 款的第 vi 个颜色」,一项 = 一张卡 */
+let ITEMS = [];
+/* 跟 ITEMS 一一对应的卡片元素。排序不重建 DOM,只改 CSS order —— 重建会让
+   215 张卡的图全部重新下载一遍,改 order 一张都不用重下。 */
+let CARDS = [];
 let SUGGEST_CORPUS = [];
 /* keyword corpus for the search suggestions dropdown (rebuilt whenever the catalogue loads) */
 function buildCorpus(){
@@ -1858,121 +1888,58 @@ function buildCorpus(){
 /* ---------- render the whole catalogue: set data, (re)build indexes + cards + filters ---------- */
 function renderCatalogue(styles){
   CAT = [...styles].sort((a, b) => String(b.a || "").localeCompare(String(a.a || "")));
-  SEARCH_IDX = CAT.map(buildSearchStr);
+  /* 一个颜色一张卡。CAT 已经按上架日期倒序排好,每款的变体保持它在数据里的
+     原顺序,所以同一款的几个颜色天然是连在一起的 —— 不用额外排序,也不会被打散。 */
+  ITEMS = []; CARDS = [];
+  CAT.forEach((st, si) => (st.v || []).forEach((v, vi) => ITEMS.push({ si, vi })));
+  SEARCH_IDX = ITEMS.map(it => buildSearchStr(CAT[it.si], CAT[it.si].v[it.vi]));
   SUGGEST_CORPUS = buildCorpus();
   grid.innerHTML = "";
-  if (!CAT.length) {
+  if (!ITEMS.length) {
     grid.innerHTML = '<p style="color:var(--muted);grid-column:1/-1">Catalogue could not load. Please refresh the page.</p>';
     return;
   }
-  CAT.forEach((st, i) => {
+  ITEMS.forEach((it, i) => {
+  const st = CAT[it.si], vcur = st.v[it.vi];
   const card = document.createElement("article");
   card.className = "card card-reveal";
   card.dataset.gender = st.g;
   card.dataset.category = (st.cat || []).join(" ");
   card.dataset.material = (st.mat || []).join(" ");
-  card.dataset.colors = [...new Set(st.v.map(v => v.f))].join(" ");
+  card.dataset.colors = vcur.f || "";      // 一张卡只有一个颜色,颜色筛选因此是精确的
   card.dataset.brand  = (st.p || "").trim();
-  card.dataset.idx    = i;
+  card.dataset.idx    = it.si;             // 款在 CAT 里的下标(灯箱、切语言要用)
+  card.dataset.v      = it.vi;             // 这张卡是这款的第几个颜色
+  card.dataset.shown  = it.vi;
   card.dataset.search = SEARCH_IDX[i];
 
   const typeLabel = (st.cat && st.cat.length) ? CL(st.cat[0]) : (LANG === "zh" ? "晚装" : "Evening");
   const kicker = isSuit(st) ? suitDesc(st) : typeLabel;      // suits: style · fabric
   const altName = pieceName(st);
-  const dots = st.v.map((v, j) =>
-    `<button class="dot${j === 0 ? " on" : ""}" data-v="${j}" style="background:${v.h}"
-       title="${v.c}${v.d ? " · " + v.d : ""}" aria-label="Show ${v.c}"></button>`).join("");
-
+  /* 色点那一排没有了 —— 这张卡本身就是一个颜色。款名(h3)保持原样,
+     所以同款的九张卡会是同一个名字、九个不同的颜色名,一眼看得出是一家人。 */
   card.innerHTML = `
-    <div class="ph" role="button" tabindex="0" aria-label="View ${altName}">
+    <div class="ph" role="button" tabindex="0" aria-label="View ${altName} — ${vcur.c}">
       <div class="tilt">
-        <img class="cardimg" loading="lazy" decoding="async" src="${st.v[0].img}" alt="${altName} — ${st.v[0].c}">
+        <img class="cardimg" loading="lazy" decoding="async" src="${vcur.img}" alt="${altName} — ${vcur.c}">
         <div class="glare"></div>
       </div>
     </div>
     <div class="meta">
       <span class="cat-line">${st.p ? `<span class="brand">${BL(st.p)}</span>` : ""}<span class="cat">${kicker}</span></span>
       ${isSuit(st) ? "" : `<h3>${st.n}</h3>`}
-      <div class="sizes"><span class="cname">${st.v[0].c}</span><span class="copt">${st.v.length > 1 ? (LANG === "zh" ? ` · ${st.v.length} 色` : ` · ${st.v.length} options`) : ""}</span></div>
-      <div class="dots-row">${dots}</div>
+      <div class="sizes"><span class="cname">${vcur.c}</span></div>
     </div>`;
 
-  const img = card.querySelector(".cardimg");
-  const cn  = card.querySelector(".cname");
-  const tilt = card.querySelector(".tilt");
-  const dotsEls = card.querySelectorAll(".dot");
-  let sliding = false, preloaded = false;
-  /* Pull the other colours down before they're needed — but only on the first sign of
-     interest (hover, touch, or the dots coming into reach), NOT the moment the card
-     loads. Preloading every card's extra colours up front floods a first-time visitor
-     with dozens of downloads and slows the first paint. The pointerenter/touchstart
-     handlers below call this, which is early enough for the swap to feel instant. */
-  const preload = () => {
-    if (preloaded || st.v.length < 2) return;
-    preloaded = true;
-    st.v.forEach(v => { const im = new Image(); im.src = v.img; });
-  };
-  /* The card's own photo is lazy-loaded, so this only fires once the card is near the
-     viewport — which makes it the cheapest possible moment to fetch the other colours.
-     By the time anyone swipes, they're already in cache. */
-  /* the pointerenter / touchstart handlers below trigger preload — not the card's own
-     load event, so a fresh visitor isn't hit with every colour of every card at once */
-  const showVariant = (j, doTrack, dir) => {
-    if (dir && sliding) return;                          // ignore rapid input mid-slide
-    const n = st.v.length;
-    j = ((j % n) + n) % n;                              // loop around
-    const v = st.v[j];
-    if (dir) { sliding = true; slideSwap(tilt, img, v.img, `${altName} — ${v.c}`, dir, () => { sliding = false; }); }
-    else { img.src = v.img; img.alt = `${altName} — ${v.c}`; }
-    cn.textContent = v.c;
-    dotsEls.forEach(x => x.classList.toggle("on", +x.dataset.v === j));
-    card.dataset.shown = j;
-    if (doTrack) track("colour_switch", { gender: st.g, style_id: st.i, style_name: st.n, style_ref: v.ref, colour: v.c, colour_family: v.f });
-  };
-  dotsEls.forEach(d => {
-    d.addEventListener("pointerenter", preload);
-    d.addEventListener("pointerdown", preload);
-    d.addEventListener("click", e => {
-      e.stopPropagation();
-      const j = +d.dataset.v, cur = +(card.dataset.shown || 0);
-      if (j === cur) return;
-      showVariant(j, true, j > cur ? 1 : -1);            // slide toward the tapped dot
-    });
-  });
-
+  /* 以前这里有一整套:预加载同款其它颜色、点色点换图、左右滑动换色。
+     一卡一色之后全都不需要了 —— 换色就是看旁边那张卡。
+     顺带省掉了 hover 时把同款所有颜色拉下来的那波请求。
+     灯箱里的颜色切换保留,开了粉色还能跳到藏青色。 */
   const ph = card.querySelector(".ph");
-  ph.addEventListener("pointerenter", preload);
-  const open = () => openLb(i, +(card.dataset.shown || 0));
+  const open = () => openLb(it.si, it.vi);
   let swiped = false;
   ph.addEventListener("click", () => { if (swiped) { swiped = false; return; } open(); });
   ph.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
-
-  /* swipe left/right through colours on touch (only if the piece has more than one) */
-  if (st.v.length > 1) {
-    ph.style.touchAction = "pan-y";   /* let the page scroll vertically, keep horizontal for us */
-    let sx = 0, sy = 0, axis = null, tracking = false;
-    ph.addEventListener("touchstart", e => {
-      if (e.touches.length !== 1) return;
-      sx = e.touches[0].clientX; sy = e.touches[0].clientY;
-      axis = null; tracking = true; swiped = false;
-      preload();
-    }, { passive: true });
-    ph.addEventListener("touchmove", e => {
-      if (!tracking) return;
-      const dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
-      if (axis === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
-      if (axis === "x") { swiped = true; e.preventDefault(); }   /* claim the gesture: no scroll, no tap */
-    }, { passive: false });
-    ph.addEventListener("touchend", e => {
-      if (!tracking) return;
-      tracking = false;
-      if (axis !== "x") return;
-      const dx = e.changedTouches[0].clientX - sx;
-      const cur = +(card.dataset.shown || 0);
-      if (dx <= -30) showVariant(cur + 1, true, 1);     /* swipe left  → next colour */
-      else if (dx >= 30) showVariant(cur - 1, true, -1); /* swipe right → previous colour */
-    }, { passive: true });
-  }
 
   if (FINE_POINTER && !REDUCED) {
     const tilt = card.querySelector(".tilt");
@@ -1986,9 +1953,115 @@ function renderCatalogue(styles){
     ph.addEventListener("pointerleave", () => { tilt.style.transform = ""; });
   }
   grid.appendChild(card);
+  CARDS.push(card);
   });
   document.querySelectorAll(".card-reveal").forEach(c => { try { cardIO.observe(c); } catch (e) {} });
+  pruneFacets();                       // 链接里带的筛选值,这批数据里没有就丢掉
+  renderSortOptions(); applySort();
   renderCategoryChips(); renderMaterialChips(); renderSwatches(); renderBrandChips(); applyFilter(); checkEmpty();
+  syncGenderTabs();
+}
+
+/* 分享出去的链接可能带着一个这批数据里已经没有的筛选值 —— 那件礼服下架了,
+   或者链接是从男装那边复制来的。不处理的话客人打开看到的是空网格,像网站坏了。
+   这里静默改回「全部」,让他至少看到东西。颜色这条本来就有同样的逻辑(见 2161)。 */
+function pruneFacets(){
+  const pool = CAT.filter(st => st.g === state.gender);
+  if (!pool.length) return;
+  if (state.category !== "all" && !pool.some(st => (st.cat || []).includes(state.category))) state.category = "all";
+  if (state.material !== "all" && !pool.some(st => (st.mat || []).includes(state.material))) state.material = "all";
+  if (state.brand    !== "all" && !pool.some(st => (st.p || "").trim() === state.brand))     state.brand    = "all";
+  if (state.color    !== "all" && !pool.some(st => st.v.some(v => v.f === state.color)))     state.color    = "all";
+}
+
+/* 链接里带 g=m 的时候,上面的 Gowns/Suits 按钮也得跟着高亮,否则状态跟界面对不上 */
+function syncGenderTabs(){
+  document.querySelectorAll(".tab").forEach(t => {
+    const on = t.dataset.gender === state.gender;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+  });
+}
+
+/* ---------- 排序 ---------- */
+const SORT_LABELS = {
+  en: { new:"Newest first", az:"Name A\u2013Z", colour:"By colour" },
+  zh: { new:"\u6700\u65b0\u4e0a\u67b6", az:"\u540d\u79f0 A\u2013Z", colour:"\u6309\u989c\u8272\u6392" }
+};
+const SORT_KEYS = ["new", "az", "colour"];
+function renderSortOptions(){
+  const sel = document.getElementById("sortSel"); if (!sel) return;
+  const L = SORT_LABELS[LANG] || SORT_LABELS.en;
+  sel.innerHTML = SORT_KEYS.map(k =>
+    `<option value="${k}"${state.sort === k ? " selected" : ""}>${L[k]}</option>`).join("");
+  const lbl = document.getElementById("sortLbl");
+  if (lbl) lbl.textContent = (LANG === "zh") ? "\u6392\u5e8f" : "Sort";
+}
+/* 排序只改 CSS order,不动 DOM 顺序,也就不会重新下载任何图片。
+   .card.hide 是 display:none,被隐藏的卡不参与排版,所以 order 只作用在可见的那些上。 */
+function applySort(){
+  if (!CARDS.length) return;
+  if (state.sort === "new"){ CARDS.forEach(c => { c.style.order = ""; }); return; }
+  const nameOf = k => pieceName(CAT[ITEMS[k].si]) || "";
+  /* 目录里有没填名字的款(2026-08-17 查到至少一件:id "al", ref "AL Mauve Midi")。
+     空名字按字典序会排到最前面,A–Z 一选,客人看到的第一张卡就是那件无名的。
+     这里把没名字的一律压到最后 —— 数据该补,但补之前也不该让它占头条。 */
+  const noName = k => !nameOf(k).trim();
+  const varOf  = k => CAT[ITEMS[k].si].v[ITEMS[k].vi] || {};
+  const rank = ITEMS.map((_, k) => k);
+  if (state.sort === "az"){
+    rank.sort((a, b) => (noName(a) - noName(b))
+                     || nameOf(a).localeCompare(nameOf(b))
+                     || (ITEMS[a].vi - ITEMS[b].vi));
+  } else if (state.sort === "colour"){
+    const ci = f => { const i = COLOR_ORDER.indexOf(f); return i < 0 ? 999 : i; };
+    rank.sort((a, b) => (ci(varOf(a).f) - ci(varOf(b).f))
+                     || (noName(a) - noName(b))
+                     || nameOf(a).localeCompare(nameOf(b)));
+  }
+  rank.forEach((k, pos) => { if (CARDS[k]) CARDS[k].style.order = pos + 1; });
+}
+
+/* ---------- 可分享的链接 ----------
+   写:每次筛选变化都把状态同步进网址,所以 Pearly 直接复制地址栏就是一条可分享的链接。
+   用 replaceState 不用 pushState —— 连点五个筛选片会压五条历史记录,返回键要按五次
+   才退得出去。代价:返回键不能撤销单次筛选。
+   保留 location.hash,#collection 这类锚点跳转不受影响;
+   保留 history.state 原值,不会踩掉筛选抽屉和灯箱压的那两条记录。 */
+function syncURL(){
+  try {
+    const p = new URLSearchParams();
+    if (state.gender   !== "f")   p.set("g",   state.gender);
+    if (state.q)                  p.set("q",   state.q);
+    else {
+      /* 搜索和筛选片是互斥的(见 runSearch),网址也照这个规矩来,
+         不写出一条自己打架的链接 */
+      if (state.category !== "all") p.set("cat", state.category);
+      if (state.material !== "all") p.set("mat", state.material);
+      if (state.color    !== "all") p.set("c",   state.color);
+      if (state.brand    !== "all") p.set("b",   state.brand);
+    }
+    if (state.sort !== "new") p.set("sort", state.sort);
+    const qs = p.toString();
+    history.replaceState(history.state, "", location.pathname + (qs ? "?" + qs : "") + location.hash);
+  } catch(e){ /* 老浏览器不支持就算了,不该因为写不了网址而让筛选失灵 */ }
+}
+/* 读:开页时先把网址里的状态灌进 state,再渲染。值合不合法交给 pruneFacets 兜底。 */
+function readURL(){
+  try {
+    const p = new URLSearchParams(location.search);
+    const g = p.get("g"); if (g === "m" || g === "f") state.gender = g;
+    const q = (p.get("q") || "").trim().toLowerCase();
+    if (q){
+      state.q = q; state.qTokens = q.split(/\s+/);
+      const si = document.getElementById("searchInput");
+      if (si){ si.value = q; const sc = document.getElementById("searchClear"); if (sc) sc.hidden = false; }
+    } else {
+      const pick = (k, key) => { const v = (p.get(k) || "").trim(); if (v) state[key] = v; };
+      pick("cat", "category"); pick("mat", "material"); pick("c", "color"); pick("b", "brand");
+    }
+    const s = p.get("sort"); if (SORT_KEYS.includes(s)) state.sort = s;
+  } catch(e){}
 }
 
 /* ---------- filters ---------- */
@@ -2077,26 +2150,13 @@ function applyFilter(){
     card.classList.toggle("hide", !(genderOk && categoryOk && materialOk && colorOk && brandOk && searchOk));
     const catEl = card.querySelector(".cat");
     if (catEl) catEl.textContent = catLabelFor(st, card);
-    // which variant photo the card shows: an active colour wins, then a colour named in the
-    // search box (so searching "pink" shows the pink one, not the default black), else the hero variant
-    let showJ = 0;
-    if (state.color !== "all" && colorOk) {
-      showJ = st.v.findIndex(v => v.f === state.color);
-    } else if (state.qTokens.length) {
-      const j = st.v.findIndex(v =>
-        state.qTokens.some(tok =>
-          `${v.c} ${v.d || ""} ${v.f} ${COLOR_ZH[v.f] || ""}`.toLowerCase().includes(tok)));
-      if (j > -1) showJ = j;
-    }
-    if (showJ > -1) {
-      const img = card.querySelector(".cardimg"), cn = card.querySelector(".cname");
-      if (img) { img.src = st.v[showJ].img; img.alt = `${pieceName(st)} — ${st.v[showJ].c}`; }
-      if (cn) cn.textContent = st.v[showJ].c;
-      card.dataset.shown = showJ;
-      card.querySelectorAll(".dot").forEach(x => x.classList.toggle("on", +x.dataset.v === showJ));
-    }
+    /* 以前一张卡装一款的所有颜色,所以筛到「红」时要把卡片的图切到红色那张。
+       现在一张卡就是一个颜色,筛选只负责显示/隐藏,不用也不该再换图。 */
   });
   if (typeof updateFilterMeta === "function") updateFilterMeta();
+  /* applyFilter 是每一次状态变化的必经之路(8 处调用点),网址同步挂在这里
+     就不会漏掉任何一个筛选入口 */
+  if (typeof syncURL === "function") syncURL();
 }
 function revealStagger(list){
   list.forEach(c => { c.style.transition = "none"; c.classList.remove("card-show"); });
@@ -2207,6 +2267,15 @@ function renderDrop(q){
   searchDrop.innerHTML = html;
   searchDrop.hidden = false;
 }
+const sortSel = document.getElementById("sortSel");
+if (sortSel) sortSel.addEventListener("change", () => {
+  if (!SORT_KEYS.includes(sortSel.value)) return;
+  state.sort = sortSel.value;
+  applySort();
+  syncURL();
+  track("sort_use", { sort: state.sort, gender: state.gender });
+});
+
 if (searchInput){
   searchInput.addEventListener("input", runSearch);
   searchInput.addEventListener("focus", () => { if (searchInput.value.trim()) renderDrop(searchInput.value); });
@@ -2977,6 +3046,7 @@ async function loadCatalogue(){
    live changes — usually identical, since catalogue.js is rebuilt alongside, so the
    refresh is invisible. If supabase is already present (cached), the second run is
    immediate; if not, we wait for the window load event by which point defer is done. */
+readURL();        // 先把网址里的筛选状态灌进 state,再渲染
 loadCatalogue();
 if (typeof supabase === "undefined") {
   window.addEventListener("load", () => { if (typeof supabase !== "undefined") loadCatalogue(); });
@@ -3288,14 +3358,13 @@ function applyLang(lang){
   const action  = (LANG === 'zh') ? 'Switch to English / 切换为英文' : 'Switch to Chinese / 切换为中文';
   const lb1 = document.getElementById('langBtn'), lb2 = document.getElementById('langBtnM');
   [lb1, lb2].forEach(b => { if (b) { b.textContent = current; b.setAttribute('aria-label', action); } });
-  /* product cards: category + "N options" suffix */
+  /* 卡片上的分类文字。「N 色」那个后缀在 v126 一卡一色之后没有了,
+     所以这里只剩分类要跟着语言走。 */
   document.querySelectorAll('.card').forEach(card => {
     const st = (typeof CAT !== 'undefined') ? CAT[+card.dataset.idx] : null;
     if (!st) return;
     const catEl = card.querySelector('.cat');
     if (catEl) catEl.textContent = catLabelFor(st, card);
-    const copt = card.querySelector('.copt');
-    if (copt) copt.textContent = st.v.length > 1 ? (LANG === 'zh' ? ' · ' + st.v.length + ' 色' : ' · ' + st.v.length + ' options') : '';
   });
   /* re-render dynamic filter chips / swatches, refresh WhatsApp links, redraw fitting list */
   if (typeof renderCategoryChips === 'function') renderCategoryChips();
@@ -3306,6 +3375,9 @@ function applyLang(lang){
      and since the chip is rebuilt (dropping any data-en) the leaf-text pass above could
      not fix it either. It unstuck only when a brand click re-ran renderBrandChips. */
   if (typeof renderBrandChips === 'function') renderBrandChips();
+  /* v127:排序下拉的选项文字也是建出来的,不重建就会卡在建它时的那个语言 ——
+     跟 v113 品牌片那个 bug 一模一样的形状,这次一开始就挂进来 */
+  if (typeof renderSortOptions === 'function') renderSortOptions();
   if (typeof window.__syncMapPeek === 'function') window.__syncMapPeek();
   if (typeof renderSwatches === 'function') renderSwatches();
   if (typeof updateFilterMeta === 'function') updateFilterMeta();
