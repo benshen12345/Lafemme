@@ -542,6 +542,16 @@
            background-repeat:no-repeat;background-position:right 2px center;background-size:9px 6px;
            transition:border-color .3s ease}
   #sortSel:hover{border-bottom-color:var(--gold)}
+  /* v128 分享按钮:安静的文字按钮,不做成大 CTA —— 它是给店家用的工具,
+     不是给客人的行动号召,抢了礼服的视线就本末倒置 */
+  .share-btn{display:inline-flex;align-items:center;gap:7px;flex:none;
+             font:inherit;font-size:11px;letter-spacing:.2em;text-transform:uppercase;
+             color:var(--muted);background:none;border:0;padding:6px 2px;cursor:pointer;
+             transition:color .3s ease}
+  .share-btn:hover{color:var(--ink)}
+  .share-btn.done{color:var(--gold)}
+  .share-btn svg{width:14px;height:14px;flex:none}
+  .share-btn:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
   #sortSel:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
   .swatch-all{background:none;border:0;color:var(--muted);font-size:11px;letter-spacing:.2em;text-transform:uppercase;cursor:pointer;padding:6px 6px 6px 0;transition:color .3s ease}
   .swatch-all:hover,.swatch-all.active{color:var(--ink)}
@@ -702,7 +712,13 @@
     body.filter-open{overflow:hidden}
     .result-count{text-align:center;margin:0 0 16px;letter-spacing:.2em}
   }
-  .card .sizes{font-size:13px;color:var(--muted)}
+  .card .sizes{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px}
+  /* v129:颜色名前面的小圆点。v126 拆卡之后卡片上只剩颜色名字,
+     「Baby Blue」「Dusty Blue」「Sage」这种光看字分不出深浅 —— 一个点就解决。
+     不是按钮,不可点(一张卡就一个颜色),纯粹是给眼睛看的。
+     白色/象牙色的点压在米色底上会糊,所以留着描边。 */
+  .card .cdot{width:11px;height:11px;border-radius:50%;flex:none;
+              border:1px solid var(--hairline);display:inline-block}
   /* suits carry no name line, so the colour needs the spacing the name used to give */
   .card .cat-line + .sizes{margin-top:8px;font-size:15px;color:var(--ink)}
 
@@ -1085,6 +1101,11 @@
     .hero-bg{position:absolute}
   }
   @media (max-width:640px){
+    /* v128:窄屏放不下「排序 + 分享 + 件数」三样,件数会掉到第二行。
+       它是 flex 项,单独占一行时 margin-left:auto 没有剩余空间可吃,就贴在了左边。
+       给它 width:100%,text-align:right 才推得回右侧,跟宽屏一致。 */
+    .grid-bar{gap:6px 12px}
+    .result-count{width:100%;margin-left:0}
     /* one line no longer fits on a phone — let the title wrap again */
     .about-wrap .h-script{white-space:normal;max-width:100%}
     .mono{height:34px}
@@ -1279,6 +1300,13 @@
         <span class="sort-lbl" id="sortLbl">Sort</span>
         <select id="sortSel" aria-label="Sort pieces"></select>
       </label>
+      <button type="button" class="share-btn" id="shareBtn" aria-label="Copy a link to this filtered view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+          <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/>
+          <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7L12 19"/>
+        </svg>
+        <span id="shareLbl">Share</span>
+      </button>
       <div class="result-count" id="resultCount" aria-live="polite"></div>
     </div>
     <div id="menNotice" class="men-notice">
@@ -1928,7 +1956,7 @@ function renderCatalogue(styles){
     <div class="meta">
       <span class="cat-line">${st.p ? `<span class="brand">${BL(st.p)}</span>` : ""}<span class="cat">${kicker}</span></span>
       ${isSuit(st) ? "" : `<h3>${st.n}</h3>`}
-      <div class="sizes"><span class="cname">${vcur.c}</span></div>
+      <div class="sizes"><span class="cdot" style="background:${vcur.h || "transparent"}"></span><span class="cname">${vcur.c}</span></div>
     </div>`;
 
   /* 以前这里有一整套:预加载同款其它颜色、点色点换图、左右滑动换色。
@@ -1957,7 +1985,7 @@ function renderCatalogue(styles){
   });
   document.querySelectorAll(".card-reveal").forEach(c => { try { cardIO.observe(c); } catch (e) {} });
   pruneFacets();                       // 链接里带的筛选值,这批数据里没有就丢掉
-  renderSortOptions(); applySort();
+  renderSortOptions(); renderShareLabel(); applySort();
   renderCategoryChips(); renderMaterialChips(); renderSwatches(); renderBrandChips(); applyFilter(); checkEmpty();
   syncGenderTabs();
 }
@@ -2219,10 +2247,20 @@ function runSearch(){
 }
 const searchDrop = document.getElementById("searchDrop");
 function closeDrop(){ if (searchDrop) searchDrop.hidden = true; }
+/* ⚠️ v126 在这里留了个 bug,v130 才发现:这个循环原本走的是 CAT.length(款数),
+   读的却是 SEARCH_IDX[i] —— 而 v126 之后 SEARCH_IDX 是按卡片建的(一色一条),
+   两个下标从第一款多色款开始就错位。实测搜 "emerald",下拉列出的是
+   Maggie Feather Sleeves 和 Misty,正确答案是 Elina / Noble / Hedy。
+   现在按卡片走,返回的也是卡片下标。
+   顺带修掉两件一直不一致的事:
+     ① 只数当前性别 —— 以前不分性别,于是「See all 7 results」点进去网格只有 4 件
+     ② 一行就是一张卡(一个颜色),跟点进去看到的网格对得上 */
 function dropMatches(toks){
   const list = []; let total = 0;
-  for (let i = 0; i < CAT.length; i++){
-    if (toks.every(t => SEARCH_IDX[i].includes(t))){ total++; if (list.length < 6) list.push(i); }
+  for (let k = 0; k < ITEMS.length; k++){
+    const st = CAT[ITEMS[k].si];
+    if (!st || st.g !== state.gender) continue;
+    if (toks.every(t => SEARCH_IDX[k].includes(t))){ total++; if (list.length < 6) list.push(k); }
   }
   return { list, total };
 }
@@ -2253,10 +2291,11 @@ function renderDrop(q){
   }
   if (list.length){
     html += `<div class="sd-sec"><div class="sd-label">${LANG === "zh" ? "款式" : "Products"}</div>`;
-    html += list.map(i => {
-      const st = CAT[i], j = bestColour(st, toks), v = st.v[j];
-      const sub = st.v.length > 1 ? (LANG === "zh" ? `${st.v.length} 色` : `${st.v.length} colours`) : "";
-      return `<button class="sd-prod" type="button" data-idx="${i}" data-col="${j}"><img src="${v.img}" alt="" loading="lazy"><span class="sd-pname">${escapeHTML(pieceName(st))}</span><span class="sd-psub">${sub}</span></button>`;
+    html += list.map(k => {
+      const it = ITEMS[k], st = CAT[it.si], v = st.v[it.vi];
+      /* 副标题从「N colours」改成这一张卡自己的颜色名 —— 一行一个颜色,
+         跟网格和灯箱看到的是同一件东西 */
+      return `<button class="sd-prod" type="button" data-idx="${it.si}" data-col="${it.vi}"><img src="${v.img}" alt="" loading="lazy"><span class="sd-pname">${escapeHTML(pieceName(st))}</span><span class="sd-psub">${escapeHTML(v.c || "")}</span></button>`;
     }).join("");
     html += `</div>`;
     if (total > list.length) html += `<button class="sd-all" type="button">${LANG === "zh" ? `查看全部 ${total} 件` : `See all ${total} results`}</button>`;
@@ -2267,13 +2306,95 @@ function renderDrop(q){
   searchDrop.innerHTML = html;
   searchDrop.hidden = false;
 }
+/* ---------- 分享当前这个筛选视图 (v128) ---------- */
+const SHARE_LABELS = {
+  en: { idle:"Share", done:"Link copied", manual:"Press Ctrl/Cmd + C" },
+  zh: { idle:"\u5206\u4eab", done:"\u94fe\u63a5\u5df2\u590d\u5236", manual:"\u6309 Ctrl/Cmd + C \u590d\u5236" }
+};
+function SHL(){ return SHARE_LABELS[LANG] || SHARE_LABELS.en; }
+function renderShareLabel(){
+  const s = document.getElementById("shareLbl");
+  if (s && !s.dataset.busy) s.textContent = SHL().idle;
+  const b = document.getElementById("shareBtn");
+  if (b) b.setAttribute("aria-label", LANG === "zh"
+    ? "\u590d\u5236\u5f53\u524d\u7b5b\u9009\u7ed3\u679c\u7684\u94fe\u63a5"
+    : "Copy a link to this filtered view");
+}
+/* 分享面板上显示的标题 —— 把当前筛选拼成一句人话,
+   免得对方收到的只是一条光秃秃的网址 */
+function shareTitle(){
+  const bits = [];
+  if (state.color    !== "all") bits.push(COLOR_LABELS[state.color] || state.color);
+  if (state.category !== "all") bits.push(CL(state.category));
+  if (state.material !== "all") bits.push(ML(state.material));
+  if (state.brand    !== "all") bits.push(BL(state.brand));
+  if (state.q) bits.push("\u201c" + state.q + "\u201d");
+  const what = catLabel(state.gender);
+  return bits.length ? `${bits.join(" \u00b7 ")} \u2014 ${what} \u00b7 LaFemme` : "LaFemme Gowns by Nee";
+}
+function shareFlash(key){
+  const s = document.getElementById("shareLbl"), b = document.getElementById("shareBtn");
+  if (!s || !b) return;
+  s.dataset.busy = "1";
+  s.textContent = SHL()[key];
+  b.classList.add("done");
+  clearTimeout(shareFlash._t);
+  shareFlash._t = setTimeout(() => {
+    delete s.dataset.busy; b.classList.remove("done"); renderShareLabel();
+  }, 2200);
+}
+const shareBtn = document.getElementById("shareBtn");
+if (shareBtn) shareBtn.addEventListener("click", async () => {
+  const url = location.href;
+  /* 同上:category / material / brand / sort 都不是 events 的列。
+     整个筛选状态本来就在网址的查询串里,原样塞进 filter_value 就够了,
+     既完整又只用一列。 */
+  track("share_view", {
+    filter_key: "share",
+    filter_value: (location.search || "").replace(/^\?/, "") || "all",
+    gender: state.gender,
+    colour: state.color !== "all" ? state.color : null,
+    q: state.q || null
+  });
+  /* 手机上这一步会拉起系统分享面板,可以直接选 WhatsApp */
+  if (navigator.share){
+    try { await navigator.share({ title: shareTitle(), url }); return; }
+    catch(e){ if (e && e.name === "AbortError") return; }   // 用户自己取消了,不要再弹别的
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    shareFlash("done");
+    return;
+  } catch(e){ /* 非 https 或老浏览器会拒掉 clipboard —— 往下走退路 */ }
+  /* 最后一条退路:塞进一个临时输入框选中。就算 execCommand 也失败,
+     网址已经是选中状态,人手动 Ctrl+C 就行。按了没反应比没这个按钮更糟。 */
+  const t = document.createElement("input");
+  try {
+    t.value = url;
+    t.setAttribute("readonly", "");
+    t.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none";
+    document.body.appendChild(t);
+    t.select(); t.setSelectionRange(0, url.length);
+    shareFlash((document.execCommand && document.execCommand("copy")) ? "done" : "manual");
+  } catch(e){
+    shareFlash("manual");
+  } finally {
+    /* execCommand 抛错的话上面那句就跳过了,这个临时输入框会永远留在 DOM 里。
+       放 finally 才保证一定清掉。 */
+    if (t.parentNode) t.parentNode.removeChild(t);
+  }
+});
+
 const sortSel = document.getElementById("sortSel");
 if (sortSel) sortSel.addEventListener("change", () => {
   if (!SORT_KEYS.includes(sortSel.value)) return;
   state.sort = sortSel.value;
   applySort();
   syncURL();
-  track("sort_use", { sort: state.sort, gender: state.gender });
+  /* ⚠️ 字段名必须是 events 表真有的列 —— analytics.js 把 data 的每个键直接
+     当列 POST,多一个不存在的键,整批事件会被 400 一起打回(它自己的注释里
+     记着上次就是这么丢的)。sort 不是列,借用通用的 filter_key/filter_value。 */
+  track("sort_use", { filter_key: "sort", filter_value: state.sort, gender: state.gender });
 });
 
 if (searchInput){
@@ -2286,7 +2407,9 @@ if (searchInput){
     if (prod){ openLb(+prod.dataset.idx, +prod.dataset.col); closeDrop(); return; }
     const sg = e.target.closest(".sd-sugg");
     if (sg){ searchInput.value = sg.dataset.term; runSearch(); searchInput.focus(); return; }
-    if (e.target.closest(".sd-all")) closeDrop();
+    /* 「查看全部 N 件」以前只是把下拉关掉,人还停在搜索框那儿 —— 手机上尤其明显,
+       下拉一收,底下什么都没变,像是没生效。现在跟筛选抽屉的 Apply 一样滚到结果去。 */
+    if (e.target.closest(".sd-all")){ closeDrop(); showResults(0); return; }
   });
   document.addEventListener("click", e => { if (!e.target.closest(".search-wrap")) closeDrop(); });
 }
@@ -2431,16 +2554,24 @@ if (filterBackdrop) filterBackdrop.addEventListener("click", closeFilters);
 
    The scroll has to wait: closeFilters() calls history.back(), and popstate restores its own
    scroll position a frame or two later, which would overwrite anything set before it. */
-function showResults(){
+function showResults(delay){
   const anchor = document.getElementById("resultCount") || document.getElementById("grid");
   if (!anchor) return;
+  /* 默认 380ms 是给筛选抽屉留的:closeFilters() 会 history.back(),popstate 一两帧后
+     会把滚动位置盖回去,早滚就白滚了。搜索下拉没有这一步,传 0 立刻滚。 */
   setTimeout(() => {
-    const y = Math.max(0, anchor.getBoundingClientRect().top + window.pageYOffset - 96);
+    /* 原来这里写死 96。实测(2026-08-17,十档屏幕):头部在手机/平板上是 60px 高、
+       笔电以上 68px,而滚动完成之后卡片淡入还会把锚点再往上顶约 26px —— 笔电上
+       结果条最后停在距顶 70px,离固定头部的下沿只剩 2px。等于没有余量。
+       改成按真实头高算,任何屏幕都留出一段干净的空隙。 */
+    const hdrEl = document.getElementById("hdr");
+    const pad = (hdrEl ? hdrEl.getBoundingClientRect().height : 68) + 46;
+    const y = Math.max(0, anchor.getBoundingClientRect().top + window.pageYOffset - pad);
     /* a smooth glide across 20,000px reads as broken — snap when it's a long way,
        glide when the reader was already at the grid */
     const far = Math.abs(y - window.pageYOffset) > 1600;
     window.scrollTo({ top: y, behavior: (REDUCED || far) ? "auto" : "smooth" });
-  }, REDUCED ? 0 : 380);
+  }, REDUCED ? 0 : (delay == null ? 380 : delay));
 }
 if (filterApplyBtn) filterApplyBtn.addEventListener("click", () => { closeFilters(); showResults(); });
 if (filterClearBtn) filterClearBtn.addEventListener("click", () => {
@@ -3378,6 +3509,7 @@ function applyLang(lang){
   /* v127:排序下拉的选项文字也是建出来的,不重建就会卡在建它时的那个语言 ——
      跟 v113 品牌片那个 bug 一模一样的形状,这次一开始就挂进来 */
   if (typeof renderSortOptions === 'function') renderSortOptions();
+  if (typeof renderShareLabel === 'function') renderShareLabel();
   if (typeof window.__syncMapPeek === 'function') window.__syncMapPeek();
   if (typeof renderSwatches === 'function') renderSwatches();
   if (typeof updateFilterMeta === 'function') updateFilterMeta();

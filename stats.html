@@ -335,6 +335,14 @@
         <dt>Which filters they used</dt>
         <dd>Which colours, styles, fabrics and brands customers tapped in the filter panel — what they were actively looking for.</dd>
 
+        <dt>Most shared views</dt>
+        <dd>How many times the <b>Share</b> button on the collection page was used, and which
+            filtered view was being shared — "Black · Fitted", "Men suits", and so on. Each row
+            links to that exact view, so you can see what the customer saw.
+            <br><span style="color:var(--muted)">The button was added on 17 Aug 2026; there is
+            nothing recorded before that. An empty panel there means "not measured yet", not
+            "nobody shared".</span></dd>
+
         <dt>Rental questions opened</dt>
         <dd>Which rental FAQ questions customers expanded — deposit, fitting fee, cleaning, and so on. Heavy interest in one question tells you what's on people's minds before they book.</dd>
 
@@ -435,6 +443,17 @@
         <p class="ph">Which FAQ questions customers expanded. A question opened a lot is a concern worth answering up front.</p>
         <div id="faqOpens">No data yet.</div>
       </div>
+    </div>
+
+    <div class="card2">
+      <h3>Most shared views</h3>
+      <p class="ph">Every time the <b>Share</b> button on the collection page was used, and which
+        filtered view was being shared. This is what you are actually sending customers.
+        <br><span style="color:var(--muted)">Recorded from 17 Aug 2026, when the Share button was
+        added — anything before that date has nothing to show, which is not the same as nobody
+        sharing. Sorting is ignored when grouping: "black gowns" and "black gowns A–Z" are the
+        same view, just in a different order.</span></p>
+      <div id="sharedViews">No data yet.</div>
     </div>
     </div>
   </section>
@@ -631,6 +650,7 @@ async function loadDash() {
   renderSearchTerms();
   renderFilterUse();
   renderFaqOpens();
+  renderSharedViews();
   renderSessions();
 }
 
@@ -754,13 +774,13 @@ function colourDots(s){
 /* What customers typed, and which filters they tapped. Both read straight from events
    (search stores q; filter_use stores filter_key + filter_value), so no SQL is needed.
    Terms are grouped case-insensitively and counted. */
-let SEARCHES = [], FILTERS = {}, FAQS = [], BEHAV_ERR = "";
+let SEARCHES = [], FILTERS = {}, FAQS = [], SHARED = {}, BEHAV_ERR = "";
 async function loadSearchAndFilters(r){
-  SEARCHES = []; FILTERS = {}; FAQS = []; BEHAV_ERR = "";
+  SEARCHES = []; FILTERS = {}; FAQS = []; SHARED = {}; BEHAV_ERR = "";
   try {
     const { data, error } = await withTimeout(
       sb.from("events").select("event_type, q, filter_key, filter_value")
-        .in("event_type", ["search", "filter_use", "faq_open"])
+        .in("event_type", ["search", "filter_use", "faq_open", "share_view"])
         .gte("occurred_at", r.p_from).lt("occurred_at", r.p_to)
         .limit(10000), 12000, "Searches");
     /* an empty panel used to look identical whether the query returned nothing or failed
@@ -775,6 +795,11 @@ async function loadSearchAndFilters(r){
         if (key) terms[key] = (terms[key] || 0) + 1;
       } else if (e.event_type === "faq_open" && e.q) {
         faqs[e.q] = (faqs[e.q] || 0) + 1;
+      } else if (e.event_type === "share_view") {
+        /* filter_value 就是分享那一刻地址栏的查询串;没有查询串时写的是 "all"(整个目录)。
+           按查询串归组 —— 同一个视图被分享几次就数几次。 */
+        const qs = e.filter_value || "all";
+        SHARED[qs] = (SHARED[qs] || 0) + 1;
       } else if (e.event_type === "filter_use" && e.filter_key && e.filter_value && e.filter_value !== "all") {
         (FILTERS[e.filter_key] || (FILTERS[e.filter_key] = {}))[e.filter_value] =
           (FILTERS[e.filter_key][e.filter_value] || 0) + 1;
@@ -976,6 +1001,53 @@ function renderFaqOpens(){
 }
 
 const FILTER_TITLES = { category: "Style", material: "Fabric", colour: "Colour", brand: "Brand" };
+
+/* ---------- 最常被分享的视图 (v130) ----------
+   share_view 的 filter_value 是查询串。把它翻回人话,免得看板上是一排
+   c=black&cat=fitted 这种东西 —— 店主不该被要求读网址。 */
+const cap1 = s => (s || "").charAt(0).toUpperCase() + (s || "").slice(1);
+function shareLabel(qs){
+  if (!qs || qs === "all") return "The whole collection";
+  const out = [];
+  try {
+    new URLSearchParams(qs).forEach((v, k) => {
+      if (k === "sort") return;                          // 排序不改内容,不算另一个视图
+      if (k === "g")   { out.push(v === "m" ? "Men suits" : "Gowns"); return; }
+      if (k === "cat") { out.push(CAT_LABELS[v] || cap1(v)); return; }
+      if (k === "q")   { out.push("\u201c" + v + "\u201d"); return; }
+      out.push(cap1(v));
+    });
+  } catch(e){ return qs; }
+  return out.length ? out.join(" \u00b7 ") : "The whole collection";
+}
+function renderSharedViews(){
+  const box = $("sharedViews");
+  if (!box) return;
+  /* 先按「翻译过的标签」合并 —— c=black 和 c=black&sort=az 是同一个视图 */
+  const merged = {};
+  Object.entries(SHARED).forEach(([qs, cnt]) => {
+    const lbl = shareLabel(qs);
+    if (!merged[lbl]) merged[lbl] = { n: 0, qs };
+    merged[lbl].n += cnt;
+  });
+  const items = Object.entries(merged).sort((a, b) => b[1].n - a[1].n);
+  if (!items.length){ box.innerHTML = behavEmpty(); return; }
+  const max = items[0][1].n;
+  /* stats.html 跟网站同域,所以能拼出可点开的真实链接。用 file:// 打开时
+     origin 不是 http(s),那就只显示文字不给链接。 */
+  const base = /^https?:/.test(location.origin || "") ? location.origin + "/" : null;
+  box.innerHTML = items.map(([lbl, o]) => {
+    const href = base ? base + (o.qs && o.qs !== "all" ? "?" + o.qs : "") : null;
+    const name = href
+      ? `<a href="${esc(href)}" target="_blank" rel="noopener" style="color:inherit">${esc(lbl)}</a>`
+      : esc(lbl);
+    return `<div class="termrow">
+      <span class="termn">${name}</span>
+      <span class="termbar"><i style="width:${(o.n / max * 100).toFixed(1)}%"></i></span>
+      <span class="termc">${o.n}</span>
+    </div>`;
+  }).join("");
+}
 function renderSearchTerms(){
   const box = $("searchTerms");
   if (!box) return;
