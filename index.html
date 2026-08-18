@@ -41,15 +41,15 @@
 <meta property="og:title" content="LaFemme Gowns by Nee — Evening Gowns &amp; Men Suits" />
 <meta property="og:description" content="Gowns and suits for the nights that matter — 4-day rentals, fitted to you in-studio. Bukit Jalil, Kuala Lumpur." />
 <meta property="og:url" content="https://lafemmegown.com/" />
-<meta property="og:image" content="https://lafemmegown.com/icons/og-image-5.jpg" />
+<meta property="og:image" content="https://lafemmegown.com/icons/og-image-4.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="LaFemme Gowns by Nee — an emerald evening gown from the collection, Bukit Jalil, Kuala Lumpur" />
+<meta property="og:image:alt" content="LaFemme Gowns by Nee — evening gowns and men suits, Bukit Jalil, Kuala Lumpur" />
 <meta property="og:locale" content="en_MY" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="LaFemme Gowns by Nee — Evening Gowns &amp; Men Suits" />
 <meta name="twitter:description" content="Gowns and suits for the nights that matter — 4-day rentals, fitted to you in-studio. Bukit Jalil, Kuala Lumpur." />
-<meta name="twitter:image" content="https://lafemmegown.com/icons/og-image-5.jpg" />
+<meta name="twitter:image" content="https://lafemmegown.com/icons/og-image-4.png" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -413,7 +413,9 @@
      百分比跟着 reel 高度走,所以手机和显示器都不用各写一套。 */
   /* v149 —— 封面上的 LF 水印撤掉了。
      当初(v137)加它是我把话听反了:客户要的是「分享链接时的预览图换成封面照」,
-     不是「在封面照上盖 logo」。预览图现在用 icons/og-image-5.jpg(就是封面那张)。
+     不是「在封面照上盖 logo」。预览图用回 LF logo(icons/og-image-4.png)——
+     2026-08-18 试过换成封面照,但分享的是 A 裙、预览图却是 B 裙,反而更怪。
+     logo 是中性的,配哪一件都不会误导。
      images/hero-mark.png 已经没有任何地方引用,可以删。 */
   /* the <picture> wrapper carries the position + animation; it has a real box */
   .reel picture{
@@ -666,19 +668,16 @@
   .men-msg h3{font-size:32px;margin-bottom:12px}
   .men-msg p{color:var(--muted);margin-bottom:24px}
   .card .ph:hover .cardimg{transform:scale(1.06)}
-  /* v146 —— 大图整张显示,不裁。273 张单品照片里有 73 张不是 2:3,
-     原来的 cover 会把它们切掉 10%~33%。contain 保证整件衣服都看得见;
-     留白的地方由 .lb-ph::before(同一张照片的模糊放大版)垫底。
-     ⚠️ 卡片仍然是 cover —— 网格要整齐,一格一格大小不一会很乱。
-     所以从卡片点开大图时,构图会「松开」一点,这是有意的取舍。 */
-  .lb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center;z-index:1}
-  .lb-ph::before{content:"";position:absolute;inset:-24px;z-index:0;
-    background:var(--lbbg, none) center/cover no-repeat;
-    filter:blur(24px) saturate(1.1) brightness(.94);pointer-events:none}
-  /* 底图是模糊的,所以只在真的有图时才显示,免得空的时候糊一片 */
+  /* v150 —— 大图改回填满整个框(cover),不再留边。
+     v146 我把它改成 contain(整张显示、两边用同一张照片的模糊版垫底),
+     是为了让不是 2:3 的照片不被裁。结果在真机上那两条边看起来就像排版出错 ——
+     礼服照片的背景本来就是浅色墙,模糊底跟它几乎一个色,分不出是设计还是 bug。
+     所以回到填满:边一定齐,代价是不是 2:3 的照片会被裁掉一部分。
+     根治靠上传时裁(admin v139 已经强制 2:3),存量里裁得最狠的那几张
+     见 照片比例体检.csv,在 admin 里重裁一次就好。
+     ⚠️ 卡片一直是 cover,没变过 —— 现在两边终于一致了。 */
+  .lb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;z-index:1}
   .lb-ph{background:var(--panel)}
-  /* 低清那一层也跟着 contain,否则换色滑动时上下两层构图对不上,会「跳」一下 */
-  .lb-lo{object-fit:contain}
   /* The popup paints the cached thumbnail first, then the full photo lands. Doing that by
      swapping src on ONE <img> is a hard cut — on a laptop-sized picture a sequin or lace
      gown snaps from soft to sharp in a single frame, and the eye reads that snap as the
@@ -867,6 +866,16 @@
   .lb-tab{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:18px}
   .lb-tab td{padding:8px 0;border-bottom:1px solid var(--hairline);vertical-align:top}
   .lb-tab td:first-child{color:var(--muted);width:38%;font-size:11px;letter-spacing:.18em;text-transform:uppercase;padding-top:12px}
+  /* v151 —— 颜色那一行的色点原来比「COLOURS」低 5px(9 档屏幕量出来都是 5px)。
+     原因是两个格子都 vertical-align:top,而左边是 11px 的文字、右边是 15px 的圆点,
+     加上 .dots-row 自带 margin-top:11px,两者的中线本来就对不上。
+     改法:这一行两个格子用同样的 padding-top、都 top 对齐,再把 .dots-row 的
+     上边距去掉 —— 于是「第一排色点」跟「COLOURS」那一行文字从同一条线开始。
+     ⚠️ 不能用 vertical-align:middle:颜色多的款(最多 41 款)色点会换行,
+     middle 会把标签对到整块色点的中间,反而比第一排高出 11px(320/390 上量到)。
+     其他行(编号、租期、适合场合)是多行文字,仍然要 top 对齐,不能一起改。 */
+  .lb-tab tr.lb-colours td{vertical-align:top;padding-top:12px}
+  .lb-tab tr.lb-colours .dots-row{margin-top:0;align-items:center;min-height:1.2em}
   .lb-cta{display:flex;gap:12px;flex-wrap:wrap}
   #lbClose{position:absolute;top:12px;right:12px;z-index:4;width:38px;height:38px;border-radius:50%;
     border:0;background:rgba(20,16,12,.5);color:#fff;font-size:22px;line-height:1;cursor:pointer;
@@ -1689,7 +1698,7 @@
       <h3 id="lbTitle"></h3>
       <div class="tagrow" id="lbTags"></div>
       <table class="lb-tab">
-        <tr><td>Colours</td><td><div class="dots-row" id="lbDots"></div></td></tr>
+        <tr class="lb-colours"><td>Colours</td><td><div class="dots-row" id="lbDots"></div></td></tr>
         <tr><td>Reference</td><td id="lbRef"></td></tr>
         <tr><td>Rental</td><td>4 days · dry-cleaning included · refundable deposit</td></tr>
         <tr><td>Suitable for</td><td id="lbFor"></td></tr>
@@ -2110,6 +2119,26 @@ function renderCatalogue(styles){
   renderSortOptions(); renderShareLabel(); applySort();
   renderCategoryChips(); renderMaterialChips(); renderSwatches(); renderBrandChips(); applyFilter(); checkEmpty();
   syncGenderTabs();
+  /* v151 —— 分享链接进来的那一件,要把页面停在**那张卡**上,不是目录最上面。
+     原来走的是 showResults(锚点是「Showing N pieces」那一行),所以关掉弹窗之后
+     人停在目录顶部,而那件礼服可能在第 40 张 —— 实测 laptop 上那张卡在
+     scrollY+3684px 的位置,等于要客人自己往下翻着找。
+     现在直接滚到那张卡。滚动仍然发生在弹窗盖上之后,客人看不到这一段。
+     (关掉弹窗为什么不会弹回封面,见 openLb 里 scrollRestoration 那段。) */
+  if (OPEN_PIECE){
+    JUMP_TO_GRID = false;                 // 这一次由下面接手,别再跳一次目录顶部
+    const { si, vi } = OPEN_PIECE;
+    setTimeout(() => {
+      try {
+        const card = CARDS.find(c => +c.dataset.idx === si && +c.dataset.v === vi);
+        if (!card) { showResults(0); return; }
+        const hdrEl = document.getElementById("hdr");
+        const pad = (hdrEl ? hdrEl.getBoundingClientRect().height : 68) + 24;
+        const y = Math.max(0, card.getBoundingClientRect().top + window.pageYOffset - pad);
+        window.scrollTo({ top: y, behavior: "auto" });   // 瞬移:弹窗盖着,平滑滚动没人看得见
+      } catch(e){}
+    }, 320);
+  }
   if (JUMP_TO_GRID){
     JUMP_TO_GRID = false;                 // 只跳第一次渲染那回
     /* 等一下再跳:字体和封面图还在定版,太早算出来的位置会偏。
@@ -2883,13 +2912,6 @@ function openLb(i, vi){
     lbImg.style.transform = "";
     lbImg.alt = `${pieceName(st)} \u2014 ${v.c}`;
     if (lbLo){ lbLo.src = v.img; lbLo.style.opacity = ""; }
-    /* v146 —— 大图改成整张显示(object-fit:contain),不再裁。
-       目录里 275 张单品照片有 73 张不是 2:3(最歪的两张是正方形,按原来的裁法
-       两侧各切掉 33%),裁完就看不出裙摆或者披肩长什么样。
-       整张显示会在上下或左右留空,所以拿同一张照片的模糊放大版当底 ——
-       空的地方是这件衣服自己的颜色,不是一块死灰。
-       用缩略图(v.img)做底而不是大图:它本来就已经下载过了,不多一次请求。 */
-    if (lbPh) lbPh.style.setProperty("--lbbg", `url("${v.img}")`);
 
     /* Two things have to be dealt with first, and both are about the gown that was on
        screen BEFORE this one.
