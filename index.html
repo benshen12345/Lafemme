@@ -41,15 +41,15 @@
 <meta property="og:title" content="LaFemme Gowns by Nee — Evening Gowns &amp; Men Suits" />
 <meta property="og:description" content="Gowns and suits for the nights that matter — 4-day rentals, fitted to you in-studio. Bukit Jalil, Kuala Lumpur." />
 <meta property="og:url" content="https://lafemmegown.com/" />
-<meta property="og:image" content="https://lafemmegown.com/icons/og-image-4.png" />
+<meta property="og:image" content="https://lafemmegown.com/icons/og-image-5.jpg" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="LaFemme Gowns by Nee — evening gowns and men suits, Bukit Jalil, Kuala Lumpur" />
+<meta property="og:image:alt" content="LaFemme Gowns by Nee — an emerald evening gown from the collection, Bukit Jalil, Kuala Lumpur" />
 <meta property="og:locale" content="en_MY" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="LaFemme Gowns by Nee — Evening Gowns &amp; Men Suits" />
 <meta name="twitter:description" content="Gowns and suits for the nights that matter — 4-day rentals, fitted to you in-studio. Bukit Jalil, Kuala Lumpur." />
-<meta name="twitter:image" content="https://lafemmegown.com/icons/og-image-4.png" />
+<meta name="twitter:image" content="https://lafemmegown.com/icons/og-image-5.jpg" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -411,11 +411,10 @@
         铺到底,两个正好叠在一起(实测笔电水印 y 728-870、按钮 822-878)。
         14% 在笔电上约 113px,刚好让开。
      百分比跟着 reel 高度走,所以手机和显示器都不用各写一套。 */
-  .hero-mark{
-    position:absolute;right:20px;bottom:14%;z-index:2;
-    width:78px;height:auto;opacity:.52;pointer-events:none;user-select:none;
-    filter:drop-shadow(0 1px 7px rgba(0,0,0,.5))}
-  @media (min-width:1025px){ .hero-mark{right:28px;width:104px} }
+  /* v149 —— 封面上的 LF 水印撤掉了。
+     当初(v137)加它是我把话听反了:客户要的是「分享链接时的预览图换成封面照」,
+     不是「在封面照上盖 logo」。预览图现在用 icons/og-image-5.jpg(就是封面那张)。
+     images/hero-mark.png 已经没有任何地方引用,可以删。 */
   /* the <picture> wrapper carries the position + animation; it has a real box */
   .reel picture{
     position:absolute;inset:0;display:block;
@@ -590,7 +589,13 @@
   .chip:hover{border-color:var(--gold);color:var(--ink)}
   .chip.active{background:var(--ink);border-color:var(--ink);color:var(--ivory)}
   .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:34px 26px}
-  .card{transition:opacity 1.5s ease, transform 1.5s ease}
+  /* v148 —— min-width:0 必须加在 .card 上,不能只加在 .card .meta 上。
+     .card 是 .grid 的直接子项,网格项默认 min-width:auto = 不能比内容更窄。
+     v147 给标题加了 white-space:nowrap 之后,最长的那个款名就成了卡片的
+     最小宽度(实测 191px),于是 1fr 的两栏在手机上再也缩不下去 ——
+     卡片一律 191px 宽,右边那一栏直接跑出屏幕外。
+     (2026-08-18 线上撞到:手机上第二栏被切掉一半。) */
+  .card{transition:opacity 1.5s ease, transform 1.5s ease;min-width:0}
   .card.hide{display:none}
   .search-wrap{position:relative;max-width:440px;margin:0 auto 26px;display:flex;align-items:center}
   .search-ico{position:absolute;left:16px;width:17px;height:17px;color:var(--muted);pointer-events:none}
@@ -1315,7 +1320,6 @@
           <picture><source media="(max-width:1024px)" srcset="images/hero-4-sm.webp"><img src="images/hero-4.webp" alt="" style="--i:3" loading="lazy" decoding="async"></picture>
           <picture><source media="(max-width:1024px)" srcset="images/hero-5-sm.webp"><img src="images/hero-5.webp" alt="" style="--i:4" loading="lazy" decoding="async"></picture>
         </div>
-        <img class="hero-mark" src="images/hero-mark.png" alt="" aria-hidden="true" decoding="async" />
       </div>
       </div>
     </div>
