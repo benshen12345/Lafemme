@@ -343,6 +343,14 @@
             nothing recorded before that. An empty panel there means "not measured yet", not
             "nobody shared".</span></dd>
 
+        <dt>Most shared pieces</dt>
+        <dd>The <b>Share this piece</b> button inside a piece's popup — one row per piece <i>and
+            colour</i>, because the black and the red of the same gown are two different things to
+            send someone. Each row links straight to that piece, opened on that colour.
+            <br><span style="color:var(--muted)">Added 18 Aug 2026. Both panels count the same kind
+            of event, so a piece share never inflates the "shared views" numbers and the other way
+            round.</span></dd>
+
         <dt>Rental questions opened</dt>
         <dd>Which rental FAQ questions customers expanded — deposit, fitting fee, cleaning, and so on. Heavy interest in one question tells you what's on people's minds before they book.</dd>
 
@@ -454,6 +462,15 @@
         sharing. Sorting is ignored when grouping: "black gowns" and "black gowns A–Z" are the
         same view, just in a different order.</span></p>
       <div id="sharedViews">No data yet.</div>
+    </div>
+
+    <div class="card2">
+      <h3>Most shared pieces</h3>
+      <p class="ph">The <b>Share this piece</b> button inside a piece's popup — one row per piece and
+        colour. This is the single gown or suit someone sent to a customer, not a whole filtered view.
+        <br><span style="color:var(--muted)">Recorded from 18 Aug 2026, when that button was added.
+        An empty panel before that date means the button did not exist yet, not that nobody shared.</span></p>
+      <div id="sharedPieces">No data yet.</div>
     </div>
     </div>
   </section>
@@ -651,6 +668,7 @@ async function loadDash() {
   renderFilterUse();
   renderFaqOpens();
   renderSharedViews();
+  renderSharedPieces();
   renderSessions();
 }
 
@@ -774,12 +792,14 @@ function colourDots(s){
 /* What customers typed, and which filters they tapped. Both read straight from events
    (search stores q; filter_use stores filter_key + filter_value), so no SQL is needed.
    Terms are grouped case-insensitively and counted. */
-let SEARCHES = [], FILTERS = {}, FAQS = [], SHARED = {}, BEHAV_ERR = "";
+let SEARCHES = [], FILTERS = {}, FAQS = [], SHARED = {}, SHARED_PIECE = {}, BEHAV_ERR = "";
 async function loadSearchAndFilters(r){
-  SEARCHES = []; FILTERS = {}; FAQS = []; SHARED = {}; BEHAV_ERR = "";
+  SEARCHES = []; FILTERS = {}; FAQS = []; SHARED = {}; SHARED_PIECE = {}; BEHAV_ERR = "";
   try {
     const { data, error } = await withTimeout(
-      sb.from("events").select("event_type, q, filter_key, filter_value")
+      /* v131 —— 多取 style_id / style_name / colour 三列,给「最常被分享的单品」用。
+         同一条查询,只是多几列,没有多一次往返。 */
+      sb.from("events").select("event_type, q, filter_key, filter_value, style_id, style_name, colour")
         .in("event_type", ["search", "filter_use", "faq_open", "share_view"])
         .gte("occurred_at", r.p_from).lt("occurred_at", r.p_to)
         .limit(10000), 12000, "Searches");
@@ -795,6 +815,18 @@ async function loadSearchAndFilters(r){
         if (key) terms[key] = (terms[key] || 0) + 1;
       } else if (e.event_type === "faq_open" && e.q) {
         faqs[e.q] = (faqs[e.q] || 0) + 1;
+      } else if (e.event_type === "share_view" && e.filter_key === "piece") {
+        /* v131 —— 弹窗里的「分享这一件」。跟上面那种分享共用 event_type(免得
+           events 多一个新的 event_type 值),靠 filter_key='piece' 区分。
+           按「款 + 颜色」归组:同一条裙子的黑色和红色是两件不同的东西。 */
+        const key = (e.style_id || e.filter_value || "") + "|" + (e.colour || "");
+        if (key !== "|"){
+          const row = SHARED_PIECE[key] || (SHARED_PIECE[key] = {
+            n: 0, id: e.style_id || e.filter_value || "", name: e.style_name || "", colour: e.colour || ""
+          });
+          row.n++;
+          if (!row.name && e.style_name) row.name = e.style_name;
+        }
       } else if (e.event_type === "share_view") {
         /* filter_value 就是分享那一刻地址栏的查询串;没有查询串时写的是 "all"(整个目录)。
            按查询串归组 —— 同一个视图被分享几次就数几次。 */
@@ -1019,6 +1051,31 @@ function shareLabel(qs){
     });
   } catch(e){ return qs; }
   return out.length ? out.join(" \u00b7 ") : "The whole collection";
+}
+/* ---------- 最常被分享的单品 (v131) ----------
+   一行一个「款 + 颜色」。名字可能是空的(目录里确实有没名字的款),
+   那就退回颜色,再退回产品 id —— 但绝不显示空白行,空白行看起来像看板坏了。 */
+function renderSharedPieces(){
+  const box = $("sharedPieces");
+  if (!box) return;
+  const items = Object.values(SHARED_PIECE).sort((a, b) => b.n - a.n);
+  if (!items.length){ box.innerHTML = behavEmpty(); return; }
+  const max = items[0].n;
+  const base = /^https?:/.test(location.origin || "") ? location.origin + "/" : null;
+  box.innerHTML = items.map(o => {
+    const label = [o.name, o.colour].filter(Boolean).join(" · ") || o.id || "(unnamed piece)";
+    const href = base && o.id
+      ? base + "?p=" + encodeURIComponent(o.id) + (o.colour ? "&pc=" + encodeURIComponent(o.colour) : "")
+      : null;
+    const name = href
+      ? `<a href="${esc(href)}" target="_blank" rel="noopener" style="color:inherit">${esc(label)}</a>`
+      : esc(label);
+    return `<div class="termrow">
+      <span class="termn">${name}</span>
+      <span class="termbar"><i style="width:${(o.n / max * 100).toFixed(1)}%"></i></span>
+      <span class="termc">${o.n}</span>
+    </div>`;
+  }).join("");
 }
 function renderSharedViews(){
   const box = $("sharedViews");

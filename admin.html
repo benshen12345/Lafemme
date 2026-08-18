@@ -1236,7 +1236,25 @@ async function save(){
       /* the reference is what the customer pastes into WhatsApp, so keep it clean —
          a generated suit name already starts with the brand, don't print it twice */
       const refBase = (prefix && !name.toUpperCase().startsWith(prefix + " ")) ? prefix + " " + name : name;
-      variants.push({ c: label, d: "", f: fam, h: hex, ref: refBase + " " + label, img, hi });
+      /* v138 —— 颜色已经在名字里就别再拼一次。
+         这一行原本无条件写 `refBase + " " + label`,于是:
+           西装「Camel Double-Breasted」+ 颜色 Camel → 「Camel Double-Breasted Camel」
+           礼服「Cowl Stardust Pink」  + 颜色 Pink  → 「Cowl Stardust Pink Pink」
+         西装尤其躲不掉 —— 客户要求西装不取花名,名字就是「颜色 + 版型」,
+         颜色天然已经在里面。目录里 49 套西装现在的编号是老格式、没这个问题,
+         但只要在这里重新保存一次就会全部中招。
+
+         判据用「空白分隔的连续词」,不用子串也不用 \b 词边界:
+           子串   → 「Redwood Gown」配色 Red 会被误判成已包含,颜色就丢了
+           \b 边界 → 连字符算边界,「Black-White」里的 Black 会被误判成已包含
+                     (2026-08-17 我就是在这里把 Audrey 那条改坏的)
+         15 个案例逐个验过。 */
+      const refToks = refBase.toLowerCase().split(/\s+/).filter(Boolean);
+      const colToks = (label || "").toLowerCase().split(/\s+/).filter(Boolean);
+      const colourAlreadyInName = !colToks.length ||
+        refToks.some((_, k) => colToks.every((t, j) => refToks[k + j] === t));
+      const ref = (refBase + (colourAlreadyInName ? "" : " " + label)).trim();
+      variants.push({ c: label, d: "", f: fam, h: hex, ref, img, hi });
     }
     const types = [...new Set([...category, ...material])];
     const rec = { id, gender, prefix, name, types, category, material, variants, added_at: editAddedAt || today() };

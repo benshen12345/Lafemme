@@ -41,7 +41,7 @@
 <meta property="og:title" content="LaFemme Gowns by Nee — Evening Gowns &amp; Men Suits" />
 <meta property="og:description" content="Gowns and suits for the nights that matter — 4-day rentals, fitted to you in-studio. Bukit Jalil, Kuala Lumpur." />
 <meta property="og:url" content="https://lafemmegown.com/" />
-<meta property="og:image" content="https://lafemmegown.com/icons/og-image-3.png" />
+<meta property="og:image" content="https://lafemmegown.com/icons/og-image-4.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta property="og:image:alt" content="LaFemme Gowns by Nee — evening gowns and men suits, Bukit Jalil, Kuala Lumpur" />
@@ -49,7 +49,7 @@
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="LaFemme Gowns by Nee — Evening Gowns &amp; Men Suits" />
 <meta name="twitter:description" content="Gowns and suits for the nights that matter — 4-day rentals, fitted to you in-studio. Bukit Jalil, Kuala Lumpur." />
-<meta name="twitter:image" content="https://lafemmegown.com/icons/og-image-3.png" />
+<meta name="twitter:image" content="https://lafemmegown.com/icons/og-image-4.png" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -399,6 +399,23 @@
 
   .hero-right{--hdr:94px}
   .reel{position:absolute;top:var(--hdr);left:0;right:0;bottom:0;z-index:1;overflow:hidden}
+  /* v137 封面水印。放在 .reel 里、.reel-in 外面 —— .reel-in 带一层上下渐隐遮罩,
+     水印挂在里面会被一起吃掉。z-index 2:压在照片上,但仍在左栏文案(z-index 3)下面,
+     所以永远不会盖住标题和按钮。
+     白色 + 一圈很淡的暗投影:五张封面明暗不一,纯白压在浅色礼服上会看不见,
+     投影是为了在浅色照片上也留得住形。 */
+  /* bottom 用百分比不用固定像素,一次解决两件事:
+     ① .reel-in 的遮罩从 90% 高度开始往下淡成透明,照片在那儿变成米色底,
+        白水印压上去就看不见了(手机上尤其明显)。14% 把它抬到实色区里。
+     ② WhatsApp 那颗悬浮按钮是 position:fixed 钉在视口右下角,宽屏下 .reel
+        铺到底,两个正好叠在一起(实测笔电水印 y 728-870、按钮 822-878)。
+        14% 在笔电上约 113px,刚好让开。
+     百分比跟着 reel 高度走,所以手机和显示器都不用各写一套。 */
+  .hero-mark{
+    position:absolute;right:20px;bottom:14%;z-index:2;
+    width:78px;height:auto;opacity:.52;pointer-events:none;user-select:none;
+    filter:drop-shadow(0 1px 7px rgba(0,0,0,.5))}
+  @media (min-width:1025px){ .hero-mark{right:28px;width:104px} }
   /* the <picture> wrapper carries the position + animation; it has a real box */
   .reel picture{
     position:absolute;inset:0;display:block;
@@ -776,6 +793,32 @@
   .lb-nav:hover{background:rgba(20,16,12,.66)}
   .lb-prev{left:10px}
   .lb-next{right:10px}
+  /* v142 —— 分享按钮的位置分两种屏幕:
+       宽屏(>900px,弹窗是左图右文两栏):待在右栏最上面,「EVENING GOWN · MERMAID」
+         那行之上。这时它有白底可站,做成描边小药丸,跟站里的 .btn 一个语气。
+       窄屏(≤900px,弹窗上下堆叠):压到照片左上角,跟右上角的关闭键成一对。
+         那一档右栏整个在折线以下,按钮放那儿等于藏起来 —— 而这颗按钮的意义
+         就是一眼看到就能发给客人。
+     窄屏那档必须用半透明深色 + 模糊:礼服照片左上角经常是白墙或镜子,
+     白字直接压上去会糊掉。
+     它写在 .lb-body 里,靠 .lb-panel 的 position:relative 定位 ——
+     窄屏时 .lb-ph 就在面板最上面,top:12px/left:12px 正好落在照片左上角。
+     ⚠️ 别跟 .lb-nav 抢位置 —— 那两个箭头在 top:50%,这颗在 top:12px,不重叠。 */
+  /* display:flex + width:fit-content —— 不能用 inline-flex:下一个元素是 <span class="kicker">,
+     行内元素会跟按钮挤在同一行,变成「[Share] EVENING GOWN · MERMAID」。
+     (2026-08-18 第一版就是这样,量出来 aboveKicker=false 才发现。) */
+  /* v143 —— 跟右上角的 × 对齐成一条线。
+     × 是 top:12px 的 38px 圆钮,所以这颗也做 38px 高、上缘拉到 12px。
+     .lb-body 的上内边距是 34px(见 .lb-body{padding:34px 40px}),
+     所以 margin-top 要 -22px 才能把上缘从 34 推到 12。
+     ⚠️ 这个 -22 跟那个 34 是绑死的 —— 改 .lb-body 的 padding 就要一起改这里。
+     窄屏那档不受影响:≤900px 会整个改成 position:absolute 并把 margin 清零。 */
+  .lb-share{display:flex;width:fit-content;align-items:center;gap:7px;height:38px;padding:0 15px;margin:-22px 0 16px;
+    border:1px solid var(--hairline);border-radius:19px;background:transparent;color:var(--ink);
+    font:inherit;font-size:11px;letter-spacing:.16em;text-transform:uppercase;cursor:pointer;
+    transition:background .2s ease,color .2s ease,border-color .2s ease}
+  .lb-share:hover{background:var(--ink);border-color:var(--ink);color:var(--ivory)}
+  .lb-share svg{width:13px;height:13px;flex:0 0 auto}
   .lb-ph .swatch{position:absolute;inset:0}
   .lb-body{padding:34px 40px}
   .lb-body h3{font-family:var(--serif);font-size:36px;font-weight:500;margin:6px 0 8px}
@@ -1105,6 +1148,14 @@
     .book-side{margin-top:0}   /* stacked on mobile — no offset needed */
     .lb-panel{grid-template-columns:1fr;max-height:88vh}
     .lb-ph{aspect-ratio:3/4}
+    /* v142 —— 堆叠布局下把分享按钮抬到照片左上角(理由见 .lb-share 那段注释) */
+    .lb-share{position:absolute;top:12px;left:12px;z-index:4;margin:0;
+      height:38px;border:0;border-radius:19px;
+      background:rgba(20,16,12,.5);color:#fff;
+      font-size:12px;letter-spacing:.06em;text-transform:none;
+      -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+    .lb-share:hover{background:rgba(20,16,12,.74);border-color:transparent;color:#fff}
+    .lb-share svg{width:14px;height:14px}
     .steps{grid-template-columns:1fr 1fr}
     /* stacked hero: give the photo a real height so a portrait image doesn't stretch */
     .hero-right{min-height:60svh}
@@ -1230,6 +1281,7 @@
           <picture><source media="(max-width:1024px)" srcset="images/hero-4-sm.webp"><img src="images/hero-4.webp" alt="" style="--i:3" loading="lazy" decoding="async"></picture>
           <picture><source media="(max-width:1024px)" srcset="images/hero-5-sm.webp"><img src="images/hero-5.webp" alt="" style="--i:4" loading="lazy" decoding="async"></picture>
         </div>
+        <img class="hero-mark" src="images/hero-mark.png" alt="" aria-hidden="true" decoding="async" />
       </div>
       </div>
     </div>
@@ -1594,6 +1646,7 @@
     <button id="lbClose" aria-label="Close piece details">×</button>
     <div class="lb-ph"><img class="lb-img lb-lo" id="lbLo" alt="" aria-hidden="true"><img class="lb-img" id="lbImg" alt=""><button class="lb-nav lb-prev" id="lbPrev" aria-label="Previous colour">‹</button><button class="lb-nav lb-next" id="lbNext" aria-label="Next colour">›</button></div>
     <div class="lb-body">
+      <button type="button" class="lb-share" id="lbShare" aria-label="Share this piece"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg><span id="lbShareLbl">Share</span></button>
       <span class="kicker" id="lbCat"></span>
       <h3 id="lbTitle"></h3>
       <div class="tagrow" id="lbTags"></div>
@@ -1856,13 +1909,18 @@ const BRAND_LABELS = { CD:"CD", AL:"AL", JA:"JA", FV:"FV", PS:"PS", LF:"LF", RL:
 function BL(code){ const k=(code||"").trim().toUpperCase(); return BRAND_LABELS[k] || code; }
 const waLink    = msg => `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(msg)}`;
 /* build "Name — Colour (Desc)" but skip any part whose words are already in the name,
-   so e.g. name "Mauve Midi" + colour "Mauve" + desc "Midi" -> just "Mauve Midi" */
+   so e.g. name "Mauve Midi" + colour "Mauve" + desc "Midi" -> just "Mauve Midi"
+
+   v139 —— 名字有可能是空的。产品 `al`(AL / Mauve / Midi)数据库里就没有名字,
+   旧的第一行 `let label = name` 于是拼出「 — Mauve (Midi)」:客人自己按 Ask price
+   发到 WhatsApp 的那句话开头挂着一个孤零零的破折号。破折号是分隔符,
+   左边得先有东西才能印。 */
 function pieceLabel(name, colour, desc){
-  let label = name;
+  let label = (name || "").trim();
   const has = s => label.toLowerCase().includes((s || "").toLowerCase());
-  if (colour && !has(colour)) label += ` — ${colour}`;
-  if (desc   && !has(desc))   label += ` (${desc})`;
-  return label;
+  if (colour && !has(colour)) label = label ? `${label} — ${colour}` : colour;
+  if (desc   && !has(desc))   label = label ? `${label} (${desc})`   : desc;
+  return label.trim();
 }
 /* ---------- bilingual WhatsApp message strings (follow interface language) ---------- */
 const MSG = {
@@ -1928,6 +1986,23 @@ function renderCatalogue(styles){
   /* 一个颜色一张卡。CAT 已经按上架日期倒序排好,每款的变体保持它在数据里的
      原顺序,所以同一款的几个颜色天然是连在一起的 —— 不用额外排序,也不会被打散。 */
   ITEMS = []; CARDS = [];
+  /* v140 —— 分享链接指名要开某一件。必须在筛选跑起来之前解出来:男装的链接
+     得先把性别切到 m,否则背后那一屏是礼服,关掉弹窗看到的东西对不上。
+     解不出来就把 PENDING_PIECE 留着 —— renderCatalogue 会跑两次(先 catalogue.js
+     兜底,再 Supabase 实时数据),刚上架的那件只存在于第二次。
+     两次都解不出来(那件下架了)就什么都不做:目录照常显示,不弹错。 */
+  let OPEN_PIECE = null;
+  if (PENDING_PIECE){
+    const si = CAT.findIndex(st => st.i === PENDING_PIECE.id);
+    if (si >= 0){
+      const st = CAT[si], want = PENDING_PIECE.colour.toLowerCase();
+      let vi = (st.v || []).findIndex(v => (v.c || "").toLowerCase() === want);
+      if (vi < 0) vi = 0;                       // 颜色改名或删了 —— 退回第一个,别开天窗
+      state.gender = st.g;
+      OPEN_PIECE = { si, vi };
+      PENDING_PIECE = null;
+    }
+  }
   CAT.forEach((st, si) => (st.v || []).forEach((v, vi) => ITEMS.push({ si, vi })));
   SEARCH_IDX = ITEMS.map(it => buildSearchStr(CAT[it.si], CAT[it.si].v[it.vi]));
   SUGGEST_CORPUS = buildCorpus();
@@ -2003,6 +2078,12 @@ function renderCatalogue(styles){
        showResults 自己会判断距离 —— 从封面到目录是一大段,它会直接跳而不是
        慢慢滑过去(在两万像素上做平滑滚动看起来像卡死)。 */
     showResults(320);
+  }
+  /* v140 —— 分享链接带来的那一件,现在弹出来。放在最后:openLb 要读 lbDots 之类的
+     节点,而那些是上面这一轮渲染刚建好的。延后一帧,让滚动先落位再盖弹窗。 */
+  if (OPEN_PIECE){
+    const { si, vi } = OPEN_PIECE;
+    setTimeout(() => { try { openLb(si, vi); } catch(e){} }, 60);
   }
 }
 
@@ -2095,10 +2176,14 @@ function syncURL(){
    所以渲染完直接跳到目录区。只跳一次:renderCatalogue 会跑两遍(先 catalogue.js
    兜底,再 Supabase 覆盖),第二遍不能把已经在浏览的人再拽回去。 */
 let JUMP_TO_GRID = false;
+let PENDING_PIECE = null;      // v140 —— ?p= 带来的那一件,等目录渲染完再弹
 function readURL(){
   try {
     const p = new URLSearchParams(location.search);
-    JUMP_TO_GRID = ["g","cat","mat","c","b","q","sort"].some(k => (p.get(k) || "").trim());
+    JUMP_TO_GRID = ["g","cat","mat","c","b","q","sort","p"].some(k => (p.get(k) || "").trim());
+    /* v140 —— 单件分享链接。这里只记下来,真正打开要等目录渲染完(CAT 才有内容)。 */
+    const pid = (p.get("p") || "").trim();
+    PENDING_PIECE = pid ? { id: pid, colour: (p.get("pc") || "").trim() } : null;
     const g = p.get("g"); if (g === "m" || g === "f") state.gender = g;
     const q = (p.get("q") || "").trim().toLowerCase();
     if (q){
@@ -2372,12 +2457,64 @@ function shareFlash(key){
    改成用 <head> 里本来就有的 canonical 当基准,再接上当前的查询串。
    在真站上 canonical 的域名跟 location.origin 是同一个,结果完全一样;
    本地打开、或者从 *.github.io 打开时,拿到的也是客人能用的那条真实链接。 */
-function shareURL(){
+function siteBase(){
   const c = document.querySelector('link[rel="canonical"]');
   let base = (c && c.href) ? c.href : (location.origin + "/");
   if (!/\/$/.test(base)) base += "/";
-  return base + (location.search || "");
+  return base;
 }
+/* 顶部那颗分享的是「当前这一屏筛选」。p / pc 是单件链接才有的,
+   要剔掉 —— 否则客人从单件链接进来、关掉弹窗、再按顶部分享,
+   对方收到的还是那一件的弹窗,不是这一屏。
+   (不靠 closeLb 去洗网址:closeLb 里有 history.back(),
+    popstate 会把网址盖回来,时序不稳。这里当场算,稳。) */
+function shareURL(){
+  const p = new URLSearchParams(location.search);
+  p.delete("p"); p.delete("pc");
+  const qs = p.toString();
+  return siteBase() + (qs ? "?" + qs : "");
+}
+
+/* v140 —— 单件的分享链接:?p=<产品id>&pc=<颜色>
+   用颜色的**名字**而不是第几个,因为 Pearly 在 admin 里调换颜色顺序之后,
+   序号会指到另一件衣服上,名字不会。名字对不上就退回第一个颜色,不报错。
+   ⚠️ WhatsApp 的预览图仍然是 LF logo:og:image 写死在 HTML 里,GitHub Pages
+   上一个静态页只能有一张,除非给每一件单独生成一个页面(264 个文件)。
+   2026-08-18 跟你确认过,先接受这一点。 */
+function pieceShareURL(st, v){
+  const p = new URLSearchParams();
+  p.set("p", st.i);
+  if (v && v.c) p.set("pc", v.c);
+  return siteBase() + "?" + p.toString();
+}
+
+/* 复制链接的三级退路。顶部那颗和弹窗里那颗共用这一份 ——
+   以后要改 iOS 的复制方式,只有这一处要动。 */
+async function copyLink(url, flash){
+  try {
+    await navigator.clipboard.writeText(url);
+    flash("done");
+    return;
+  } catch(e){ /* 非 https 或老浏览器会拒掉 clipboard —— 往下走退路 */ }
+  /* 最后一条退路:塞进一个临时输入框选中。就算 execCommand 也失败,
+     网址已经是选中状态,人手动 Ctrl+C 就行。按了没反应比没这个按钮更糟。 */
+  const t = document.createElement("input");
+  try {
+    t.value = url;
+    t.setAttribute("readonly", "");
+    t.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none";
+    document.body.appendChild(t);
+    t.select(); t.setSelectionRange(0, url.length);
+    flash((document.execCommand && document.execCommand("copy")) ? "done" : "manual");
+  } catch(e){
+    flash("manual");
+  } finally {
+    /* execCommand 抛错的话上面那句就跳过了,这个临时输入框会永远留在 DOM 里。
+       放 finally 才保证一定清掉。 */
+    if (t.parentNode) t.parentNode.removeChild(t);
+  }
+}
+
 const shareBtn = document.getElementById("shareBtn");
 if (shareBtn) shareBtn.addEventListener("click", async () => {
   const url = shareURL();
@@ -2397,29 +2534,30 @@ if (shareBtn) shareBtn.addEventListener("click", async () => {
     try { await navigator.share({ title: shareTitle(), url }); return; }
     catch(e){ if (e && e.name === "AbortError") return; }   // 用户自己取消了,不要再弹别的
   }
-  try {
-    await navigator.clipboard.writeText(url);
-    shareFlash("done");
-    return;
-  } catch(e){ /* 非 https 或老浏览器会拒掉 clipboard —— 往下走退路 */ }
-  /* 最后一条退路:塞进一个临时输入框选中。就算 execCommand 也失败,
-     网址已经是选中状态,人手动 Ctrl+C 就行。按了没反应比没这个按钮更糟。 */
-  const t = document.createElement("input");
-  try {
-    t.value = url;
-    t.setAttribute("readonly", "");
-    t.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none";
-    document.body.appendChild(t);
-    t.select(); t.setSelectionRange(0, url.length);
-    shareFlash((document.execCommand && document.execCommand("copy")) ? "done" : "manual");
-  } catch(e){
-    shareFlash("manual");
-  } finally {
-    /* execCommand 抛错的话上面那句就跳过了,这个临时输入框会永远留在 DOM 里。
-       放 finally 才保证一定清掉。 */
-    if (t.parentNode) t.parentNode.removeChild(t);
-  }
+  await copyLink(url, shareFlash);
 });
+
+/* v140 —— 弹窗里那颗「分享这一件」。
+   跟顶部那颗分开写标签:顶部分享的是「当前这一屏筛选」,这里分享的是「这一件」,
+   两句话不一样,而且两颗按钮可能同时处在不同状态(一颗刚闪完「已复制」)。
+   v141 起它压在照片上,位置有限,所以闲置时只写「Share」——
+   旁边就是这件衣服本身,不用再解释分享的是什么。 */
+const PIECE_SHARE_LABELS = {
+  en: { idle:"Share", done:"Link copied", manual:"Press Ctrl/Cmd + C" },
+  zh: { idle:"分享", done:"链接已复制", manual:"按 Ctrl/Cmd + C 复制" }
+};
+function PSHL(){ return PIECE_SHARE_LABELS[LANG] || PIECE_SHARE_LABELS.en; }
+function pieceShareFlash(key){
+  const s = document.getElementById("lbShareLbl");
+  if (!s) return;
+  s.dataset.busy = "1";
+  s.textContent = PSHL()[key];
+  clearTimeout(pieceShareFlash._t);
+  pieceShareFlash._t = setTimeout(() => {
+    delete s.dataset.busy;
+    s.textContent = PSHL().idle;
+  }, 2200);
+}
 
 const sortSel = document.getElementById("sortSel");
 if (sortSel) sortSel.addEventListener("change", () => {
@@ -2740,6 +2878,24 @@ function openLb(i, vi){
       `${msg("photo")}: ${imgURL}`
     );
     ask.onclick = () => track("ask_price", meta);
+    /* v140 —— 分享这一件。链接指向 ?p=<产品id>&pc=<颜色>,客人打开就直接弹出这张大图。
+       埋点仍然走 share_view,只是 filter_key 标成 "piece" —— events 表没有新列、
+       也没有新的 event_type,所以不会有一整批事件被 400 掉的风险(见 v129 那次)。 */
+    const lbShare = document.getElementById("lbShare");
+    if (lbShare){
+      const lbl = document.getElementById("lbShareLbl");
+      if (lbl && !lbl.dataset.busy) lbl.textContent = PSHL().idle;
+      lbShare.setAttribute("aria-label", PSHL().idle);
+      lbShare.onclick = async () => {
+        const url = pieceShareURL(st, v);
+        track("share_view", Object.assign({ filter_key: "piece", filter_value: st.i }, meta));
+        if (/^https?:$/.test(location.protocol) && navigator.share){
+          try { await navigator.share({ title: `${pieceLabel(pieceName(st), v.c, v.d)} · LaFemme`, url }); return; }
+          catch(e){ if (e && e.name === "AbortError") return; }
+        }
+        await copyLink(url, pieceShareFlash);
+      };
+    }
     document.getElementById("lbBook").onclick = () => {
       /* This button does NOT contact anyone — it adds the piece to the fitting list and
          leaves the popup open. It used to log the same event name the booking FORM logs
