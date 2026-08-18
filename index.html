@@ -544,12 +544,18 @@
   #sortSel:hover{border-bottom-color:var(--gold)}
   /* v128 分享按钮:安静的文字按钮,不做成大 CTA —— 它是给店家用的工具,
      不是给客人的行动号召,抢了礼服的视线就本末倒置 */
+  /* v131:原来是一个灰色纯文字按钮,跟左边的 SORT、右边的 SHOWING N PIECES
+     同字号同颜色同字距 —— 读起来像标签不像按钮,店主自己都找不到。
+     改成金边淡金底的药丸,一眼看得出能按。 */
   .share-btn{display:inline-flex;align-items:center;gap:7px;flex:none;
              font:inherit;font-size:11px;letter-spacing:.2em;text-transform:uppercase;
-             color:var(--muted);background:none;border:0;padding:6px 2px;cursor:pointer;
-             transition:color .3s ease}
-  .share-btn:hover{color:var(--ink)}
-  .share-btn.done{color:var(--gold)}
+             color:var(--gold-deep);background:rgba(198,161,91,.10);
+             border:1px solid var(--gold);border-radius:999px;
+             padding:8px 16px;cursor:pointer;
+             transition:background .3s ease, border-color .3s ease, color .3s ease}
+  .share-btn:hover{background:rgba(198,161,91,.20)}
+  /* 复制成功的反馈:底色再深一档 + 边框转深金,跟 hover 区分得开 */
+  .share-btn.done{background:rgba(198,161,91,.26);border-color:var(--gold-deep);color:var(--gold-deep)}
   .share-btn svg{width:14px;height:14px;flex:none}
   .share-btn:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
   #sortSel:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
