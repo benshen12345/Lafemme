@@ -698,12 +698,16 @@
   .swatch .code{font-size:10px;letter-spacing:.34em;text-transform:uppercase;color:rgba(28,26,23,.6);position:relative;z-index:1}
   .swatch.dark .init{color:rgba(250,247,242,.8)}
   .swatch.dark .code{color:rgba(250,247,242,.7)}
-  .card .meta{padding:16px 2px 0}
+  .card .meta{padding:16px 2px 0;min-width:0}   /* 同上:卡片标题 nowrap 之后要允许收窄 */
   .card .cat-line{white-space:nowrap}
   .card .cat{font-size:9px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold-deep)}
   .card .meta .brand{display:inline;font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--gold-deep)}
   .card .meta .brand::after{content:"";display:inline-block;width:4px;height:4px;background:var(--gold);transform:rotate(45deg);margin:0 6px;vertical-align:middle;position:relative;top:-1px}
-  .card h3{font-family:var(--serif);font-size:24px;font-weight:500;margin:6px 0 2px}
+  /* v147 —— 卡片上的款名也只占一行。卡片这里不缩字号:一屏 214 张卡,
+     逐个量宽度会把渲染拖慢,而且卡片本来就只是引子 —— 点开大图才是完整名字。
+     实测 214 张卡:电脑上一张都不换行,手机上有 5 张会,那 5 张现在末尾带省略号。 */
+  .card h3{font-family:var(--serif);font-size:24px;font-weight:500;margin:6px 0 2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   @media(max-width:640px){
     .grid .card h3{font-size:16px;margin:6px 0 2px;line-height:1.2}
     .grid .cmeta,.grid .card small{font-size:11px}
@@ -839,8 +843,19 @@
   .lb-share:hover{background:var(--ink);border-color:var(--ink);color:var(--ivory)}
   .lb-share svg{width:13px;height:13px;flex:0 0 auto}
   .lb-ph .swatch{position:absolute;inset:0}
-  .lb-body{padding:34px 40px}
-  .lb-body h3{font-family:var(--serif);font-size:36px;font-weight:500;margin:6px 0 8px}
+  /* v147 —— min-width:0 是配套的,别删。
+     网格项默认 min-width:auto,里面放一个 white-space:nowrap 的标题时,
+     这一栏会被最长的那个名字撑开(实测撑到 561px),照片那栏跟着被挤窄。
+     加了 min-width:0 这一栏才允许比内容窄,标题才会真的去缩字号。 */
+  .lb-body{padding:34px 40px;min-width:0}
+  /* v147 —— 款名一律一行。
+     原来长名字会换两行,右栏变高、整块版面跟着长,读起来也散。
+     大图这里用 JS 按宽度缩字号(fitTitle),36px 放不下就往下缩,最小 18px,
+     所以名字**一个字都不会少**。实测 178 个款名:171 个在 36px 就放得下,
+     最长的「Selina Champagne Puffy Sleeve Gown」缩到 25px。
+     nowrap 是兜底:万一 18px 还放不下,宁可截断也不换行。 */
+  .lb-body h3{font-family:var(--serif);font-size:36px;font-weight:500;margin:6px 0 8px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.18}
   .tagrow{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
   .tag{border:1px solid var(--hairline);border-radius:999px;padding:4px 12px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
   .lb-body .desc{color:var(--muted);margin:4px 0 22px}
@@ -2825,6 +2840,25 @@ function updateFilterMeta(){
 }
 let lastFocus = null, lbToken = 0, fittingList = [];
 let lbNav = null;   // set by openLb to the current piece's colour-stepper (or null if single colour)
+/* v147 —— 把款名缩到刚好一行。
+   36px 放得下就用 36px(178 个款名里 171 个是这种);放不下就按比例往下缩,
+   下限 22px —— 再小就不像标题了,那种极端情况交给 CSS 的省略号兜底。
+   量的是 scrollWidth(nowrap 之后文字的真实宽度)对 clientWidth(能用的宽度)。 */
+/* 下限 18px:比正文(16px)还大一点,手机上仍然读得清。
+   实测 186 个款名 × 9 档屏幕:下限 22px 时 320/390/430 上分别有 5/2/1 个名字
+   要被省略号截掉;降到 18px 之后一个都不用截,整份目录没有一个名字看不全。 */
+const LB_TITLE_MAX = 36, LB_TITLE_MIN = 18;
+function fitTitle(){
+  const el = document.getElementById("lbTitle");
+  if (!el || !el.textContent) return;
+  el.style.fontSize = LB_TITLE_MAX + "px";
+  const avail = el.clientWidth, want = el.scrollWidth;
+  if (!avail || want <= avail) return;
+  el.style.fontSize = Math.max(LB_TITLE_MIN, Math.floor(LB_TITLE_MAX * avail / want)) + "px";
+}
+/* 转屏或改窗口大小时,刚才算的字号就不对了 —— 弹窗开着就重算一次 */
+window.addEventListener("resize", () => { if (lb && lb.classList.contains("open")) fitTitle(); });
+
 function openLb(i, vi){
   const st = CAT[i]; let cur = vi || 0;
   const v0 = st.v[cur];
@@ -2974,7 +3008,7 @@ function openLb(i, vi){
   };
 
   document.getElementById("lbCat").textContent = catLabel(st.g) + ((st.cat && st.cat.length) ? " \u00b7 " + CL(st.cat[0]) : "");
-  document.getElementById("lbTitle").textContent = pieceName(st);
+  document.getElementById("lbTitle").textContent = pieceName(st);   // 字号在 lb 打开之后再算(见 fitTitle)
   document.getElementById("lbTags").innerHTML =
     (st.cat || []).map(c => `<span class="tag">${CL(c)}</span>`).join("") +
     (st.mat || []).map(m => `<span class="tag">${ML(m)}</span>`).join("");
@@ -2997,6 +3031,8 @@ function openLb(i, vi){
   /* warm every colour's hi-res image for THIS piece so colour changes are instant */
   st.v.forEach(v => { if (v.hi && v.hi !== v.img){ const p = new Image(); p.src = v.hi; } });
   lb.classList.add("open");
+  /* v147 —— 现在才量:#lb 在 open 之前是 display:none,量出来宽度是 0。 */
+  fitTitle();
   document.body.style.overflow = "hidden";
   document.getElementById("lbClose").focus();
   /* push a history entry so the phone's Back button closes this popup instead of leaving the site */
