@@ -661,7 +661,19 @@
   .men-msg h3{font-size:32px;margin-bottom:12px}
   .men-msg p{color:var(--muted);margin-bottom:24px}
   .card .ph:hover .cardimg{transform:scale(1.06)}
-  .lb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top}
+  /* v146 —— 大图整张显示,不裁。273 张单品照片里有 73 张不是 2:3,
+     原来的 cover 会把它们切掉 10%~33%。contain 保证整件衣服都看得见;
+     留白的地方由 .lb-ph::before(同一张照片的模糊放大版)垫底。
+     ⚠️ 卡片仍然是 cover —— 网格要整齐,一格一格大小不一会很乱。
+     所以从卡片点开大图时,构图会「松开」一点,这是有意的取舍。 */
+  .lb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center;z-index:1}
+  .lb-ph::before{content:"";position:absolute;inset:-24px;z-index:0;
+    background:var(--lbbg, none) center/cover no-repeat;
+    filter:blur(24px) saturate(1.1) brightness(.94);pointer-events:none}
+  /* 底图是模糊的,所以只在真的有图时才显示,免得空的时候糊一片 */
+  .lb-ph{background:var(--panel)}
+  /* 低清那一层也跟着 contain,否则换色滑动时上下两层构图对不上,会「跳」一下 */
+  .lb-lo{object-fit:contain}
   /* The popup paints the cached thumbnail first, then the full photo lands. Doing that by
      swapping src on ONE <img> is a hard cut — on a laptop-sized picture a sequin or lace
      gown snaps from soft to sharp in a single frame, and the eye reads that snap as the
@@ -757,7 +769,14 @@
     -webkit-backdrop-filter:blur(22px) saturate(1.3);backdrop-filter:blur(22px) saturate(1.3);
     border:1px solid var(--hairline);
     max-width:900px;width:100%;max-height:92vh;overflow:auto;
-    display:grid;grid-template-columns:.95fr 1.05fr;align-items:start;position:relative;
+    /* v145 —— align-items 从 start 改成 stretch。
+       原来照片那一栏永远按 2:3 算高度,右栏文字一多(款名换行 + 四个标签 +
+       编号换行)就比照片高,照片底下留一条空的灰带 —— 2026-08-18 报的就是这个,
+       那件是 Christina Ribbon Off Shoulder Mist,名字和编号都换了两行。
+       stretch 之后照片栏跟着行高长满,灰带永远不会出现。
+       代价:文字特别长的那几件,照片会比原来多裁掉一点底部
+       (object-fit:cover + object-position:center top,裁的是下摆)。 */
+    display:grid;grid-template-columns:.95fr 1.05fr;align-items:stretch;position:relative;
     animation:lbpop .45s cubic-bezier(.19,1,.22,1);
   }
   /* This entrance is a FADE ONLY - deliberately no transform of any kind. Two separate
@@ -2080,7 +2099,11 @@ function renderCatalogue(styles){
     showResults(320);
   }
   /* v140 —— 分享链接带来的那一件,现在弹出来。放在最后:openLb 要读 lbDots 之类的
-     节点,而那些是上面这一轮渲染刚建好的。延后一帧,让滚动先落位再盖弹窗。 */
+     节点,而那些是上面这一轮渲染刚建好的。
+
+     关掉弹窗会不会退回封面,不归这里管 —— 那个由 openLb 里的 scrollRestoration
+     处理(见 v144 那段注释)。我先试过「等滚动落位再开弹窗」,不行:
+     图片是陆续加载的,滚动位置会一直漂,没有一个稳的时刻可以等。 */
   if (OPEN_PIECE){
     const { si, vi } = OPEN_PIECE;
     setTimeout(() => { try { openLb(si, vi); } catch(e){} }, 60);
@@ -2822,6 +2845,13 @@ function openLb(i, vi){
     lbImg.style.transform = "";
     lbImg.alt = `${pieceName(st)} \u2014 ${v.c}`;
     if (lbLo){ lbLo.src = v.img; lbLo.style.opacity = ""; }
+    /* v146 —— 大图改成整张显示(object-fit:contain),不再裁。
+       目录里 275 张单品照片有 73 张不是 2:3(最歪的两张是正方形,按原来的裁法
+       两侧各切掉 33%),裁完就看不出裙摆或者披肩长什么样。
+       整张显示会在上下或左右留空,所以拿同一张照片的模糊放大版当底 ——
+       空的地方是这件衣服自己的颜色,不是一块死灰。
+       用缩略图(v.img)做底而不是大图:它本来就已经下载过了,不多一次请求。 */
+    if (lbPh) lbPh.style.setProperty("--lbbg", `url("${v.img}")`);
 
     /* Two things have to be dealt with first, and both are about the gown that was on
        screen BEFORE this one.
@@ -2970,9 +3000,23 @@ function openLb(i, vi){
   document.body.style.overflow = "hidden";
   document.getElementById("lbClose").focus();
   /* push a history entry so the phone's Back button closes this popup instead of leaving the site */
-  if (!lbHistoryActive){ try { history.pushState({ lb: true }, ""); lbHistoryActive = true; } catch(e){} }
+  if (!lbHistoryActive){
+    /* v144 —— 关掉弹窗之后必须留在原地,不能被送回封面。
+       浏览器默认 history.scrollRestoration = "auto":从这条记录退回去的时候,
+       它会把滚动位置恢复成「压这条记录的那一刻」的位置。从分享链接
+       (?p=…)进来时,弹窗是在页面还没滚到目录之前就压下去的,记下的是封面顶部,
+       于是客人按 × 就被送回封面 —— 这正是 2026-08-18 报的那个 bug。
+       实测:弹窗开着时 scrollY=1562,pushState 那一刻只有 131,
+       按 × 之后浏览器花了将近 1 秒把页面慢慢拉回 131。
+       只延后开弹窗治不了:那个滚动会随着图片陆续加载一直漂,没有一个稳的时刻。
+       弹窗只是盖在页面上的一层,它背后本来就停在对的位置,所以关掉之后
+       「原地不动」才是正确行为 —— 弹窗存在期间把恢复关掉,关完再还回去。 */
+    try { LB_PREV_SR = history.scrollRestoration; history.scrollRestoration = "manual"; } catch(e){}
+    try { history.pushState({ lb: true }, ""); lbHistoryActive = true; } catch(e){}
+  }
 }
 let lbHistoryActive = false;
+let LB_PREV_SR = "auto";
 function closeLb(fromPop){
   lb.classList.remove("open");
   document.body.style.overflow = "";
@@ -2980,6 +3024,8 @@ function closeLb(fromPop){
   if (lbHistoryActive){
     lbHistoryActive = false;
     if (fromPop !== true){ try { history.back(); } catch(e){} }   // remove our entry, unless Back already did
+    /* 等这一次回退处理完再把恢复开关还原,不然浏览器还是会拿它来盖滚动位置。 */
+    setTimeout(() => { try { history.scrollRestoration = LB_PREV_SR || "auto"; } catch(e){} }, 400);
   }
 }
 window.addEventListener("popstate", () => { if (lb.classList.contains("open")) closeLb(true); });

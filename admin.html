@@ -110,7 +110,10 @@
   .crop-box{background:#fff;border:1px solid var(--hairline);padding:22px;width:100%;max-width:460px;max-height:94vh;overflow-y:auto}
   .crop-box h3{margin:0 0 6px;font-family:var(--serif);font-size:22px;font-weight:500}
   .crop-hint{color:var(--muted);font-size:12.5px;line-height:1.55;margin:0 0 16px}
-  .crop-stage{position:relative;width:100%;aspect-ratio:1/1;overflow:hidden;background:var(--panel);
+  /* v139 —— 框的形状跟着这次裁的是什么走:封面 1:1,单品 2:3。
+     必须跟 openCropper 里的 CROP_ASPECT 一致 —— 屏幕上看到的框跟实际裁出来的
+     图形状不一样的话,「所见即所得」就是骗人的。 */
+  .crop-stage{position:relative;width:100%;aspect-ratio:var(--cropar, 1/1);overflow:hidden;background:var(--panel);
     touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
   .crop-stage:active{cursor:grabbing}
   .crop-stage img{position:absolute;top:0;left:0;transform-origin:0 0;max-width:none;pointer-events:none;-webkit-user-drag:none}
@@ -354,11 +357,11 @@
 <!-- ============ COVER CROPPER ============ -->
 <div id="cropWrap" class="crop-wrap hide">
   <div class="crop-box">
-    <h3>Choose the part to show</h3>
-    <p class="crop-hint">Drag the photo to move it, use the slider to zoom. Everything inside the frame will be your cover. Keep faces inside the dashed line — that part shows on every screen size.</p>
+    <h3 id="cropTitle">Choose the part to show</h3>
+    <p class="crop-hint" id="cropHint">Drag the photo to move it, use the slider to zoom. Everything inside the frame will be your cover. Keep faces inside the dashed line — that part shows on every screen size.</p>
     <div class="crop-stage" id="cropStage">
       <img id="cropImg" alt="">
-      <div class="crop-safe"></div>
+      <div class="crop-safe" id="cropSafe"></div>
     </div>
     <div class="crop-zoom">
       <span>Zoom</span>
@@ -827,8 +830,11 @@ function addVarRow(v){
   const file = wrap.querySelector(".vfile"), thumb = wrap.querySelector(".thumb");
   file.addEventListener("change", () => {
     if (file.files && file.files[0]){
-      const u = URL.createObjectURL(file.files[0]);
-      thumb.innerHTML = `<img src="${u}">`;
+      /* v139 —— 选完照片先裁成 2:3,再进预览。裁出来的图挂在 wrap.__cropped 上,
+         save() 优先用它。取消裁图 = 这次没选照片,原来那张(编辑时)还在。 */
+      wrap.__cropped = null;
+      thumb.innerHTML = "";
+      openCropper(0, file.files[0], "piece", wrap);
     }
   });
   wrap.querySelector(".rm").addEventListener("click", () => wrap.remove());
@@ -1013,11 +1019,25 @@ function setSlotPreview(n, src, isCustom){
    The admin picks the exact area, and we upload only that area. The site keeps
    object-fit:cover, so what you frame here is what shows — no extra settings to
    store, nothing to change on index.html. */
-const CROP_ASPECT = 1;          // square frame: a fair compromise between the
-                                // desktop hero (slightly wide) and mobile (slightly tall)
-let CROP = null;                // { n, img, url, base, zoom, tx, ty, W, H }
+/* v139 —— 裁图工具原本只给封面用(方框)。现在单品照片也走它,框锁成 2:3。
+   为什么:网站的卡片和大图都是 2:3 的框。以前上传什么比例就存什么比例,
+   于是 275 张单品照片里有 73 张不是 2:3,被网站自己裁掉 10%~33% ——
+   最歪的两张是正方形,两侧各切掉 33%,裙子最漂亮的那部分可能就没了。
+   在这里让 Pearly 自己决定留哪一块,比事后发现被切了强。
+   代价:她每传一张照片多一步。 */
+const COVER_ASPECT = 1;         // 封面:方框,兼顾电脑(略宽)和手机(略高)
+const PIECE_ASPECT = 2 / 3;     // 单品:跟 index.html 的 .card .ph / .lb-ph 一样
+let CROP_ASPECT = COVER_ASPECT; // 当前这次裁图用哪个,openCropper 里设
+let CROP = null;                // { n, img, url, base, zoom, tx, ty, W, H, kind, row }
 
-function openCropper(n, file){
+function openCropper(n, file, kind, row){
+  CROP_ASPECT = (kind === "piece") ? PIECE_ASPECT : COVER_ASPECT;
+  $("cropStage").style.setProperty("--cropar", (kind === "piece") ? "2/3" : "1/1");
+  $("cropTitle").textContent = (kind === "piece") ? "Choose the part to show" : "Choose the part to show";
+  $("cropHint").textContent  = (kind === "piece")
+    ? "Drag the photo to move it, use the slider to zoom. The frame is the same shape the website uses (2:3), so what you see here is exactly what customers see \u2014 nothing gets cut later."
+    : "Drag the photo to move it, use the slider to zoom. Everything inside the frame will be your cover. Keep faces inside the dashed line \u2014 that part shows on every screen size.";
+  $("cropSafe").classList.toggle("hide", kind === "piece");   // 安全区那条虚线只对封面有意义
   const url = URL.createObjectURL(file);
   const img = new Image();
   img.onload = () => {
@@ -1025,7 +1045,7 @@ function openCropper(n, file){
     $("cropWrap").classList.remove("hide");
     const W = stage.clientWidth, H = Math.round(W / CROP_ASPECT);
     const base = Math.max(W / img.naturalWidth, H / img.naturalHeight);   // cover the frame
-    CROP = { n, img, url, base, zoom: 1, tx: 0, ty: 0, W, H };
+    CROP = { n, img, url, base, zoom: 1, tx: 0, ty: 0, W, H, kind, row };
     const el = $("cropImg");
     el.src = url;
     el.width = img.naturalWidth; el.height = img.naturalHeight;
@@ -1054,6 +1074,13 @@ function drawCrop(){
   $("cropImg").style.transform = `translate(${c.tx}px, ${c.ty}px) scale(${c.base * c.zoom})`;
 }
 function closeCropper(){
+  /* v139 —— 取消裁图 = 这次没换照片。选文件时把预览清空了,这里要还回去,
+     否则编辑一件旧礼服时缩略图会变空,看起来像照片被删了(其实还在)。 */
+  if (CROP && CROP.kind === "piece" && CROP.row){
+    const th = CROP.row.querySelector(".thumb");
+    const old = CROP.row.dataset.img || "";
+    if (th && !CROP.row.__cropped) th.innerHTML = old ? `<img src="${old}">` : "";
+  }
   if (CROP && CROP.url) URL.revokeObjectURL(CROP.url);
   CROP = null;
   $("cropWrap").classList.add("hide");
@@ -1095,6 +1122,21 @@ $("cropOk").addEventListener("click", async () => {
   if (!CROP) return;
   const c = CROP, n = c.n, s = c.base * c.zoom;
   const sx = -c.tx / s, sy = -c.ty / s, sw = c.W / s, sh = c.H / s;   // source rect in original pixels
+  if (c.kind === "piece"){
+    /* 单品:只裁不传。裁好的图挂在这一行上,按 Save piece 的时候才真正上传 ——
+       跟原来「选了文件、Save 时才上传」的节奏一样,她中途反悔可以直接换一张。
+       1600 长边跟封面一致;uploadPhoto 之后还会再压到 1400/1000,比例不变。 */
+    const row = c.row;
+    const cropped = await cropToBlob(c.img, sx, sy, sw, sh, 1600, 0.82);
+    const preview = URL.createObjectURL(cropped);
+    closeCropper();
+    if (row){
+      row.__cropped = new File([cropped], "piece.webp", { type: "image/webp" });
+      const th = row.querySelector(".thumb");
+      if (th) th.innerHTML = `<img src="${preview}">`;
+    }
+    return;
+  }
   const full = await cropToBlob(c.img, sx, sy, sw, sh, 1600, 0.82);
   const sm   = await cropToBlob(c.img, sx, sy, sw, sh, 1080, 0.80);
   const preview = URL.createObjectURL(full);
@@ -1226,10 +1268,13 @@ async function save(){
       const hex = row.querySelector(".vhex").value;
       const fileInput = row.querySelector(".vfile");
       let img = row.dataset.img || "", hi = row.dataset.hi || "";
-      if (fileInput.files && fileInput.files[0]){
+      /* v139 —— 用裁过的那张。没有裁过的(取消了裁图)就当这次没选照片,
+         保留原来那张,而不是把没裁的原图偷偷传上去。 */
+      const croppedFile = row.__cropped || null;
+      if (croppedFile){
         busy(true, `Uploading photo ${i+1} of ${rows.length}…`);
         const baseSlug = slug(id + "-" + label) || (id + "-" + i);
-        const up = await uploadPhoto(fileInput.files[0], baseSlug);
+        const up = await uploadPhoto(croppedFile, baseSlug);
         img = up.img; hi = up.hi;
       }
       if (!img){ busy(false); $("saveBtn").disabled = false; return toast(`Colour ${i+1} needs a photo`, true); }
