@@ -41,7 +41,7 @@
 <meta property="og:title" content="LaFemme Gowns by Nee — Evening Gowns &amp; Men Suits" />
 <meta property="og:description" content="Gowns and suits for the nights that matter — 4-day rentals, fitted to you in-studio. Bukit Jalil, Kuala Lumpur." />
 <meta property="og:url" content="https://lafemmegown.com/" />
-<meta property="og:image" content="https://lafemmegown.com/icons/og-image.jpg" />
+<meta property="og:image" content="https://lafemmegown.com/icons/og-image-2.jpg" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta property="og:image:alt" content="LaFemme Gowns by Nee — evening gowns and men suits, Bukit Jalil, Kuala Lumpur" />
@@ -49,7 +49,7 @@
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="LaFemme Gowns by Nee — Evening Gowns &amp; Men Suits" />
 <meta name="twitter:description" content="Gowns and suits for the nights that matter — 4-day rentals, fitted to you in-studio. Bukit Jalil, Kuala Lumpur." />
-<meta name="twitter:image" content="https://lafemmegown.com/icons/og-image.jpg" />
+<meta name="twitter:image" content="https://lafemmegown.com/icons/og-image-2.jpg" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -716,7 +716,11 @@
     .filter-apply{flex:1.8;padding:13px;border:0;border-radius:9px;background:var(--ink);color:var(--ivory);
       font-family:var(--sans);font-size:11px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
     body.filter-open{overflow:hidden}
-    .result-count{text-align:center;margin:0 0 16px;letter-spacing:.2em}
+    /* v133:这条原本是 text-align:center —— v127 之前件数在手机上独占一行,居中才合理。
+       现在它换行后落在 SORT 底下,居中就跟上面那行对不齐。改成左对齐,
+       跟 SORT 齐头。下边距也归零,间距交给 .grid-bar 自己的 margin 管,
+       免得两边各留一份。 */
+    .result-count{text-align:left;margin:0;letter-spacing:.2em}
   }
   .card .sizes{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px}
   /* v129:颜色名前面的小圆点。v126 拆卡之后卡片上只剩颜色名字,
@@ -1107,9 +1111,8 @@
     .hero-bg{position:absolute}
   }
   @media (max-width:640px){
-    /* v128:窄屏放不下「排序 + 分享 + 件数」三样,件数会掉到第二行。
-       它是 flex 项,单独占一行时 margin-left:auto 没有剩余空间可吃,就贴在了左边。
-       给它 width:100%,text-align:right 才推得回右侧,跟宽屏一致。 */
+    /* 窄屏放不下「排序 + 分享 + 件数」三样,件数会换到第二行。
+       width:100% 让它独占那一行,配合上面的 text-align:left 跟 SORT 齐头左对齐。 */
     .grid-bar{gap:6px 12px}
     .result-count{width:100%;margin-left:0}
     /* one line no longer fits on a phone — let the title wrap again */
@@ -1994,6 +1997,13 @@ function renderCatalogue(styles){
   renderSortOptions(); renderShareLabel(); applySort();
   renderCategoryChips(); renderMaterialChips(); renderSwatches(); renderBrandChips(); applyFilter(); checkEmpty();
   syncGenderTabs();
+  if (JUMP_TO_GRID){
+    JUMP_TO_GRID = false;                 // 只跳第一次渲染那回
+    /* 等一下再跳:字体和封面图还在定版,太早算出来的位置会偏。
+       showResults 自己会判断距离 —— 从封面到目录是一大段,它会直接跳而不是
+       慢慢滑过去(在两万像素上做平滑滚动看起来像卡死)。 */
+    showResults(320);
+  }
 }
 
 /* 分享出去的链接可能带着一个这批数据里已经没有的筛选值 —— 那件礼服下架了,
@@ -2081,9 +2091,14 @@ function syncURL(){
   } catch(e){ /* 老浏览器不支持就算了,不该因为写不了网址而让筛选失灵 */ }
 }
 /* 读:开页时先把网址里的状态灌进 state,再渲染。值合不合法交给 pruneFacets 兜底。 */
+/* 带筛选参数进来 = 有人把一条链接发给了这个人。落在封面上等于让他自己去找,
+   所以渲染完直接跳到目录区。只跳一次:renderCatalogue 会跑两遍(先 catalogue.js
+   兜底,再 Supabase 覆盖),第二遍不能把已经在浏览的人再拽回去。 */
+let JUMP_TO_GRID = false;
 function readURL(){
   try {
     const p = new URLSearchParams(location.search);
+    JUMP_TO_GRID = ["g","cat","mat","c","b","q","sort"].some(k => (p.get(k) || "").trim());
     const g = p.get("g"); if (g === "m" || g === "f") state.gender = g;
     const q = (p.get("q") || "").trim().toLowerCase();
     if (q){
@@ -2349,9 +2364,23 @@ function shareFlash(key){
     delete s.dataset.busy; b.classList.remove("done"); renderShareLabel();
   }, 2200);
 }
+/* 要分享出去的网址。
+   ⚠️ 不能用 location.href:你在本地是用 file:///C:/Lafemme/deploy/index.html 打开来看的,
+   那个地址发给客人是废的 —— 而且 Windows 版 Chrome 上,把 file:// 的网址交给
+   navigator.share 会让浏览器判定这条 IPC 非法,直接杀掉整个标签页
+   (Aw, Snap! / RESULT_CODE_KILLED_BAD_MESSAGE,2026-08-17 实测撞到)。
+   改成用 <head> 里本来就有的 canonical 当基准,再接上当前的查询串。
+   在真站上 canonical 的域名跟 location.origin 是同一个,结果完全一样;
+   本地打开、或者从 *.github.io 打开时,拿到的也是客人能用的那条真实链接。 */
+function shareURL(){
+  const c = document.querySelector('link[rel="canonical"]');
+  let base = (c && c.href) ? c.href : (location.origin + "/");
+  if (!/\/$/.test(base)) base += "/";
+  return base + (location.search || "");
+}
 const shareBtn = document.getElementById("shareBtn");
 if (shareBtn) shareBtn.addEventListener("click", async () => {
-  const url = location.href;
+  const url = shareURL();
   /* 同上:category / material / brand / sort 都不是 events 的列。
      整个筛选状态本来就在网址的查询串里,原样塞进 filter_value 就够了,
      既完整又只用一列。 */
@@ -2362,8 +2391,9 @@ if (shareBtn) shareBtn.addEventListener("click", async () => {
     colour: state.color !== "all" ? state.color : null,
     q: state.q || null
   });
-  /* 手机上这一步会拉起系统分享面板,可以直接选 WhatsApp */
-  if (navigator.share){
+  /* 手机上这一步会拉起系统分享面板,可以直接选 WhatsApp。
+     只在 http/https 下调用 —— 从 file:// 打开时调它会杀掉标签页(见上)。 */
+  if (/^https?:$/.test(location.protocol) && navigator.share){
     try { await navigator.share({ title: shareTitle(), url }); return; }
     catch(e){ if (e && e.name === "AbortError") return; }   // 用户自己取消了,不要再弹别的
   }
