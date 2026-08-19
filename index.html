@@ -2438,15 +2438,6 @@ function revealStagger(list){
   });
 }
 const visible = () => [...document.querySelectorAll(".card:not(.hide)")];
-/* v159 —— 弹窗里左右走的顺序 = 现在这一屏看得见的卡,按 applySort 写在 style.order 上的次序。
-   order 没设过就按 DOM 顺序(用下标兜底,保持稳定)。 */
-function visibleSeq(){
-  return (CARDS || [])
-    .map((c, i) => ({ c, i }))
-    .filter(x => !x.c.classList.contains("hide"))
-    .sort((a, b) => ((+a.c.style.order || 0) - (+b.c.style.order || 0)) || (a.i - b.i))
-    .map(x => ({ si: +x.c.dataset.idx, vi: +x.c.dataset.v }));
-}
 function checkEmpty(){
   // don't show "nothing in that combination" when the catalogue itself failed to load
   const none = visible().length === 0 && CAT.length > 0;
@@ -3218,36 +3209,20 @@ function openLb(i, vi){
   lbDots.querySelectorAll("button").forEach(b =>
     b.addEventListener("click", () => { const j = +b.dataset.v; if (j !== cur) show(j, j > cur ? 1 : -1); }));
 
-  /* v159 —— 左右箭头 / 滑动改成「在整个目录里走」,不再只在同一款的颜色之间打转。
-     起因:一色一卡之后,185 款里有 144 款只有一个颜色,打开就是死胡同 ——
-     客人想看下一件必须先关掉弹窗。现在左右滑就是网格里的上一张 / 下一张卡。
-     ⚠️ 走的是**当前这一屏的顺序**:只算没被筛掉的卡,并且按 applySort 写在
-        style.order 上的次序排 —— 所以筛了「黑色」就只在黑色里走,排了 A–Z 就按 A–Z 走,
-        跟客人眼睛看到的一致。
-     ⚠️ 同一款的几个颜色本来就是相邻的卡,所以「换颜色」这件事顺带就有了,
-        不用单独做一套。
-     两种切换的观感不一样,这是有意的取舍:同款换色用滑动动画(slideSwap),
-     跨款要重建整个弹窗内容,走的是淡入(setImgDirect)—— 硬要统一得把 openLb
-     整个拆开重写,不值。 */
+  /* prev / next arrows + swipe, only when the piece has more than one colour
+
+     v160 —— 退回「只在同一款的颜色之间走」。
+     v159 我把它改成了「在整个目录里走」(Ben 当时选的就是这个),但真机上用下来他
+     要的是原来那种:打开一件之后左右滑只切**这一款的颜色**,不会滑到别的款去。
+     所以这里恢复成按 st.v 走;visibleSeq() 那套整个撤掉。
+     单色款仍然把箭头收起来 —— 没有第二个颜色可切。 */
+  const multi = st.v.length > 1;
   const lbPrev = document.getElementById("lbPrev"), lbNext = document.getElementById("lbNext");
-  const seq = visibleSeq();
-  const here = seq.findIndex(x => x.si === i && x.vi === cur);
-  /* 这一件有可能**不在当前这一屏里**(分享链接直接开的、或者它属于另一个性别 tab)。
-     那种情况下退回老行为:同款有多个颜色就在颜色之间走,只有一个颜色就把箭头收起来。 */
-  const canWalk = (here >= 0 && seq.length > 1) || st.v.length > 1;
-  lbPrev.style.display = lbNext.style.display = canWalk ? "flex" : "none";
-  const step = (d) => {
-    const s2 = visibleSeq();
-    const at = s2.findIndex(x => x.si === i && x.vi === cur);
-    if (at < 0){ if (st.v.length > 1) show(cur + d, d > 0 ? 1 : -1); return; }
-    if (s2.length < 2) return;
-    const nx = s2[(at + d + s2.length) % s2.length];
-    if (nx.si === i) show(nx.vi, d > 0 ? 1 : -1);   // 同一款:滑动换色
-    else openLb(nx.si, nx.vi);                      // 换一款:重建弹窗
-  };
+  lbPrev.style.display = lbNext.style.display = multi ? "flex" : "none";
+  const step = (d) => show(cur + d, d > 0 ? 1 : -1);
   lbPrev.onclick = () => step(-1);
   lbNext.onclick = () => step(1);
-  lbNav = canWalk ? step : null;
+  lbNav = multi ? step : null;
 
   show(cur, 0);
   /* warm every colour's hi-res image for THIS piece so colour changes are instant */
