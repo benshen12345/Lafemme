@@ -863,6 +863,15 @@
   .tagrow{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
   .tag{border:1px solid var(--hairline);border-radius:999px;padding:4px 12px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
   .lb-body .desc{color:var(--muted);margin:4px 0 22px}
+  /* v158 —— 换颜色时,文字也跟着淡一下。
+     原来只有照片有动作(滑动 + 交叉淡入),旁边的编号、颜色名、适合场合是**瞬间替换**的,
+     一动一不动,看起来像文字「跳」了一下 —— 2026-08-19 Ben 报的就是这个。
+     时长 .42s 跟照片滑动的 .32s 接近,略长一点点,让文字稍后落定、不抢照片的戏。
+     ⚠️ 用 animation 不用 transition:内容是**直接替换**的,transition 抓不到
+        textContent 的变化,只有重新触发一次动画才有效果。 */
+  @keyframes lbswap{ from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+  .lb-swap{animation:lbswap .42s cubic-bezier(.19,1,.22,1)}
+  @media (prefers-reduced-motion: reduce){ .lb-swap{animation:none} }
   .lb-tab{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:18px}
   .lb-tab td{padding:8px 0;border-bottom:1px solid var(--hairline);vertical-align:top}
   .lb-tab td:first-child{color:var(--muted);width:38%;font-size:11px;letter-spacing:.18em;text-transform:uppercase;padding-top:12px}
@@ -2400,6 +2409,24 @@ function staggerDelays(list){
   });
 }
 
+/* v159 —— 卡片要等自己的照片到位再淡入。
+   照片是 loading="lazy" 的,卡片淡入时它可能还没下载完 —— 于是客人先看到名字和颜色,
+   照片晚一拍「啪」地出现(2026-08-19 Ben 报的就是这个)。
+   现在:图片已经就绪就照常淡;还没就绪就等它的 load/error,再淡整张卡。
+   ⚠️ 必须有超时兜底 —— 图片要是永远加载不出来(断网、文件没了),
+      卡片就会一直停在 opacity:0,整块目录空着。900ms 之后不管怎样都显示。 */
+function showCardWhenPhotoReady(card){
+  if (card.classList.contains("card-show")) return;
+  const img = card.querySelector(".cardimg");
+  const go = () => card.classList.add("card-show");
+  if (!img || img.complete || REDUCED){ go(); return; }
+  let done = false;
+  const once = () => { if (done) return; done = true; go(); };
+  img.addEventListener("load", once, { once: true });
+  img.addEventListener("error", once, { once: true });
+  setTimeout(once, 900);
+}
+
 function revealStagger(list){
   list.forEach(c => { c.style.transition = "none"; c.classList.remove("card-show"); });
   void document.body.offsetWidth;
@@ -2407,10 +2434,19 @@ function revealStagger(list){
   list.forEach((c, i) => {
     c.style.transition = "";
     c.style.transitionDelay = d[i] + "s";
-    c.classList.add("card-show");
+    showCardWhenPhotoReady(c);
   });
 }
 const visible = () => [...document.querySelectorAll(".card:not(.hide)")];
+/* v159 —— 弹窗里左右走的顺序 = 现在这一屏看得见的卡,按 applySort 写在 style.order 上的次序。
+   order 没设过就按 DOM 顺序(用下标兜底,保持稳定)。 */
+function visibleSeq(){
+  return (CARDS || [])
+    .map((c, i) => ({ c, i }))
+    .filter(x => !x.c.classList.contains("hide"))
+    .sort((a, b) => ((+a.c.style.order || 0) - (+b.c.style.order || 0)) || (a.i - b.i))
+    .map(x => ({ si: +x.c.dataset.idx, vi: +x.c.dataset.v }));
+}
 function checkEmpty(){
   // don't show "nothing in that combination" when the catalogue itself failed to load
   const none = visible().length === 0 && CAT.length > 0;
@@ -3074,13 +3110,27 @@ function openLb(i, vi){
   };
 
   /* per-colour text + actions (everything except the photo itself) */
-  const paintMeta = () => {
+  /* 换色时让变动的那几行文字重放一次淡入。重新触发动画的标准做法:
+     先摘掉类、强制重排、再挂回去 —— 只加类的话第二次就不会再播。 */
+  const swapFade = (el) => {
+    if (!el) return;
+    el.classList.remove("lb-swap");
+    void el.offsetWidth;
+    el.classList.add("lb-swap");
+  };
+  const paintMeta = (animate) => {
     const v = st.v[cur];
     const meta = { gender: st.g, style_id: st.i, style_name: st.n, style_ref: v.ref, colour: v.c, colour_family: v.f };
     document.getElementById("lbRef").textContent = v.ref;
     /* Set on open only, like everything else in here - applyLang() closes an open popup
        precisely so it re-opens in the chosen language, so there is nothing to keep in sync. */
     document.getElementById("lbFor").textContent = pieceBlurb(st);
+    /* v158 —— 换色时,内容真的会变的那两处跟着淡一下(编号、颜色圆点那一行)。
+       标题和类别在同一款里不会变,不动它们 —— 没变的东西闪一下反而更吵。 */
+    if (animate){
+      swapFade(document.getElementById("lbRef"));
+      swapFade(document.getElementById("lbDots"));
+    }
     const ask = document.getElementById("lbAsk");
     /* prefill WhatsApp with the exact piece + colour + a link to the photo. location.origin
        makes the link auto-match whatever domain the site runs on. */
@@ -3149,7 +3199,7 @@ function openLb(i, vi){
     }
     else setImgDirect(v);
     cur = idx;
-    paintMeta();
+    paintMeta(!!dir);
     /* Same event the grid cards send, so a colour look counts wherever it happens.
        Only when dir is set — dir 0 is the initial paint on open, which is already
        covered by card_open and would otherwise double-count every popup. */
@@ -3168,14 +3218,36 @@ function openLb(i, vi){
   lbDots.querySelectorAll("button").forEach(b =>
     b.addEventListener("click", () => { const j = +b.dataset.v; if (j !== cur) show(j, j > cur ? 1 : -1); }));
 
-  /* prev / next arrows + swipe, only when the piece has more than one colour */
-  const multi = st.v.length > 1;
+  /* v159 —— 左右箭头 / 滑动改成「在整个目录里走」,不再只在同一款的颜色之间打转。
+     起因:一色一卡之后,185 款里有 144 款只有一个颜色,打开就是死胡同 ——
+     客人想看下一件必须先关掉弹窗。现在左右滑就是网格里的上一张 / 下一张卡。
+     ⚠️ 走的是**当前这一屏的顺序**:只算没被筛掉的卡,并且按 applySort 写在
+        style.order 上的次序排 —— 所以筛了「黑色」就只在黑色里走,排了 A–Z 就按 A–Z 走,
+        跟客人眼睛看到的一致。
+     ⚠️ 同一款的几个颜色本来就是相邻的卡,所以「换颜色」这件事顺带就有了,
+        不用单独做一套。
+     两种切换的观感不一样,这是有意的取舍:同款换色用滑动动画(slideSwap),
+     跨款要重建整个弹窗内容,走的是淡入(setImgDirect)—— 硬要统一得把 openLb
+     整个拆开重写,不值。 */
   const lbPrev = document.getElementById("lbPrev"), lbNext = document.getElementById("lbNext");
-  lbPrev.style.display = lbNext.style.display = multi ? "flex" : "none";
-  const step = (d) => show(cur + d, d > 0 ? 1 : -1);
+  const seq = visibleSeq();
+  const here = seq.findIndex(x => x.si === i && x.vi === cur);
+  /* 这一件有可能**不在当前这一屏里**(分享链接直接开的、或者它属于另一个性别 tab)。
+     那种情况下退回老行为:同款有多个颜色就在颜色之间走,只有一个颜色就把箭头收起来。 */
+  const canWalk = (here >= 0 && seq.length > 1) || st.v.length > 1;
+  lbPrev.style.display = lbNext.style.display = canWalk ? "flex" : "none";
+  const step = (d) => {
+    const s2 = visibleSeq();
+    const at = s2.findIndex(x => x.si === i && x.vi === cur);
+    if (at < 0){ if (st.v.length > 1) show(cur + d, d > 0 ? 1 : -1); return; }
+    if (s2.length < 2) return;
+    const nx = s2[(at + d + s2.length) % s2.length];
+    if (nx.si === i) show(nx.vi, d > 0 ? 1 : -1);   // 同一款:滑动换色
+    else openLb(nx.si, nx.vi);                      // 换一款:重建弹窗
+  };
   lbPrev.onclick = () => step(-1);
   lbNext.onclick = () => step(1);
-  lbNav = multi ? step : null;
+  lbNav = canWalk ? step : null;
 
   show(cur, 0);
   /* warm every colour's hi-res image for THIS piece so colour changes are instant */
@@ -3524,7 +3596,7 @@ const cardIO = new IntersectionObserver(entries=>{
   const d = staggerDelays(entering.map(en=>en.target));
   entering.forEach((en,i)=>{
     en.target.style.transitionDelay = d[i] + "s";
-    en.target.classList.add("card-show");
+    showCardWhenPhotoReady(en.target);
   });
   if(!REDUCED){
     entries.filter(e=>!e.isIntersecting).forEach(en=>{
