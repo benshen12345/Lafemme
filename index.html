@@ -1194,8 +1194,18 @@
     .grid{grid-template-columns:repeat(2,1fr);gap:26px 18px}
     .book-grid,.visit-grid{grid-template-columns:1fr;gap:44px}
     .book-side{margin-top:0}   /* stacked on mobile — no offset needed */
-    .lb-panel{grid-template-columns:1fr;max-height:88vh}
-    .lb-ph{aspect-ratio:3/4}
+    /* v156 —— 堆叠布局下把 align-items 改回 start。
+       v145 那个 stretch 是为了**两栏**布局:右栏文字多的时候照片栏跟着长满、
+       底下不留灰带。单栏堆叠时它一点用都没有(实测手机上加不加都一样),
+       但它会让照片这一行的高度变成「由行高决定」而不是「由 aspect-ratio 决定」——
+       配上 .lb-ph 自带的 min-height:0,Safari/iOS 上这一行会被压扁,
+       照片缩成一小条(2026-08-19 客人的 iPhone 上撞到,Android/Chrome 正常)。
+       ⚠️ 这两件事必须分开:灰带只发生在两栏,压扁只发生在单栏。
+          所以 stretch 只留给 >900px,堆叠这一档一律 start。 */
+    .lb-panel{grid-template-columns:1fr;max-height:88vh;align-items:start}
+    /* align-self:start 是双保险:就算以后有人又给容器加回 stretch,
+       照片这一格仍然按 aspect-ratio 自己的高度走,不会被行高拉扁。 */
+    .lb-ph{aspect-ratio:3/4;min-height:auto;align-self:start;height:auto}
     /* v142 —— 堆叠布局下把分享按钮抬到照片左上角(理由见 .lb-share 那段注释) */
     .lb-share{position:absolute;top:12px;left:12px;z-index:4;margin:0;
       height:38px;border:0;border-radius:19px;
@@ -2052,6 +2062,7 @@ function renderCatalogue(styles){
   }
   CAT.forEach((st, si) => (st.v || []).forEach((v, vi) => ITEMS.push({ si, vi })));
   SEARCH_IDX = ITEMS.map(it => buildSearchStr(CAT[it.si], CAT[it.si].v[it.vi]));
+  _vocab = null;                      // v155 —— 目录换了,错字纠正的词库要重建(第二次渲染拉的是 Supabase 实时数据)
   SUGGEST_CORPUS = buildCorpus();
   grid.innerHTML = "";
   if (!ITEMS.length) {
@@ -2395,13 +2406,61 @@ function checkEmpty(){
 }
 
 /* ---------- search ---------- */
+/* v155 —— 打错字也要搜得到。客人打「balck」应该出黑色的礼服。
+   做法:先按原样搜;某个词一条都命中不了,才拿它去跟目录里真实出现过的词比对,
+   取编辑距离最近的那个替换掉。
+     · 只在「完全搜不到」时才启动,正常输入的行为一个字节都不变
+     · 允许的误差跟词长挂钩:≤4 个字母允许错 1 个,更长的允许错 2 个 ——
+       放宽会开始乱猜(「red」和「bed」只差一个字母)
+     · 词库来自 SEARCH_IDX 本身(款名、颜色、版型、材质、品牌都在里面),
+       所以不用另外维护一张表,Pearly 新加的颜色自动就有
+   ⚠️ 编辑距离用的是带提前退出的经典 DP;词库大约几百个词,只在打错时跑一次,
+      实测不影响输入响应。 */
+let _vocab = null;
+function searchVocab(){
+  if (_vocab) return _vocab;
+  const set = new Set();
+  (SEARCH_IDX || []).forEach(str => (str || "").split(/[^a-z0-9]+/).forEach(w => {
+    if (w.length >= 3 && w.length <= 18) set.add(w);
+  }));
+  _vocab = [...set];
+  return _vocab;
+}
+function editDistance(a, b, cap){
+  if (Math.abs(a.length - b.length) > cap) return cap + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++){
+    const cur = [i];
+    let best = i;
+    for (let j = 1; j <= b.length; j++){
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (cur[j] < best) best = cur[j];
+    }
+    if (best > cap) return cap + 1;               // 这一行已经全都超标,不用往下算
+    prev = cur;
+  }
+  return prev[b.length];
+}
+function fuzzyToken(tok){
+  if (tok.length < 3) return tok;
+  if ((SEARCH_IDX || []).some(str => str.includes(tok))) return tok;   // 本来就搜得到
+  const cap = tok.length <= 4 ? 1 : 2;
+  let best = null, bestD = cap + 1;
+  searchVocab().forEach(w => {
+    const d = editDistance(tok, w, cap);
+    if (d < bestD || (d === bestD && best && w.length < best.length)){ bestD = d; best = w; }
+  });
+  return (best && bestD <= cap) ? best : tok;
+}
+function fuzzyTokens(list){ return list.map(fuzzyToken); }
+
 const searchInput = document.getElementById("searchInput");
 const searchClear = document.getElementById("searchClear");
 let _searchTrackT;
 function runSearch(){
   const raw = (searchInput.value || "").trim().toLowerCase();
   state.q = raw;
-  state.qTokens = raw ? raw.split(/\s+/) : [];
+  state.qTokens = raw ? fuzzyTokens(raw.split(/\s+/)) : [];
   searchClear.hidden = !raw;
   /* typing a search is a global find: drop any active category / material / colour so results
      span the whole catalogue — search and the facet chips are mutually exclusive, last action wins */
@@ -2760,8 +2819,17 @@ function openFilters(){
   if (filterBackdrop) filterBackdrop.classList.add("open");
   document.body.classList.add("filter-open");
   if (filterToggle) filterToggle.setAttribute("aria-expanded", "true");
-  if (!filterHistoryActive){ try { history.pushState({ drawer: true }, ""); filterHistoryActive = true; } catch(e){} }
+  if (!filterHistoryActive){
+    /* v153 —— 跟灯箱一样(见 openLb 里那段):筛选面板开着的时候关掉浏览器的滚动恢复。
+       closeFilters 会 history.back(),浏览器会把滚动位置盖回「压这条记录那一刻」的值;
+       面板浮起来 / 落回去会改文档高度,那个值就不再对得上,关掉之后人被送到别处
+       (2026-08-18 实测 iPad 834:关掉之后飘了 505px)。
+       面板只是盖在页面上的一层,关掉之后原地不动才是对的。 */
+    try { FP_PREV_SR = history.scrollRestoration; history.scrollRestoration = "manual"; } catch(e){}
+    try { history.pushState({ drawer: true }, ""); filterHistoryActive = true; } catch(e){}
+  }
 }
+let FP_PREV_SR = "auto";
 function closeFilters(fromPop){
   if (!filterPanel) return;
   filterPanel.classList.remove("open");
@@ -2782,6 +2850,19 @@ function closeFilters(fromPop){
   if (filterHistoryActive){
     filterHistoryActive = false;
     if (fromPop !== true){ try { history.back(); } catch(e){} }
+    /* 等这次回退处理完再还原开关,不然浏览器还是会拿它盖滚动位置 */
+    setTimeout(() => { try { history.scrollRestoration = FP_PREV_SR || "auto"; } catch(e){} }, 400);
+    /* v155 —— 回退之后必须把筛选状态重新写回网址。
+       openFilters 压了一条历史记录,面板开着时点的每个筛选片都是 replaceState 写在
+       **那条**记录上的;closeFilters 的 history.back() 一弹,那条记录连同参数一起没了,
+       网址回到「没有任何筛选」的样子 —— 于是分享按钮发出去的是一条光秃秃的首页链接。
+       ⚠️ 这就是「手机上筛选分享不了、搜索却可以」的原因:
+          电脑上筛选片在目录里直接点(没有压历史记录),手机上只能从抽屉里点,必中。
+       (2026-08-19 实测:Apply 之后 location.search 从 "?cat=fitted&c=black" 变成空。)
+       两次是因为 popstate 的处理时机在不同浏览器上不一样,早的那次让网址尽快正确,
+       晚的那次兜底;syncURL 是幂等的,多跑一次没有副作用。 */
+    setTimeout(syncURL, 80);
+    setTimeout(syncURL, 420);
   }
 }
 window.addEventListener("popstate", () => { if (filterPanel && filterPanel.classList.contains("open")) closeFilters(true); });
@@ -2834,6 +2915,16 @@ let _panelHome = null, _backdropHome = null;
 /* Move the panel (and its backdrop) to <body>. A fixed child inside a section that has
    a transform is positioned against that section, not the viewport, so later sections
    paint straight over it. Living directly under <body> is the only reliable fix. */
+/* v153 —— 把筛选面板搬到 <body> 之前,先在原位塞一块同样高的占位。
+   不塞的话文档会**当场矮 462px**(三档屏幕实测都是 462),而浏览器保持 scrollY 不变,
+   于是整页内容往上蹦一截。
+   为什么只有从 About 点「Filters」才看得到:
+     · 在 Collection —— 你在被移走那块的**上面**,下面矮了跟你无关,位移 0
+     · 在 FAQ / Booking / Visit —— 已经贴近页面底部,文档变矮时浏览器会把 scrollY
+       夹到新的最大值,一夹正好抵消,视觉上也是 0
+     · 在 About —— 在它**下面**、又**没到底**,不夹也不抵消,就实打实蹦 462px
+   (2026-08-18 Ben 报的,三档屏幕逐一量过。) */
+let _panelSpacer = null;
 function liftFilters(){
   if (filterPanel && filterPanel.parentElement !== document.body){
     _panelHome = { parent: filterPanel.parentElement, next: filterPanel.nextSibling };
@@ -2845,7 +2936,13 @@ function liftFilters(){
   }
 }
 function dropFilters(){
-  if (filterPanel && _panelHome){ _panelHome.parent.insertBefore(filterPanel, _panelHome.next); _panelHome = null; }
+  if (filterPanel && _panelHome){
+    /* 先放回去再撤占位:反过来的话中间会有一帧文档是矮的,又蹦一次 */
+    _panelHome.parent.insertBefore(filterPanel, _panelSpacer || _panelHome.next);
+    if (_panelSpacer && _panelSpacer.parentNode) _panelSpacer.parentNode.removeChild(_panelSpacer);
+    _panelSpacer = null;
+    _panelHome = null;
+  }
   if (filterBackdrop && _backdropHome){ _backdropHome.parent.insertBefore(filterBackdrop, _backdropHome.next); _backdropHome = null; }
 }
 function syncFilterPlacement(){
@@ -3559,9 +3656,23 @@ function openFiltersInPlace(){
   if (!filterPanel) return;
   const isDrawer = filterToggle && getComputedStyle(filterToggle).display !== "none";
   if (!isDrawer){
+    /* v153 —— 量着做,不猜。浮起来 + 搬到 body 这两步会让文档变矮(实测 1440 上 462px),
+       浏览器不动 scrollY,于是整页往上蹦。所以整段操作前后各量一次文档高,
+       差多少就在原位补一块多高的占位。
+       ⚠️ 必须包住 classList.add("floating") 一起量 —— 面板一 floating 就变成
+       position:fixed、已经脱离文档流了,只在 liftFilters 里量等于什么都没量到
+       (我第一版就是这么写的,补出来的占位反而让文档变高)。 */
+    const before = document.documentElement.scrollHeight;
     filterPanel.classList.add("floating");
     if (filterBackdrop) filterBackdrop.classList.add("floating");
     liftFilters();                                  // out of the section, straight under <body>
+    const delta = before - document.documentElement.scrollHeight;
+    if (delta > 0 && _panelHome && _panelHome.parent){
+      _panelSpacer = document.createElement("div");
+      _panelSpacer.setAttribute("aria-hidden", "true");
+      _panelSpacer.style.height = delta + "px";
+      _panelHome.parent.insertBefore(_panelSpacer, _panelHome.next);
+    }
   }
   openFilters();
 }
@@ -3578,7 +3689,88 @@ document.querySelectorAll("#faq details").forEach(d => {
   if (el) el.addEventListener("click", e => { e.preventDefault(); openFiltersInPlace(); });
 });
 
-/* smooth-scroll for in-page nav links, offset for the fixed header */
+/* smooth-scroll for in-page nav links, offset for the fixed header
+
+   v154 —— 原来这里写死 `- 84`,于是每个区块**顶边**都停在距屏顶 84px。
+   问题是:
+     ① 头部真实高度是 82px(手机/平板)或 90px(笔电以上),写死 84 等于笔电上
+        区块顶边被头部压住 6px;
+     ② 客人看到的不是「区块顶边」,而是**第一行字**,而各区块第一行到区块顶的距离
+        本来就不一样(kicker 字号、行高、上边距各不相同)。
+        实测(2026-08-19,四档屏幕):第一行字距头部下沿在 80~120px 之间飘。
+   改成:按**真实头高**算,并且锚在**第一行内容**上,让任何区块点进去,
+   第一行字都停在头部下沿再往下 NAV_GAP 的地方。
+   ⚠️ 最后一个区块(Visit)内容不够长,滚到底也到不了目标位置 —— 这是文档末尾的
+   物理限制,不是这段代码的问题。 */
+const NAV_GAP = 34;
+/* ⚠️ 量之前必须先把目标区块的 .reveal 标成 .in。
+   `.reveal{transform:translateY(26px)}` —— 还没淡入的元素,rect 会**算进 transform**,
+   量出来比它最终的位置低 26px,于是滚过头;等它淡入归位那 26px 又被吃掉,落点就飘。
+   反正客人马上就要看到这一块,提前触发淡入不影响观感(淡入过程正好发生在滚动途中)。
+   (2026-08-19 实测:不这么做,五个区块的间隙是 30/-10/34/8/28;
+    改用 offsetTop 累加也不行 —— #collection 有 will-change 造出的包含块,差 22px。) */
+function sectionTargetY(target){
+  /* 量的时候临时把 transform 抵消掉(连 transition 一起关,否则这一抵消会变成一次动画),
+     量完立刻还原 —— 淡入效果原样保留,只是不再污染测量。 */
+  const hidden = [];
+  target.querySelectorAll(".reveal:not(.in)").forEach(el => hidden.push(el));
+  if (target.classList.contains("reveal") && !target.classList.contains("in")) hidden.push(target);
+  hidden.forEach(el => { el.style.transition = "none"; el.style.transform = "none"; });
+  void target.offsetHeight;                        // 强制重排,让上面那步立刻生效
+  const hdrEl = document.getElementById("hdr");
+  const hdrH = hdrEl ? hdrEl.getBoundingClientRect().height : 82;
+  /* 锚点优先取第一块看得见的文字;取不到就退回区块本身 */
+  const anchor = target.querySelector(".kicker, h2, h3") || target;
+  const y = Math.max(0, anchor.getBoundingClientRect().top + window.pageYOffset - hdrH - NAV_GAP);
+  hidden.forEach(el => { el.style.transform = ""; el.style.transition = ""; });
+  return y;
+}
+/* 两段式:先滚过去,等淡入结束再校一次。
+   为什么要校第二次:各区块的 .reveal 结构不一样(有的锚点自己就是 reveal、有的在
+   一个额外的包裹里、#collection 还有 will-change 造出的包含块),一次量不可能对所有
+   区块都准 —— 实测第一次落点误差 -18 ~ +22px。等 0.8s 的淡入结束之后,
+   transform 已经归零,这时候量出来的就是真实位置,补那一小段(平滑,不是硬跳)。 */
+function goToSection(target){
+  if (target && target.id === "visit") padFooterForLastSection();   // 图片陆续加载会改文档高,点的时候再算一次
+  window.scrollTo({ top: sectionTargetY(target), behavior: REDUCED ? "auto" : "smooth" });
+  /* 校两次:0.8s 的淡入结束之后一次,再等它自己滚稳之后一次。
+     只校一次不够 —— 第一次校正本身也是一段平滑滚动,滚的过程中上面的图片还在陆续
+     加载/淡入,落点还会再动几像素。两次之后实测就稳了。差值不超过 2px 就不动,
+     所以正常情况下第二次是空跑,不会产生看得见的抖动。 */
+  (goToSection._t || []).forEach(clearTimeout);
+  const settle = () => {
+    /* 最后一块要先把页脚的补偿重算一遍再量 —— 图片陆续加载会改文档高度,
+       补偿算早了就不够(实测超高屏上会差 22px 到不了位)。 */
+    if (target && target.id === "visit") padFooterForLastSection();
+    const want = sectionTargetY(target);
+    if (Math.abs(window.pageYOffset - want) > 2){
+      window.scrollTo({ top: want, behavior: REDUCED ? "auto" : "smooth" });
+    }
+  };
+  goToSection._t = [ setTimeout(settle, REDUCED ? 60 : 950),
+                     setTimeout(settle, REDUCED ? 120 : 1800) ];
+}
+/* v155 —— 让最后一个区块(Visit)在任何屏幕上也能滚到跟别人一样的位置。
+   它是页面最后一块,后面只剩页脚;屏幕一高,页面就没有足够的剩余高度让它滚到位 ——
+   实测 1920×1080 差 174px、1024×1366 差 476px(那两档会停在文档末尾)。
+   解法:把差的那一段补进**页脚的下内边距**,页面因此多出正好够用的滚动余量。
+   不够的时候才补,补多少是算出来的,所以矮屏幕上一点不变(补 0)。
+   窗口大小变了要重算 —— 高度变了差额就变了。 */
+const FOOTER_BASE_PB = 44;                       // 跟 CSS 里 footer{padding:54px 0 44px} 的下内边距一致
+function padFooterForLastSection(){
+  const last = document.getElementById("visit");
+  const foot = document.querySelector("footer");
+  if (!last || !foot) return;
+  foot.style.paddingBottom = FOOTER_BASE_PB + "px";      // 先归零,免得上一次的补偿被算进去
+  const want = sectionTargetY(last);
+  const max  = document.documentElement.scrollHeight - window.innerHeight;
+  const short = Math.ceil(want - max);
+  if (short > 0) foot.style.paddingBottom = (FOOTER_BASE_PB + short) + "px";
+}
+window.addEventListener("load", () => setTimeout(padFooterForLastSection, 400));
+let _padT = null;
+window.addEventListener("resize", () => { clearTimeout(_padT); _padT = setTimeout(padFooterForLastSection, 200); });
+
 document.querySelectorAll('a[href^="#"]').forEach(a=>{
   a.addEventListener("click", e=>{
     const id = a.getAttribute("href");
@@ -3586,8 +3778,7 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
     const target = document.querySelector(id);
     if(!target) return;
     e.preventDefault();
-    const y = target.getBoundingClientRect().top + window.pageYOffset - 84;
-    window.scrollTo({ top: Math.max(0, y), behavior: REDUCED ? "auto" : "smooth" });
+    goToSection(target);
   });
 });
 
