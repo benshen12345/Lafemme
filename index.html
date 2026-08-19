@@ -2374,12 +2374,39 @@ function applyFilter(){
      就不会漏掉任何一个筛选入口 */
   if (typeof syncURL === "function") syncURL();
 }
+/* v157 —— 卡片淡入的节奏。
+   `.card` 的过渡是 1.5s,而进场的卡片按「上→下、左→右」每张多等 0.15s。
+   电脑上三栏,这个左右错开是**有意**的(一排三张依次亮起)。
+   但手机上只有两栏:同一排的右边那张永远比左边晚 0.15s 起步、晚 0.15s 结束,
+   加上 22px 的位移,看起来就是「第二列比第一列慢半拍」——
+   2026-08-19 Ben 在手机上报的就是这个。
+   修法:**栏数 ≤2 时按「排」给延迟**,同一排的卡片延迟相同,一起动;
+   三栏及以上维持原样,不动电脑上的观感。 */
+function gridColumnCount(){
+  const g = document.getElementById("grid");
+  if (!g) return 3;
+  const t = getComputedStyle(g).gridTemplateColumns;
+  return t ? t.split(/\s+/).filter(Boolean).length : 3;
+}
+function staggerDelays(list){
+  /* list 必须已经按「上→下、左→右」排好序。返回每张卡该等多久(秒)。 */
+  if (REDUCED) return list.map(() => 0);
+  if (gridColumnCount() > 2) return list.map((_, i) => Math.min(i, 12) * 0.15);
+  let row = -1, lastTop = null;
+  return list.map(c => {
+    const top = Math.round(c.getBoundingClientRect().top);
+    if (lastTop === null || Math.abs(top - lastTop) > 4){ row++; lastTop = top; }
+    return Math.min(row, 12) * 0.15;
+  });
+}
+
 function revealStagger(list){
   list.forEach(c => { c.style.transition = "none"; c.classList.remove("card-show"); });
   void document.body.offsetWidth;
+  const d = staggerDelays(list);
   list.forEach((c, i) => {
     c.style.transition = "";
-    c.style.transitionDelay = REDUCED ? "0s" : (Math.min(i, 12) * 0.15) + "s";
+    c.style.transitionDelay = d[i] + "s";
     c.classList.add("card-show");
   });
 }
@@ -3494,8 +3521,9 @@ const cardIO = new IntersectionObserver(entries=>{
     const ra=a.target.getBoundingClientRect(), rb=b.target.getBoundingClientRect();
     return (ra.top-rb.top) || (ra.left-rb.left);   // top rows first, then left→right
   });
+  const d = staggerDelays(entering.map(en=>en.target));
   entering.forEach((en,i)=>{
-    en.target.style.transitionDelay = REDUCED ? "0s" : (i*0.15)+"s";
+    en.target.style.transitionDelay = d[i] + "s";
     en.target.classList.add("card-show");
   });
   if(!REDUCED){
