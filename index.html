@@ -136,6 +136,29 @@
        -webkit-text-size-adjust:100%;text-size-adjust:100%;
        --hdr-h:82px; --nav-gap:34px;
        scroll-padding-top:calc(var(--hdr-h) + var(--nav-gap))}
+  /* v164 —— 短区块落地时填满一屏,下一段不再从底下露出来。
+     起因:About 的内容只有 648px 高,而 1920×1010 那种屏可用高约 950px ——
+     点 About 之后 FAQ 必然从底下探出来一截(2026-08-19 Ben 在自己笔记本上看到的)。
+
+     这个数怎么来的(不是猜的):
+       落点把**第一行字**停在距屏顶 (--hdr-h + --nav-gap) 处;
+       而第一行字距区块顶边是 --sec-anchor(实测:About 154px、FAQ / Visit 146px,
+       手机档 122 / 114 —— 取最大值 155 兜住,其余区块最多多出 9px 空白,看不出来)。
+       于是区块顶边落在 (--hdr-h + --nav-gap - --sec-anchor),
+       要一路铺到屏幕底部就需要:100svh - --hdr-h - --nav-gap + --sec-anchor。
+
+     ⚠️ 代价说清楚:内容是**靠上排**的,多出来的高度全变成**底部的空白**。
+        Ben 那块屏约多 300px(可以接受);**再高的屏空白会更多**。
+        真嫌空,正解是给 About 加内容(店内照、评价),不是继续拉高空白。
+     ⚠️ 只给 About / FAQ / Visit —— Collection 和 Booking 本来就比一屏高,加了没意义。
+     ⚠️ 用 svh 不用 vh:vh 是 iOS 地址栏收起来时的高度,比人看得见的大一截,
+        按 vh 算会**多填一块**,下一段照样露出来(iOS 墙 W3)。 */
+  html{ --sec-anchor:155px }
+  @media (max-width:900px){ html{ --sec-anchor:125px } }
+  #about,#faq,#visit{
+    min-height:calc(100svh - var(--hdr-h) - var(--nav-gap) + var(--sec-anchor));
+  }
+
   /* 锚点 = 各区块的第一行字。客人看的是字,不是那条看不见的区块顶边。 */
   #collection .kicker,#about .kicker,#faq .kicker,#booking .kicker,#visit .kicker,
   #collection > h2,#about > h2,#faq > h2,#booking > h2,#visit > h2,
