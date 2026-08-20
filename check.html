@@ -12,6 +12,10 @@
 <meta name="theme-color" content="#FAF7F2" media="(prefers-color-scheme: light)" />
 <meta name="theme-color" content="#26211A" media="(prefers-color-scheme: dark)" />
 <style>
+  /* v-iOSwall —— 钉住文字缩放。不钉的话 iPhone 横屏时 iOS 会自己放大正文,
+     竖屏量过的宽度全部失效。桌面和 Android 上无影响。 */
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+
   body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:#FAF7F2;color:#1C1A17;
        max-width:760px;margin:0 auto;padding:40px 24px;line-height:1.6}
   h1{font-weight:500;font-size:26px;margin-bottom:4px}

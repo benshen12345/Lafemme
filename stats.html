@@ -20,6 +20,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500&family=Jost:wght@300;400;500&display=swap" rel="stylesheet" />
 <style>
+  /* v-iOSwall —— 钉住文字缩放。不钉的话 iPhone 横屏时 iOS 会自己放大正文,
+     竖屏量过的宽度全部失效。桌面和 Android 上无影响。 */
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+
   :root{
     --ivory:#FAF7F2; --ink:#1C1A17; --muted:#6E675C; --gold:#C6A15B; --gold-deep:#A9833F;
     --hairline:#E6DFD3; --panel:#F3EEE5; --ok:#3E7C56; --bad:#B14A3C;
@@ -27,7 +31,9 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--ivory);color:var(--ink);font-family:var(--sans);font-weight:300;font-size:15px;line-height:1.6}
-  button,input,select{font-family:inherit;font-size:15px}
+  button{font-family:inherit;font-size:15px}
+  /* v132 —— 16px 硬下限,理由同 admin.html:iOS 聚焦放大且不还原。 */
+  input,select{font-family:inherit;font-size:16px}
   button{cursor:pointer}
   :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   .wrap{max-width:1100px;margin:0 auto;padding:0 24px}
@@ -53,7 +59,7 @@
   .btn:disabled{opacity:.4;cursor:not-allowed}
 
   /* login */
-  #login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  #login{min-height:100vh;min-height:100svh;display:flex;align-items:center;justify-content:center;padding:24px}
   .box{background:#fff;border:1px solid var(--hairline);padding:40px;max-width:380px;width:100%}
   .box h1{font-family:var(--serif);font-size:30px;font-weight:500;margin-bottom:4px}
   .box p{color:var(--muted);font-size:14px;margin-bottom:24px}
@@ -71,7 +77,7 @@
   .segbtn{border:0;background:none;padding:8px 16px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);cursor:pointer;transition:.2s}
   .segbtn.active{background:var(--ink);color:var(--ivory)}
   .intentbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-  .intentbar input[type=text],.intentbar select{border:1px solid var(--hairline);padding:9px 11px;background:#fff;font-size:13px}
+  .intentbar input[type=text],.intentbar select{border:1px solid var(--hairline);padding:9px 11px;background:#fff;font-size:16px}   /* v132 —— 13px 会让 iOS 放大页面 */
   .intentbar input[type=text]{flex:1;min-width:150px}
   .intentcount{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-left:auto}
 

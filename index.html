@@ -122,7 +122,26 @@
      stayed on screen after JS set .hidden = true (the ✕ sat in an empty search box and
      the badge showed a meaningless "0"). Applies to #searchClear, #searchDrop, #filterCount. */
   [hidden]{display:none !important}
-  html{scroll-behavior:smooth;scroll-padding-top:84px;overflow-x:clip}
+  /* v162 —— -webkit-text-size-adjust:100% 必须钉住。
+     不钉的话,iPhone 转到横屏时 iOS 会自己把正文放大一档 ——
+     **我们在竖屏量过的每一个宽度当场全部失效**,而且屏幕上看不出是「被放大了」,
+     只会觉得排版忽然挤了。这一行在桌面和 Android 上没有任何影响。 */
+  /* v163 —— 点导航标题落在哪,现在**只有这一处**在定。
+     `--hdr-h` 由 JS 按顶栏的真实高度写进来(手机/平板 82,笔电以上 90);
+     `--nav-gap` 是第一行字距顶栏下沿的空隙。
+     下面那条 scroll-margin-top 一写,浏览器自己就会按这个距离停 ——
+     JS 不再需要「量头高 + 减 NAV_GAP」那套算术。
+     以后某个区块要单独调,就给它的锚点单独写一条 scroll-margin-top,不用改 JS。 */
+  html{scroll-behavior:smooth;overflow-x:clip;
+       -webkit-text-size-adjust:100%;text-size-adjust:100%;
+       --hdr-h:82px; --nav-gap:34px;
+       scroll-padding-top:calc(var(--hdr-h) + var(--nav-gap))}
+  /* 锚点 = 各区块的第一行字。客人看的是字,不是那条看不见的区块顶边。 */
+  #collection .kicker,#about .kicker,#faq .kicker,#booking .kicker,#visit .kicker,
+  #collection > h2,#about > h2,#faq > h2,#booking > h2,#visit > h2,
+  #collection h3,#about h3,#faq h3,#booking h3,#visit h3{
+    scroll-margin-top:calc(var(--hdr-h) + var(--nav-gap));
+  }
   body{
     background:var(--ivory);color:var(--ink);overflow-x:clip;
     font-family:var(--sans);font-weight:300;font-size:16.5px;line-height:1.65;
@@ -522,6 +541,12 @@
   .filter-panel.floating .filter-panel-title{font-family:var(--serif);font-size:22px;font-weight:500}
   .filter-panel.floating .filter-close{background:none;border:0;font-size:17px;line-height:1;color:var(--muted);
     cursor:pointer;padding:4px 6px}
+  /* v161 —— 抽屉浮起来的时候留在目录原位的那份静态副本。
+     只是一张「画」:不能点、不能 tab 进去、不进无障碍树(aria-hidden + inert 在 JS 里设)。
+     ⚠️ 这里**只写 pointer-events**,不要写 opacity / filter / 颜色 ——
+        副本要跟原件长得一模一样,任何视觉差异都会让人看出这是假的。 */
+  .filter-ghost{pointer-events:none}
+  .filter-ghost *{pointer-events:none}
   .filter-backdrop.floating{display:block;position:fixed;inset:0;background:rgba(20,16,12,.5);z-index:190;
     opacity:0;pointer-events:none;transition:opacity .3s ease}
   .filter-backdrop.floating.open{opacity:1;pointer-events:auto}
@@ -552,7 +577,9 @@
                 text-align:right;margin:0;margin-left:auto}
   .sort-wrap{display:inline-flex;align-items:center;gap:9px;flex:none}
   .sort-lbl{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
-  #sortSel{font:inherit;font-size:12.5px;letter-spacing:.05em;color:var(--ink);
+  /* v162 —— <select> 是替换元素,::before 根本不会渲染,只能真的加高。
+     32 → 40px,是这一批里唯一一个有实际高度变化的(工具条那一行会高 8px)。 */
+  #sortSel{min-height:40px;font:inherit;font-size:12.5px;letter-spacing:.05em;color:var(--ink);
            background-color:transparent;border:0;border-bottom:1px solid var(--hairline);
            padding:5px 20px 5px 2px;cursor:pointer;border-radius:0;
            -webkit-appearance:none;appearance:none;
@@ -583,6 +610,60 @@
   .swatch-btn{width:26px;height:26px;border-radius:50%;border:1px solid var(--hairline);cursor:pointer;padding:0;transition:transform .2s ease}
   .swatch-btn:hover{transform:scale(1.14)}
   .swatch-btn.active{outline:2px solid var(--gold);outline-offset:2px;border-color:transparent}
+
+  /* ============================================================
+     v162 —— 点击目标(iOS wall W8,第一批:零视觉成本的那些)
+     2026-08-19 用 21 档真实分辨率量过,下面这些都不到 40px。
+     做法一律是**透明的 ::before 把命中区撑大**,元素本身一个像素都不动 ——
+     「形状可以让,命中区不能让」。
+     ⛔ 用 ::before 不用 ::after —— `.card .meta .brand::after` 已经占用了
+        (那是名字和颜色之间的金色小菱形),同名会直接盖掉。
+     ⛔ ::before 会被祖先的 overflow:hidden / overflow-x:auto 裁掉。
+        `.filters` 在 ≤900 时是 overflow-x:auto —— 所以这一批**不碰 .chip**,
+        筛选片留到第二批单独处理(那批会改样子,要另外定)。
+     ============================================================ */
+  #menuBtn,.tbtn,.share-btn,.swatch-all,.swatch-btn,.brand,
+  .filter-close,.filter-toggle,.foot .socials a,.links a{position:relative}
+  #menuBtn::before,.tbtn::before,.share-btn::before,.swatch-all::before,
+  .swatch-btn::before,.brand::before,.filter-close::before,
+  .filter-toggle::before,.foot .socials a::before,.links a::before{
+    content:"";position:absolute;z-index:1;
+    /* 摸得到,看不见,也不吃 hover —— 只做命中区 */
+  }
+  /* 汉堡:26×16 → 42×44。三条横线的位置一点没动,顶栏高度也不变。
+     ⚠️ 横向只撑 8px:第一版写 inset:-14px(54 宽),结果**把旁边的 Noir mode 按钮压住了**,
+        八个探点只有 5 个能命中 themeBtn。撑大命中区的时候一定要看邻居 ——
+        互相压住比目标小更糟,因为人会点到错的那个。 */
+  #menuBtn::before{inset:-14px -8px}
+  /* EN / Noir mode:29 和 27 高 → 44 */
+  .tbtn::before{inset:-8px -4px}
+  /* Share:36 高 → 44 */
+  .share-btn::before{inset:-4px}
+  /* All colours:24 高 → 44 */
+  .swatch-all::before{inset:-10px 0}
+  /* 颜色圆点:26×26。
+     ⚠️ 这里**做不到 44×44**,而且这是有意的:.swatches 的间距是 12px,
+        两颗圆点圆心相距 38px。真撑到 44 宽,相邻两颗的命中区会重叠 6px ——
+        指头落在中间时会点中错的那颗,比目标小更糟。
+        所以纵向撑满 44(拇指主要在这个轴上偏),横向只撑到中线 38,不重叠。
+        要真正的 44×44 就得把 .swatches 的 gap 从 12px 加到 18px —— 那是看得见的改动。 */
+  .swatch-btn::before{inset:-9px -6px}
+  /* 目录卡片里的圆点间距只有 5px,横向几乎没有余量,只撑纵向 */
+  .grid .swatch-btn::before{inset:-9px -1px}
+  /* Logo:34 高 → 44 */
+  .brand::before{inset:-5px}
+  /* ✕ 关闭:27×28 → 45×44 */
+  .filter-close::before{inset:-9px}
+  /* Filters 按钮:37 高 → 45 */
+  .filter-toggle::before{inset:-4px}
+  /* 页脚 Instagram / Facebook:18 高 → 44。横向只撑 6px,免得两个链接的命中区粘在一起 */
+  .foot .socials a::before{inset:-13px -6px}
+  /* 顶栏导航(Collection / Filters / About / FAQ / Booking / Visit):25 高 → 45。
+     **只撑纵向** —— 六个链接横向挨得很近,横着撑必然互相压住。
+     iPad Pro 12.9(1024 宽)用的是这套桌面导航,那是手指在点,不是鼠标。 */
+  /* 横向只敢撑 5px:导航链接之间的空隙有限,撑多了就互相压住。
+     5px 刚好让最短的那个「FAQ」(30 宽)够到 40,再多一点邻居就开始打架。 */
+  .links a::before{inset:-10px -5px}
   .chip{
     border:1px solid var(--hairline);background:transparent;color:var(--muted);
     padding:10px 22px;font-size:10px;letter-spacing:.28em;text-transform:uppercase;
@@ -607,7 +688,7 @@
   .search-input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
   .search-clear{position:absolute;right:8px;width:28px;height:28px;border:0;border-radius:50%;background:none;color:var(--muted);font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s ease, color .2s ease}
   .search-clear:hover{background:var(--hairline);color:var(--ink)}
-  .search-drop{position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:40;background:var(--panel);border:1px solid var(--hairline);border-radius:16px;box-shadow:0 18px 50px rgba(20,16,12,.16);max-height:min(66vh,460px);overflow-y:auto;padding:6px;text-align:left}
+  .search-drop{position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:40;background:var(--panel);border:1px solid var(--hairline);border-radius:16px;box-shadow:0 18px 50px rgba(20,16,12,.16);max-height:min(66vh,460px);max-height:min(66svh,460px);overflow-y:auto;padding:6px;text-align:left}
   .sd-sec{padding:4px 2px}
   .sd-label{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);padding:7px 10px 4px}
   .sd-sugg{display:block;width:100%;text-align:left;padding:9px 12px;border:0;background:none;color:var(--muted);font-family:var(--sans);font-size:13.5px;font-weight:300;cursor:pointer;border-radius:9px;transition:background .15s ease}
@@ -776,7 +857,11 @@
     background:var(--glass);
     -webkit-backdrop-filter:blur(22px) saturate(1.3);backdrop-filter:blur(22px) saturate(1.3);
     border:1px solid var(--hairline);
-    max-width:900px;width:100%;max-height:92vh;overflow:auto;
+    max-width:900px;width:100%;
+    /* v162 —— vh 在 iOS 上是「地址栏收起来时」的高度,比人真正看得见的大一截。
+       svh 才是「地址栏还在」的那个小视口 —— 弹窗要**装得下**,就得按小的算。
+       vh 那行留着当老浏览器的兜底,不能删。 */
+    max-height:92vh;max-height:92svh;overflow:auto;
     /* v145 —— align-items 从 start 改成 stretch。
        原来照片那一栏永远按 2:3 算高度,右栏文字一多(款名换行 + 四个标签 +
        编号换行)就比照片高,照片底下留一条空的灰带 —— 2026-08-18 报的就是这个,
@@ -978,9 +1063,13 @@
   }
   .field > input,.field > select,.field > textarea{margin-top:auto}
   .field label .opt{opacity:.5;letter-spacing:.14em}
+  /* v162 —— 16px 是硬下限,不能为了排版调小。
+     iOS Safari 只要输入框字号 < 16px,聚焦时就会把整页放大,而且**不会自己缩回去** ——
+     客人填完预约表单之后就困在一个放大、左右能拖的页面上。没有变通办法。
+     (2026-08-19 iOS wall 检查查出来的,原来是 15px。) */
   .field input,.field select,.field textarea{
     width:100%;border:1px solid var(--hairline);background:var(--field);
-    padding:13px 14px;font-family:inherit;font-size:15px;color:var(--ink);
+    padding:13px 14px;font-family:inherit;font-size:16px;color:var(--ink);
     transition:border-color .3s ease, background .8s ease;border-radius:0;-webkit-appearance:none;appearance:none;
   }
   .field select{background-image:linear-gradient(45deg,transparent 49%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 51%);background-position:calc(100% - 20px) 50%,calc(100% - 15px) 50%;background-size:5px 5px;background-repeat:no-repeat}
@@ -1211,7 +1300,7 @@
        照片缩成一小条(2026-08-19 客人的 iPhone 上撞到,Android/Chrome 正常)。
        ⚠️ 这两件事必须分开:灰带只发生在两栏,压扁只发生在单栏。
           所以 stretch 只留给 >900px,堆叠这一档一律 start。 */
-    .lb-panel{grid-template-columns:1fr;max-height:88vh;align-items:start}
+    .lb-panel{grid-template-columns:1fr;max-height:88vh;max-height:88svh;align-items:start}
     /* align-self:start 是双保险:就算以后有人又给容器加回 stretch,
        照片这一格仍然按 aspect-ratio 自己的高度走,不会被行高拉扁。 */
     .lb-ph{aspect-ratio:3/4;min-height:auto;align-self:start;height:auto}
@@ -1744,8 +1833,13 @@ setTimeout(function(){
   }
 }, 2800);
 </script>
-<script src="catalogue.js"></script>
-<script src="analytics.js" defer></script>
+<!-- v162 —— catalogue.js / analytics.js 带版本号,push 时**两个都要**改。
+     不带的话回头客的浏览器会用缓存里的旧目录画第一眼,几百毫秒后 Supabase 数据
+     回来才替换 —— 症状是「闪一下旧内容」。合并完重复款式之后这个闪会很明显。
+     ⚠️ vendor/supabase.js **故意不加版本号**:它几乎不变,加了等于每次发布都
+        把一个大文件的缓存丢掉。 -->
+<script src="catalogue.js?v=162"></script>
+<script src="analytics.js?v=162" defer></script>
 <script src="vendor/supabase.js" defer></script>
 <script>
 /* =============================================================
@@ -2922,15 +3016,20 @@ function closeFilters(fromPop){
 window.addEventListener("popstate", () => { if (filterPanel && filterPanel.classList.contains("open")) closeFilters(true); });
 if (filterToggle)   filterToggle.addEventListener("click", openFilters);
 if (filterCloseBtn) filterCloseBtn.addEventListener("click", closeFilters);
-if (filterBackdrop) filterBackdrop.addEventListener("click", closeFilters);
+/* v161 —— 点侧栏外面(背景)现在跟 Show 一样滚到目录。
+   起因:客人勾了几个筛选、没按 Show 就点了外面 —— 筛选**已经生效**了(每点一个筛选片
+   就立刻重画),但人还留在原地,看不到结果,像是什么都没发生(2026-08-19 Ben 报的)。
+   ✕ 和 Esc 保持原样(留在原地)—— 那两个动作更像明确的「算了」,
+   点背景则更像「就这样吧,给我看结果」。⚠️ 三种关法行为不完全一致,这是有意的。 */
+if (filterBackdrop) filterBackdrop.addEventListener("click", () => { closeFilters(); showResults(); });
 /* "Show 26" has to actually show them. Filtering shrinks the document, so when the drawer
    closes and body scrolling is unlocked the browser silently CLAMPS the old scroll offset to
    the new (much shorter) page — tap Show from the Booking section and you land on the footer,
    from the grid you land somewhere random in it. Where you end up depends on how much the
    page shrank, which is not a behaviour, it's an accident.
 
-   Only Apply does this. ✕ / backdrop / Esc / the back gesture all mean "never mind" — those
-   still leave the reader exactly where they were.
+   v161 —— 现在 Apply **和点背景**都会滚。✕ / Esc / 返回手势仍然是「算了」,留在原地。
+   (原来是只有 Apply 滚,但点背景时筛选其实已经生效了,人却看不到结果。)
 
    The scroll has to wait: closeFilters() calls history.back(), and popstate restores its own
    scroll position a frame or two later, which would overwrite anything set before it. */
@@ -2978,7 +3077,30 @@ let _panelHome = null, _backdropHome = null;
        夹到新的最大值,一夹正好抵消,视觉上也是 0
      · 在 About —— 在它**下面**、又**没到底**,不夹也不抵消,就实打实蹦 462px
    (2026-08-18 Ben 报的,三档屏幕逐一量过。) */
-let _panelSpacer = null;
+/* v161 —— 占位块换成「影子副本」。
+   v153 塞的是一块等高的**空 div**,页面确实不蹦了,但**目录里那排筛选整个消失** ——
+   背景一暗就是一个洞(2026-08-19 Ben 报的)。
+   现在改成:把面板 cloneNode 一份留在原位,只是不能点。
+   顺带把高度问题一起解决了 —— 副本的高度天生等于原件,不用再量那 462px。 */
+let _panelGhost = null;
+function makeFilterGhost(){
+  const g = filterPanel.cloneNode(true);
+  /* ⛔ id 必须全部剥掉。真面板被搬到 <body> 之后排在文档**最后**,
+     getElementById 会先撞到副本 —— updateFilterMeta() 里的 filterCount
+     就会去更新那个看不见的副本,真的徽章永远不动。 */
+  g.removeAttribute("id");
+  g.querySelectorAll("[id]").forEach(el => el.removeAttribute("id"));
+  g.classList.add("filter-ghost");
+  g.classList.remove("open", "floating");
+  g.setAttribute("aria-hidden", "true");
+  /* inert 管键盘焦点,CSS 的 pointer-events 管鼠标,tabindex 是老浏览器的兜底。
+     ⚠️ 不要用 el.disabled —— Safari 会把禁用按钮的文字变灰,副本就跟原件长得不一样,
+        那就白做了。 */
+  try { g.inert = true; } catch(e){}
+  g.querySelectorAll("button, a, input, select, textarea, [tabindex]")
+   .forEach(el => el.setAttribute("tabindex", "-1"));
+  return g;
+}
 function liftFilters(){
   if (filterPanel && filterPanel.parentElement !== document.body){
     _panelHome = { parent: filterPanel.parentElement, next: filterPanel.nextSibling };
@@ -2991,10 +3113,11 @@ function liftFilters(){
 }
 function dropFilters(){
   if (filterPanel && _panelHome){
-    /* 先放回去再撤占位:反过来的话中间会有一帧文档是矮的,又蹦一次 */
-    _panelHome.parent.insertBefore(filterPanel, _panelSpacer || _panelHome.next);
-    if (_panelSpacer && _panelSpacer.parentNode) _panelSpacer.parentNode.removeChild(_panelSpacer);
-    _panelSpacer = null;
+    /* 先把真面板插到副本**前面**,再把副本撤掉 —— 面板正好落回副本的位置。
+       反过来的话中间会有一帧文档是矮的,又蹦一次。 */
+    _panelHome.parent.insertBefore(filterPanel, _panelGhost || _panelHome.next);
+    if (_panelGhost && _panelGhost.parentNode) _panelGhost.parentNode.removeChild(_panelGhost);
+    _panelGhost = null;
     _panelHome = null;
   }
   if (filterBackdrop && _backdropHome){ _backdropHome.parent.insertBefore(filterBackdrop, _backdropHome.next); _backdropHome = null; }
@@ -3732,22 +3855,24 @@ function openFiltersInPlace(){
   const isDrawer = filterToggle && getComputedStyle(filterToggle).display !== "none";
   if (!isDrawer){
     /* v153 —— 量着做,不猜。浮起来 + 搬到 body 这两步会让文档变矮(实测 1440 上 462px),
-       浏览器不动 scrollY,于是整页往上蹦。所以整段操作前后各量一次文档高,
-       差多少就在原位补一块多高的占位。
+       浏览器不动 scrollY,于是整页往上蹦。所以整段操作前后各量一次文档高。
        ⚠️ 必须包住 classList.add("floating") 一起量 —— 面板一 floating 就变成
        position:fixed、已经脱离文档流了,只在 liftFilters 里量等于什么都没量到
-       (我第一版就是这么写的,补出来的占位反而让文档变高)。 */
+       (我第一版就是这么写的,补出来的占位反而让文档变高)。
+
+       v161 —— 原来这里补的是一块**空 div**,页面不蹦了,但目录里那排筛选整个不见了。
+       现在先在原位插一份静态副本(makeFilterGhost),真面板再浮起来 ——
+       副本本身就是等高的占位,delta 正常情况下应该是 0。
+       下面那段 delta 兜底留着:万一副本因为某条 :not(.floating) 的样式差了几像素,
+       补在副本自己的 padding 上,不再另起一个空块。 */
     const before = document.documentElement.scrollHeight;
+    _panelGhost = makeFilterGhost();
+    filterPanel.parentElement.insertBefore(_panelGhost, filterPanel);
     filterPanel.classList.add("floating");
     if (filterBackdrop) filterBackdrop.classList.add("floating");
     liftFilters();                                  // out of the section, straight under <body>
     const delta = before - document.documentElement.scrollHeight;
-    if (delta > 0 && _panelHome && _panelHome.parent){
-      _panelSpacer = document.createElement("div");
-      _panelSpacer.setAttribute("aria-hidden", "true");
-      _panelSpacer.style.height = delta + "px";
-      _panelHome.parent.insertBefore(_panelSpacer, _panelHome.next);
-    }
+    if (delta > 0 && _panelGhost) _panelGhost.style.paddingBottom = delta + "px";
   }
   openFilters();
 }
@@ -3777,7 +3902,38 @@ document.querySelectorAll("#faq details").forEach(d => {
    第一行字都停在头部下沿再往下 NAV_GAP 的地方。
    ⚠️ 最后一个区块(Visit)内容不够长,滚到底也到不了目标位置 —— 这是文档末尾的
    物理限制,不是这段代码的问题。 */
+/* v163 —— 这个常量只当兜底用了。真正的落点写在 CSS 的 scroll-margin-top 上,
+   sectionTargetY 直接去读那个算好的值 —— 于是「改 px」只需要改 CSS 一处。 */
 const NAV_GAP = 34;
+/* 顶栏真实高度写回 CSS 变量。CSS 里那条 calc() 因此永远跟真实头高一致,
+   不用在 JS 和 CSS 两边各维护一份数字。 */
+function syncHeaderVar(){
+  const hdrEl = document.getElementById("hdr");
+  if (!hdrEl) return;
+  /* 🔴 v163 —— 必须量**滚动之后**的头高,不是页面顶部那个高度。
+     顶栏在页顶是 82px,滚下去加上 .solid 之后是 60px(实测 390×844)。
+     以前的代码在**滚动之前**量,拿到 82,于是落点算成「距顶 116px」——
+     可落定时头部已经缩到 60,人看到的空隙是 56px,不是 34px。
+     ⚠️ 这不是这次改出来的,是一直就错的:v154 我报告过「七档屏幕全部正好 34px」,
+        那次量的也是没缩之前的头高 —— **测法和被测代码犯了同一个错,于是互相印证**。
+        Ben 一直觉得「每次都要调 px」,原因就在这:那个数字从来没对过。
+     做法:临时加上 .solid 量一次再摘掉。点导航之后 scrollY 必然 > 40,
+     顶栏一定是 .solid 状态,所以这才是落点该用的高度。 */
+  const wasSolid = hdrEl.classList.contains("solid");
+  if (!wasSolid) hdrEl.classList.add("solid");
+  const prevTrans = hdrEl.style.transition;
+  hdrEl.style.transition = "none";               // 不然这一加一摘会变成一次动画
+  void hdrEl.offsetHeight;
+  const h = Math.round(hdrEl.getBoundingClientRect().height);
+  if (!wasSolid) hdrEl.classList.remove("solid");
+  void hdrEl.offsetHeight;
+  hdrEl.style.transition = prevTrans;
+  if (h > 0) document.documentElement.style.setProperty("--hdr-h", h + "px");
+}
+syncHeaderVar();
+window.addEventListener("load", syncHeaderVar);
+let _hdrT = null;
+window.addEventListener("resize", () => { clearTimeout(_hdrT); _hdrT = setTimeout(syncHeaderVar, 150); });
 /* ⚠️ 量之前必须先把目标区块的 .reveal 标成 .in。
    `.reveal{transform:translateY(26px)}` —— 还没淡入的元素,rect 会**算进 transform**,
    量出来比它最终的位置低 26px,于是滚过头;等它淡入归位那 26px 又被吃掉,落点就飘。
@@ -3792,11 +3948,17 @@ function sectionTargetY(target){
   if (target.classList.contains("reveal") && !target.classList.contains("in")) hidden.push(target);
   hidden.forEach(el => { el.style.transition = "none"; el.style.transform = "none"; });
   void target.offsetHeight;                        // 强制重排,让上面那步立刻生效
-  const hdrEl = document.getElementById("hdr");
-  const hdrH = hdrEl ? hdrEl.getBoundingClientRect().height : 82;
   /* 锚点优先取第一块看得见的文字;取不到就退回区块本身 */
   const anchor = target.querySelector(".kicker, h2, h3") || target;
-  const y = Math.max(0, anchor.getBoundingClientRect().top + window.pageYOffset - hdrH - NAV_GAP);
+  /* v163 —— 偏移量从 CSS 的 scroll-margin-top 读,不再在这里自己算头高。
+     好处:CSS(浏览器自己滚的时候用的)和 JS(校正时用的)读的是**同一个数**,
+     不可能对不上。读不到就退回老算法当兜底。 */
+  let off = parseFloat(getComputedStyle(anchor).scrollMarginTop);
+  if (!isFinite(off) || off <= 0){
+    const hdrEl = document.getElementById("hdr");
+    off = (hdrEl ? hdrEl.getBoundingClientRect().height : 82) + NAV_GAP;
+  }
+  const y = Math.max(0, anchor.getBoundingClientRect().top + window.pageYOffset - off);
   hidden.forEach(el => { el.style.transform = ""; el.style.transition = ""; });
   return y;
 }

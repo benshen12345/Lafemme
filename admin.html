@@ -7,6 +7,15 @@
 <link rel="dns-prefetch" href="https://djrnozqgrkpbxoaebaeo.supabase.co" />
 <!-- preload the self-hosted supabase lib so login is ready fast on slow devices (parallel download during HTML parse) -->
 <link rel="preload" as="script" href="vendor/supabase.js" />
+<!-- v140 —— 别让搜索引擎收录后台页。stats.html 一直有这行,admin.html 漏了(2026-08-19 补)。
+     ⚠️ 这**不是**安全措施:GitHub Pages 会把分支里每个文件都对外提供,
+        lafemmegown.com/admin.html 谁打都能开,noindex 只是让它不出现在 Google 结果里。
+        真正挡住数据的是 Supabase 的 RLS policy + 登录密码 ——
+        SUPABASE_ANON_KEY 就在下面第 474 行明文放着(这是 Supabase 的设计,anon key 不是秘密),
+        任何人都能拿它直接打 REST API、绕开这个页面。见 C:\Lafemme\sql\查-RLS权限体检.sql
+     ⚠️ 不要在 robots.txt 里 Disallow 这两个路径 —— 那样爬虫根本读不到这行 noindex,
+        已经被收录的反而删不掉;而且 robots.txt 是公开的,等于把后台地址贴出去。 -->
+<meta name="robots" content="noindex, nofollow" />
 <title>LaFemme — Catalogue Manager</title>
 <!-- site icon — same LF monogram as the public site (see index.html) -->
 <link rel="icon" href="favicon.ico" sizes="32x32" />
@@ -19,6 +28,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500&family=Jost:wght@300;400;500&display=swap" rel="stylesheet" />
 <style>
+  /* v-iOSwall —— 钉住文字缩放。不钉的话 iPhone 横屏时 iOS 会自己放大正文,
+     竖屏量过的宽度全部失效。桌面和 Android 上无影响。 */
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+
   :root{
     --ivory:#FAF7F2; --ink:#1C1A17; --muted:#6E675C; --gold:#C6A15B; --gold-deep:#A9833F;
     --hairline:#E6DFD3; --panel:#F3EEE5; --field:#fff; --ok:#3E7C56; --bad:#B14A3C; --line:#E6DFD3;
@@ -26,7 +39,10 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--ivory);color:var(--ink);font-family:var(--sans);font-weight:300;font-size:15px;line-height:1.6}
-  button,input,select,textarea{font-family:inherit;font-size:15px}
+  button{font-family:inherit;font-size:15px}
+  /* v140 —— 16px 是 iOS 的硬下限:输入框字号 < 16px,聚焦时整页放大且不还原。
+     Pearly 用 iPhone 登录后台,这条直接影响她。按钮不触发缩放,留 15px。 */
+  input,select,textarea{font-family:inherit;font-size:16px}
   button{cursor:pointer}
   :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
@@ -86,7 +102,7 @@
   .audit-table th{text-align:left;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:9px 8px;border-bottom:1px solid var(--hairline);white-space:nowrap}
   .audit-table td{padding:9px 8px;border-bottom:1px solid var(--hairline);vertical-align:top}
   .audit-table tr:last-child td{border-bottom:0}
-  .audit-card{background:#fff;border:1px solid var(--hairline);padding:22px;overflow-x:auto}
+  .audit-card{background:#fff;border:1px solid var(--hairline);padding:22px;overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
   @media(max-width:600px){
     .audit-table{font-size:12px}
     .audit-table th,.audit-table td{padding:7px 6px}
@@ -107,7 +123,7 @@
   .hero-slot .btn.confirming{background:var(--bad);border-color:var(--bad);color:#fff}
   /* cover cropper */
   .crop-wrap{position:fixed;inset:0;z-index:120;background:rgba(22,18,14,.72);display:flex;align-items:center;justify-content:center;padding:16px}
-  .crop-box{background:#fff;border:1px solid var(--hairline);padding:22px;width:100%;max-width:460px;max-height:94vh;overflow-y:auto}
+  .crop-box{background:#fff;border:1px solid var(--hairline);padding:22px;width:100%;max-width:460px;max-height:94vh;max-height:94svh;overflow-y:auto}
   .crop-box h3{margin:0 0 6px;font-family:var(--serif);font-size:22px;font-weight:500}
   .crop-hint{color:var(--muted);font-size:12.5px;line-height:1.55;margin:0 0 16px}
   /* v139 —— 框的形状跟着这次裁的是什么走:封面 1:1,单品 2:3。
@@ -145,7 +161,7 @@
   .thumb img{width:100%;height:100%;object-fit:cover}
   .thumb span{font-size:10px;color:var(--muted);text-align:center;padding:6px}
   .f input[type=color]{width:100%;height:42px;border:1px solid var(--hairline);background:#fff;padding:3px;cursor:pointer}
-  .f input[type=file]{font-size:12px;color:var(--muted)}
+  .f input[type=file]{font-size:16px;color:var(--muted)}   /* v140 —— 同上,不能低于 16px */
 
   .note{background:var(--panel);border-left:2px solid var(--gold);padding:14px 16px;font-size:13.5px;color:var(--muted);margin-bottom:22px}
   .note b{color:var(--ink);font-weight:500}
