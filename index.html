@@ -3958,6 +3958,16 @@ function sectionTargetY(target){
     const hdrEl = document.getElementById("hdr");
     off = (hdrEl ? hdrEl.getBoundingClientRect().height : 82) + NAV_GAP;
   }
+  /* v165 —— 页面最顶上那一块(hero,id="top",Logo 指向它)没有「上方」可言,
+     落点就是 0,不能套用「第一行字停在头部下沿 34px」那条规则。
+     不特判的话:hero 的 kicker 距页顶约 128px,减掉 94 之后落在 scrollY≈34 ——
+     首屏被顶上去一截,底下就露出滚动条那一带和下一块的边(2026-08-19 Ben 报的)。
+     判据是「这一块的顶边本来就在偏移量以内」,不是写死 id —— 以后换了 hero 的 id 也照样对。 */
+  const secTop = target.getBoundingClientRect().top + window.pageYOffset;
+  if (secTop <= off){
+    hidden.forEach(el => { el.style.transform = ""; el.style.transition = ""; });
+    return 0;
+  }
   const y = Math.max(0, anchor.getBoundingClientRect().top + window.pageYOffset - off);
   hidden.forEach(el => { el.style.transform = ""; el.style.transition = ""; });
   return y;
