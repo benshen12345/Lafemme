@@ -365,8 +365,19 @@
             want it — worth restocking. Many views with no enquiries usually means the photo pulls
             people in but the piece doesn't close.</dd>
       </dl>
-      <p class="gnote"><b>Not counted:</b> scrolling past pieces, switching between the Gowns and
-         Suits tabs, and using the filters. Only deliberate actions are recorded.</p>
+      <!-- 🔴 v132(2026-08-20)—— 这段原来写着「筛选和切换 Gowns/Suits 标签**不计入**」,
+           两句都是**错的**:
+             · filter_use 一直在记,而且下面就有「Which filters they used」那一整块面板
+             · tab_click 也一直在记 —— 只是**看板里没有任何地方显示它**
+           这段是在那两个埋点加进来之前写的,之后没人回来改。
+           ⛔ 「不计入什么」这种话最容易过期 —— 加新埋点时必须回来核对这一段。 -->
+      <p class="gnote"><b>Not counted:</b> scrolling past pieces, switching language or Noir mode,
+         and hovering. Only deliberate actions are recorded — a tap, a search, a send.</p>
+      <p class="gnote"><b>Recorded but not shown here:</b> switching between the Gowns and Suits
+         tabs, changing the sort order, and tapping the map to see the shopfront. Those three are
+         written to the database but have no panel on this dashboard yet — so the shopfront tap in
+         particular cannot be judged from this page, even though it was added to answer exactly
+         that question. Ask for a panel if you want to see any of them.</p>
     </details>
     <p class="subhint">The numbers above are for the selected date range. Use the <b>Pieces</b> and <b>What they wanted</b> tabs for the detail behind them.</p>
     </div>

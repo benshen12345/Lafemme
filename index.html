@@ -729,22 +729,53 @@
   .men-msg{max-width:520px;padding:40px 0}
   .men-notice{margin:0 0 26px;animation:menFade .55s ease}
   @keyframes menFade{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  /* v169 —— ⚠️ 框本身**跟主题走**(Noir 下就是深色底),这是 Ben 要的。
+     我第一版把整个框钉成浅金,理解错了 —— 他要变浅金的是 MESSAGE US 那条小横杠,
+     不是整个框(2026-08-21 原话:「not all the box become gold, is the small bar」)。
+     ⛔ 不要再把这一条改成固定色值。 */
   .men-notice-in{display:flex;align-items:center;gap:16px;padding:17px 22px;border:1px solid var(--gold);
     background:linear-gradient(120deg,rgba(198,161,91,.11),rgba(198,161,91,.02));position:relative;overflow:hidden}
   .men-notice-in::after{content:"";position:absolute;top:0;left:-55%;width:38%;height:100%;pointer-events:none;
     background:linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent);animation:menShine 5s ease-in-out infinite}
   @keyframes menShine{0%{left:-55%}55%,100%{left:135%}}
-  .men-notice-ico{font-size:20px;color:var(--gold-deep);flex:none}
+  .men-notice-ico{font-size:20px;color:var(--gold-deep);flex:none;line-height:1}
+  /* v168 —— 标题行:星号 + 标题并排。
+     baseline 对齐,不用 center —— 星号比标题矮一截,center 会让它看起来往下掉。 */
+  .men-notice-head{display:flex;align-items:baseline;gap:10px;margin-bottom:2px}
   .men-notice-txt{flex:1;min-width:0}
-  .men-notice-txt b{display:block;font-family:var(--serif);font-size:20px;font-weight:500;letter-spacing:.01em;margin-bottom:1px}
+  /* v168 —— 右上角的礼服剪影。
+     ⚠️ 必须用真元素,不能用 ::after —— .men-notice-in::after 已经被那道扫光占用了。
+     ⚠️ pointer-events:none:它盖在框的右上角,不挡住任何点击。 */
+  /* v169 —— 剪影接在标题右边,不再贴右上角。
+     ⚠️ 之前贴右上角时 >640px 会跟 MESSAGE US 按钮打架,只能藏起来 ——
+        现在跟着标题走,**每一档都显示**。
+     ⚠️ 实心金色(跟旁边的 ✦ 同色),不再是 .22 的淡影 —— Ben 要的是「金色的」。
+     ⚠️ 高度用 em 跟着标题字号缩放,手机上标题变小它也跟着变小,不用再写一条媒体查询。
+     🔴 它是**行内**元素,不是 flex 项:margin-left 那 10px 要跟 .men-notice-head 的
+        gap:10px 手动对齐(✦→「Many」和「store」→剪影必须是同一个数)。
+        当 flex 项时 320px 上标题一换行,剪影会被甩到框最右边。 */
+  .men-notice-ttl{min-width:0}
+  .men-notice-dress{height:1.15em;width:auto;fill:var(--gold-deep);margin-left:10px;
+    vertical-align:-.2em;pointer-events:none;position:relative;z-index:1}
+  .men-notice-txt b{display:inline;font-family:var(--serif);font-size:20px;font-weight:500;letter-spacing:.01em;margin-bottom:0}
   .men-notice-txt span{font-size:13.5px;color:var(--muted);line-height:1.5}
-  .men-notice-btn{flex:none;white-space:nowrap;border:1px solid var(--ink);background:var(--ink);color:var(--ivory);
+  /* 🔴 v169 —— MESSAGE US 这条横杠**不跟主题走**:Ivory 和 Noir 下都是同一片浅金。
+     原来是 var(--ink) 底 + var(--ivory) 字,Noir 模式下整条变成浅底深字,跟浅色模式反过来。
+     ⚠️ 底色钉死了,字色也必须跟着钉死 —— Noir 的 --ivory 是深色,压在浅金上会看不见。
+        这三个色值(底 / 字 / 边框)是一组,**不能只改一个,也不能换回 var()**。
+     ⚠️ 对比度:#1C1A17 压在 #EBD9AE 上约 12:1,远高于 AA 的 4.5:1。 */
+  .men-notice-btn{flex:none;white-space:nowrap;border:1px solid #C6A15B;background:#EBD9AE;color:#1C1A17;
     padding:11px 20px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;text-decoration:none;transition:background .25s,border-color .25s;position:relative;z-index:1}
-  .men-notice-btn:hover{background:var(--gold-deep);border-color:var(--gold-deep)}
+  .men-notice-btn:hover{background:#DFC894;border-color:#B8933F;color:#1C1A17}
   @media(max-width:640px){
     .men-notice-in{flex-direction:column;align-items:flex-start;gap:12px;padding:16px 18px}
     .men-notice-btn{width:100%;text-align:center}
-    .men-notice-txt b{font-size:18px}
+    /* 🔴 v169 —— 320px 上「Many more gowns in-store」正好占满一行,剪影(11px + 10px 间距)
+       挤不下,自己掉到第二行去了(实测:标题需 220px,可用只有 213px,差 7px)。
+       不缩间距 —— 那 10px 是 Ben 点名要跟 ✦→「Many」一模一样的。改成缩字号,
+       用 clamp 让它随宽度平滑变,不写死断点:≤323→15.5px、360→17.3px、≥375→18px。
+       下限压到 15.5 是为了留余量 —— 16px 时 320 刚好卡着过,300px 又会掉行。 */
+    .men-notice-txt b{font-size:clamp(15.5px,4.8vw,18px)}
   }
   .men-msg h3{font-size:32px;margin-bottom:12px}
   .men-msg p{color:var(--muted);margin-bottom:24px}
@@ -1248,9 +1279,13 @@
   /* ---------- responsive ---------- */
   @media (max-width:1024px){
     .hero{min-height:auto}
-    .hero-split{grid-template-columns:1fr;grid-template-rows:60svh auto;min-height:auto}
-    .hero-right{order:1;min-height:60svh}
-    .hero-left{order:2;padding:60px 30px 64px}
+    /* v169 —— 手机上照片底和「EVENING GOWNS…BUKIT JALIL」之间空了 105px,
+       看起来像中间少了点东西(2026-08-20 Ben 报的)。
+       两头一起收:照片那一行从 60svh 长到 66svh,文字块上内边距 60 → 30。
+       ⚠️ 只动上内边距,不动下内边距 —— 下面那段(按钮到滚动条)本来是对的。 */
+    .hero-split{grid-template-columns:1fr;grid-template-rows:66svh auto;min-height:auto}
+    .hero-right{order:1;min-height:66svh}
+    .hero-left{order:2;padding:30px 30px 64px}
     .hero-left::after{display:none}
     .hero-copy{max-width:none}
     .hero-right{--hdr:70px}
@@ -1268,10 +1303,18 @@
        this gap is the only clearance beside the logo and the buttons — 20 matches the
        floor of the clamp above so the 1150/1151 boundary doesn't visibly snap. */
     .nav{gap:20px}
+    .steps{grid-template-columns:repeat(2,1fr)}
+  }
+  /* 🔴 v169 —— 这条以前写在上面那个 (max-width:1150px) 里,**下界没关**。
+     它本来只想管 1025–1150 那一档(还是左右两栏,只是左栏被挤窄),
+     结果一路盖到手机上:≤1024 的堆叠版在上面(源码更早)写了自己的 padding,
+     同权重、后来者赢,于是**手机上一直用的是 padding-top:120px**。
+     照片底到「EVENING GOWNS…」实测就是 120px,而且 13 档全一样 —— 这就是 Ben 说的「太远」。
+     ⛔ 改窄媒体查询下界,不要靠 !important 或加选择器权重去压 —— 那只会让下一个人再踩一次。 */
+  @media (min-width:1025px) and (max-width:1150px){
     /* the 40% hero column gets cramped before it stacks — pull the deep left inset in
        so the copy keeps its width at half-screen laptop widths */
     .hero-left{padding:120px 6% 64px 8%}
-    .steps{grid-template-columns:repeat(2,1fr)}
   }
   @media (max-width:1080px){
     /* About's three figures sit in a 720px column, so 3-across gets tight before the
@@ -1527,9 +1570,27 @@
     </div>
     <div id="menNotice" class="men-notice">
       <div class="men-notice-in">
-        <span class="men-notice-ico" aria-hidden="true">✦</span>
         <div class="men-notice-txt">
-          <b id="menNoticeH">Many more gowns in-store</b>
+          <!-- v168 —— 星号搬进标题行,跟标题并排。
+               原来它是 .men-notice-in 的一个独立 flex 子元素,手机上(≤640 改成竖排)
+               就自己占了一整行,标题被挤到下一行去 —— 看起来像标题少了个伴。 -->
+          <span class="men-notice-head">
+            <span class="men-notice-ico" aria-hidden="true">✦</span>
+            <!-- 🔴 v169 —— 剪影必须跟「in-store」在同一段文字流里,不能当 flex 兄弟。
+                 当兄弟时 <b> 是 flex 项、会撑满剩余宽度,320px 上标题一换行,
+                 剪影就被甩到框的最右边、跟标题断开了(实测截图)。
+                 改成:标题和剪影一起包在 .men-notice-ttl 里,<b> 改回 display:inline,
+                 剪影是紧跟在最后一个字后面的行内元素 —— 换不换行都贴着「store」走。
+                 ⚠️ 剪影只能放在 <b> **外面**:updateMenNotice() 用 h.textContent 换标题,
+                    放里面每次切换性别/语言都会把 SVG 抹掉。 -->
+            <span class="men-notice-ttl"><b id="menNoticeH">Many more gowns in-store</b>&#8288;<svg class="men-notice-dress" viewBox="0 0 40 56" aria-hidden="true" focusable="false">
+              <!-- ⚠️ 第一版画了头 + 身体 + 裙,缩到 26px 之后读起来像**国际象棋的兵**。
+                   去掉头,只画裙子:抹胸领口 → 收腰 → A 字裙摆 + 下摆微弧。
+                   装饰图形要按**最终尺寸**判断,不能按放大图判断。 -->
+              <path d="M13.2 6.2c2.1 1.9 4.3 2.9 6.8 2.9s4.7-1 6.8-2.9l1.4 3.1c-1.1 3.4-1.7 6.6-1.9 9.7l-1.1 4.6h-10.4l-1.1-4.6c-.2-3.1-.8-6.3-1.9-9.7l1.4-3.1Z"/>
+              <path d="M14.8 26.1h10.4l3.2 8.6c2.3 6.2 4.6 11.2 7 15.1-4.6 1.6-9.7 2.4-15.4 2.4s-10.8-.8-15.4-2.4c2.4-3.9 4.7-8.9 7-15.1l3.2-8.6Z"/>
+            </svg></span>
+          </span>
           <span id="menNoticeP">Only a selection is shown online. Our Bukit Jalil showroom carries many more gowns, sizes and colours.</span>
         </div>
         <a id="menNoticeBtn" class="men-notice-btn" href="https://wa.me/60167067033" target="_blank" rel="noopener">Message us</a>
