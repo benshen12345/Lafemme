@@ -4026,8 +4026,43 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
     if(!target) return;
     e.preventDefault();
     goToSection(target);
+    setHash(id);
   });
 });
+/* v166 —— 点区块标题时把 #about 之类写进网址,这样客人能把「网站的这一段」发给别人。
+   ⚠️ 为什么要自己写:上面那行 e.preventDefault() 是必须的(不拦的话浏览器会用它
+      自己的落点跳一次,跟我们算好的 34px 打架),但它同时也把浏览器写网址那一步
+      一起拦掉了 —— 所以得手动补。
+   ⚠️ 用 replaceState 不用 pushState:弹窗和筛选抽屉都各自压了历史记录,
+      每点一个标题再压一条,「返回」就会变成在区块之间倒退,而不是关掉弹窗。
+   ⚠️ 首屏(#top,Logo 指向它)反过来 —— 把 hash 清掉,网址回到干净的
+      lafemmegown.com,而不是 lafemmegown.com/#top。
+   ⚠️ 保留 location.search:筛选参数不能因为点了个标题就没了。syncURL 那边
+      也一样保留 location.hash,两边互不覆盖。 */
+function setHash(id){
+  try {
+    const isTop = id === "#top";
+    history.replaceState(history.state, "", location.pathname + location.search + (isTop ? "" : id));
+  } catch(e){ /* 写不了网址不该影响滚动 */ }
+}
+/* v166 —— 别人点开 lafemmegown.com/#about 这种链接时,也要落到同一个位置。
+   ⚠️ 光靠浏览器自己跳是不够的:它按 scroll-padding-top 把**区块顶边**对齐,
+      而我们的规则对齐的是**第一行字** —— 实测差 78~120px(390/1440/1920 三档)。
+      所以要用 goToSection 自己再落一次。
+   ⚠️ 有 ?p=(单件分享)或筛选参数时**不接管** —— 那两条路各有自己的落点逻辑
+      (OPEN_PIECE / JUMP_TO_GRID),抢过来会把人拽到别处。
+   ⚠️ 等 load 之后再跳:图片没加载完时文档高度还在变,早跳会落偏。 */
+function landOnHashFromURL(){
+  try {
+    const h = location.hash;
+    if (!h || h.length < 2 || h === "#top") return;
+    const p = new URLSearchParams(location.search);
+    if (["g","cat","mat","c","b","q","sort","p"].some(k => (p.get(k) || "").trim())) return;
+    const t = document.querySelector(h);
+    if (t && t.tagName === "SECTION") goToSection(t);
+  } catch(e){}
+}
+window.addEventListener("load", () => setTimeout(landOnHashFromURL, 260));
 
 /* dropdowns + date fields: dark text only once an actual value is chosen */
 document.querySelectorAll('#bookForm select, #bookForm input[type="date"]').forEach(el => {
