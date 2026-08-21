@@ -4020,9 +4020,22 @@ window.addEventListener("resize", () => { clearTimeout(_padT); _padT = setTimeou
 
 document.querySelectorAll('a[href^="#"]').forEach(a=>{
   a.addEventListener("click", e=>{
-    const id = a.getAttribute("href");
-    if(id.length < 2) return;
-    const target = document.querySelector(id);
+    /* 🔴 v167 —— 必须**在点击那一刻**重新确认这真的是个页内锚点。
+       绑定是在页面加载时按 a[href^="#"] 选的,但有的链接的 href 会被 JS 换掉:
+       #lbAsk 初始是 href="#",后来被换成 https://wa.me/... 。
+       于是点它的时候这里拿到一条网址,却拿去当 CSS 选择器用 ——
+       document.querySelector("https://wa.me/…") 当场抛异常。
+       (2026-08-20 Ben 在自己机器上跑回归套件时看到的:SyntaxError: Invalid selector。
+        我这边一直只看最后三行汇总,所以从来没发现。)
+       功能上没坏 —— 抛异常那行在 e.preventDefault() 之前,链接照常打开 ——
+       但每点一次就往控制台扔一个未捕获的错误。
+       ⛔ 「绑定时是什么」不等于「点击时是什么」。href 会变,className 会变,
+          任何在绑定时成立的前提,用之前都要再确认一次。 */
+    const id = a.getAttribute("href") || "";
+    if (id.charAt(0) !== "#" || id.length < 2) return;
+    let target = null;
+    try { target = document.querySelector(id); }
+    catch(err){ return; }                 // #123 这种不是合法选择器,当普通链接放行
     if(!target) return;
     e.preventDefault();
     goToSection(target);
