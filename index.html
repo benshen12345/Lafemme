@@ -787,25 +787,31 @@
   .tap-hint{position:absolute;inset:0;z-index:6;pointer-events:none;
     opacity:0;transition:opacity .4s ease}
   .tap-hint.on{opacity:1}
-  /* 涟漪:从指尖那一点扩散出去。指尖在手图标的顶端,所以圆心要往上偏。 */
-  /* 圆心要落在**指尖**上,不是手的中心 —— 指尖在图标里大约偏上 30px、偏左 7px。 */
+  /* 柔光罩:一层很淡的径向暗角,让金线在**浅色礼服**上也读得出来。
+     ⛔ 不要用方块或圆片当底 —— 那会变成一个「按钮」贴在照片上。
+        径向渐变没有边界,看起来像光,不像控件。 */
+  .tap-hint::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(circle at 50% 44%,rgba(20,16,12,.30),transparent 60%)}
+  /* 涟漪:一圈细金线,从**指尖**那一点扩散出去。
+     圆心要落在指尖上,不是手的中心 —— 指尖在图标里大约偏上 14px、偏左 5px。 */
   .tap-hint-ring{position:absolute;top:50%;left:50%;border-radius:50%;
-    margin-top:-30px;margin-left:-7px;transform:translate(-50%,-50%);
-    border:1.6px solid rgba(255,255,255,.95);box-shadow:0 0 20px rgba(20,16,12,.4);
+    margin-top:-14px;margin-left:-5px;transform:translate(-50%,-50%);
+    border:1px solid rgba(232,207,149,.9);
     animation:tapRing 1.5s ease-out 2 both}
-  /* 手:白色填充 + 一圈深色描边 —— 照片有明有暗,只靠白色会在浅色礼服上消失。 */
-  .tap-hint-hand{position:absolute;top:50%;left:50%;width:52px;height:auto;
-    transform:translate(-50%,-50%);
-    filter:drop-shadow(0 3px 10px rgba(20,16,12,.55));
+  /* 手:只有一条细金线,不填色。
+     ⚠️ 必须配 drop-shadow —— 金线压在浅金色礼服上会直接消失,
+        阴影是它在浅底照片上唯一的分界。 */
+  .tap-hint-hand{position:absolute;top:50%;left:50%;width:44px;height:auto;
+    transform:translate(-50%,-50%);opacity:.92;
+    filter:drop-shadow(0 1px 3px rgba(20,16,12,.6));
     animation:tapPress 1.5s ease-in-out 2 both}
-  /* 第一遍粗描边当轮廓,第二遍纯白盖掉重叠处的内部线条 */
-  .tap-hand-out{fill:#FFF;stroke:rgba(20,16,12,.55);stroke-width:5;stroke-linejoin:round}
-  .tap-hand-in{fill:#FFF}
+  .tap-hint-hand path{fill:none;stroke:#E8CF95;stroke-width:2.1;
+    stroke-linejoin:round;stroke-linecap:round}
   @keyframes tapRing{
-    0%{width:14px;height:14px;opacity:0}
-    18%{opacity:.95}
-    70%{width:74px;height:74px;opacity:0}
-    100%{width:74px;height:74px;opacity:0}}
+    0%{width:10px;height:10px;opacity:0}
+    18%{opacity:.85}
+    70%{width:62px;height:62px;opacity:0}
+    100%{width:62px;height:62px;opacity:0}}
   /* 手往下压再回来 —— 幅度只有 7px,再大就像在挥手不像在点 */
   @keyframes tapPress{
     0%,100%{transform:translate(-50%,-50%)}
@@ -814,7 +820,7 @@
   /* 关掉动画的人:手静止显示,涟漪停在最大那一圈 —— 信息还在,没有任何跳动 */
   @media(prefers-reduced-motion:reduce){
     .tap-hint-hand{animation:none}
-    .tap-hint-ring{animation:none;width:74px;height:74px;opacity:.85}
+    .tap-hint-ring{animation:none;width:62px;height:62px;opacity:.7}
   }
   /* v150 —— 大图改回填满整个框(cover),不再留边。
      v146 我把它改成 contain(整张显示、两边用同一张照片的模糊版垫底),
@@ -2664,28 +2670,22 @@ let tapHintOff = false, tapHintShows = 0, tapHintSeq = 0;
 let tapHintT = null;           // 唯一的定时器 —— 三个阶段共用,永远只有一个在跑
 try { tapHintOff = localStorage.getItem(TAP_HINT_KEY) === "1"; } catch(e){}
 
-/* 一只手,食指点下去。
-   🔴 前两版都画歪了,而且歪得很难看:
-     · 第一版一条 path 写下来,`v27h1.5` 那一段多长出一根手指 → 看着像**两根手指**;
-     · 第二版改成基本图形,但食指在拳头**正中间**、拳头是个光滑的圆
-       → 一根手指从圆拳中间竖起来,读出来是**竖中指**。
-   ⛔ 装饰图形一定要**按最终尺寸截图看过**再用(v169 那个「像国际象棋兵」也是这么查出来的)。
-   现在这版三件事让它读成「点一下」:食指挪到**左侧**(食指本来就在左边)、
-   右边加三个**指节**(手指是折起来的,不是没有)、左下角一个拇指。
-   ⚠️ 同一组图形画两遍:第一遍带粗描边当轮廓,第二遍纯白盖住内部的描边线,
-      这样重叠处不会有多余的线。**不要用 <use> + id** —— 淡出的旧提示和新提示会
-      短暂共存,id 撞车这个项目已经踩过一次(cloneNode 那次)。 */
-const TAP_HAND_SHAPES =
-    '<rect x="14" y="5" width="12" height="38" rx="6"/>'
-  + '<rect x="24" y="26" width="12" height="18" rx="6"/>'
-  + '<rect x="32" y="29" width="11" height="16" rx="5.5"/>'
-  + '<rect x="39" y="33" width="10" height="14" rx="5"/>'
-  + '<rect x="13" y="36" width="36" height="30" rx="14"/>'
-  + '<rect x="4" y="38" width="11" height="19" rx="5.5" transform="rotate(-28 9.5 47.5)"/>';
+/* 一只手,食指点下去 —— **一条细金线,不填色**。
+   🔴 前三版都被否掉了,每一版都是截图才看出来的:
+     · 一条 path 写下来,`v27h1.5` 那段多长出一根 → 像**两根手指**;
+     · 改成基本图形,但食指在**光滑圆拳的正中间** → 读出来是**竖中指**;
+     · 补上指节和拇指之后形状终于对了,但**白色实心 + 粗黑描边**太像剪贴画 ——
+       Ben 2026-08-21:「i dont like the current hand icon, it's look not high class」。
+   现在这版:单条闭合路径、`fill:none`、2.1px 金线(#E8CF95)、44px、opacity .92,
+   配一层没有边界的径向柔光罩。轻,而且是金的。
+   ⛔ **装饰图形必须按最终尺寸、压在真实照片上截图看过再用。**
+      放大图看不出比例问题,浅色照片上看不出对比度问题 —— 这两样都栽过。 */
 const TAP_HAND_SVG =
-  '<svg class="tap-hint-hand" viewBox="0 0 56 74" aria-hidden="true" focusable="false">'
-  + '<g class="tap-hand-out">' + TAP_HAND_SHAPES + '</g>'
-  + '<g class="tap-hand-in">'  + TAP_HAND_SHAPES + '</g></svg>';
+  '<svg class="tap-hint-hand" viewBox="0 0 48 62" aria-hidden="true" focusable="false">'
+  + '<path d="M16.2 16a3 3 0 0 1 6 0v12.6c.6-.9 1.6-1.5 2.7-1.5 1.7 0 3 1.4 3 3.1v.6'
+  + 'c.6-.9 1.5-1.4 2.6-1.4 1.7 0 3 1.4 3 3.1v.8c.5-.8 1.4-1.3 2.4-1.3 1.7 0 2.9 1.3 2.9 3'
+  + 'v6.4c0 7.4-5 12.6-12 12.6h-1.9c-5.9 0-9.8-3-11.7-8.3l-3-8c-.7-1.9.1-3.7 1.8-4.3'
+  + ' 1.6-.6 3.2.3 4.1 2l1.1 2.1V16Z"/></svg>';
 
 function tapHintClear(){
   if (tapHintT){ clearTimeout(tapHintT); tapHintT = null; }
