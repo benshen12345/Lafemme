@@ -780,6 +780,42 @@
   .men-msg h3{font-size:32px;margin-bottom:12px}
   .men-msg p{color:var(--muted);margin-bottom:24px}
   .card .ph:hover .cardimg{transform:scale(1.06)}
+  /* v170 —— 教客人「卡片可以点开」:一只手在照片上点两下,没有任何文字。
+     ⛔ 整块 pointer-events:none —— 它教的就是「点这里」,自己绝不能挡住那一下。
+     ⛔ 放在 .ph 里面(.ph 是 position:relative),所以跟着卡片走、滚动时不会飘。
+     ⚠️ **同一时间只有一张卡有它**。四张卡同时冒出四只手会像故障,不像引导。 */
+  .tap-hint{position:absolute;inset:0;z-index:6;pointer-events:none;
+    opacity:0;transition:opacity .4s ease}
+  .tap-hint.on{opacity:1}
+  /* 涟漪:从指尖那一点扩散出去。指尖在手图标的顶端,所以圆心要往上偏。 */
+  /* 圆心要落在**指尖**上,不是手的中心 —— 指尖在图标里大约偏上 30px、偏左 7px。 */
+  .tap-hint-ring{position:absolute;top:50%;left:50%;border-radius:50%;
+    margin-top:-30px;margin-left:-7px;transform:translate(-50%,-50%);
+    border:1.6px solid rgba(255,255,255,.95);box-shadow:0 0 20px rgba(20,16,12,.4);
+    animation:tapRing 1.5s ease-out 2 both}
+  /* 手:白色填充 + 一圈深色描边 —— 照片有明有暗,只靠白色会在浅色礼服上消失。 */
+  .tap-hint-hand{position:absolute;top:50%;left:50%;width:52px;height:auto;
+    transform:translate(-50%,-50%);
+    filter:drop-shadow(0 3px 10px rgba(20,16,12,.55));
+    animation:tapPress 1.5s ease-in-out 2 both}
+  /* 第一遍粗描边当轮廓,第二遍纯白盖掉重叠处的内部线条 */
+  .tap-hand-out{fill:#FFF;stroke:rgba(20,16,12,.55);stroke-width:5;stroke-linejoin:round}
+  .tap-hand-in{fill:#FFF}
+  @keyframes tapRing{
+    0%{width:14px;height:14px;opacity:0}
+    18%{opacity:.95}
+    70%{width:74px;height:74px;opacity:0}
+    100%{width:74px;height:74px;opacity:0}}
+  /* 手往下压再回来 —— 幅度只有 7px,再大就像在挥手不像在点 */
+  @keyframes tapPress{
+    0%,100%{transform:translate(-50%,-50%)}
+    22%{transform:translate(-50%,calc(-50% + 7px))}
+    46%{transform:translate(-50%,-50%)}}
+  /* 关掉动画的人:手静止显示,涟漪停在最大那一圈 —— 信息还在,没有任何跳动 */
+  @media(prefers-reduced-motion:reduce){
+    .tap-hint-hand{animation:none}
+    .tap-hint-ring{animation:none;width:74px;height:74px;opacity:.85}
+  }
   /* v150 —— 大图改回填满整个框(cover),不再留边。
      v146 我把它改成 contain(整张显示、两边用同一张照片的模糊版垫底),
      是为了让不是 2:3 的照片不被裁。结果在真机上那两条边看起来就像排版出错 ——
@@ -2293,6 +2329,10 @@ function renderCatalogue(styles){
   pruneFacets();                       // 链接里带的筛选值,这批数据里没有就丢掉
   renderSortOptions(); renderShareLabel(); applySort();
   renderCategoryChips(); renderMaterialChips(); renderSwatches(); renderBrandChips(); applyFilter(); checkEmpty();
+  /* v170 —— 首次渲染也要挂上「点一下看细节」。
+     ⚠️ 别只挂在筛选那几处 —— 大多数客人**一个筛选都不点**,
+        第一版就漏了这里,提示一次都没出现过。 */
+  maybeTapHint();
   syncGenderTabs();
   /* v151 —— 分享链接进来的那一件,要把页面停在**那张卡**上,不是目录最上面。
      原来走的是 showResults(锚点是「Showing N pieces」那一行),所以关掉弹窗之后
@@ -2593,6 +2633,139 @@ function revealStagger(list){
   });
 }
 const visible = () => [...document.querySelectorAll(".card:not(.hide)")];
+/* ===== v170 —— 教客人「卡片可以点开」 =====
+   Ben 2026-08-21 定的节奏(原话):
+     「a hand icon to click the picture, will take 3sec then disappear,
+      then after 7sec come again, if user stop at a page 2 sec,
+      and the screen will only have 1 picture have this function —
+      if have 4 gowns or suits display then only 1 will appear,
+      or they continue 1 by 1」
+
+   于是这是一个**循环**,不是一次性提示:
+     停下不动 2 秒 → 挑一张卡,手点 3 秒 → 收起 → 等 7 秒 → **换下一张卡** → …
+
+   四条硬约束:
+     ⛔ **同一时间只有一张卡有手**。四只手一起冒出来像故障,不像引导。
+     ⛔ **每一轮换下一张**(按 DOM 顺序在「当前看得见的卡」里轮转),
+        所以客人看到的是「这张能点、那张也能点」,而不是同一张一直闪。
+     ⛔ **一动就重来**:滚动 / 触摸都算「还在动」,当场收起,重新等 2 秒。
+        在滚动过程中播动画等于没播,而且会让人以为页面卡了。
+     ⛔ **点开过任何一件就永久停**(localStorage)—— 他已经学会了,再教就是骚扰。
+
+   ⚠️ 还有一道闸 Ben 没提但必须有:`TAP_HINT_MAX` —— 一次浏览最多演 4 轮。
+      没有这个上限它会**一直循环到客人关掉页面**,一个永远在动的东西会先变成噪音、
+      再变成「这网站有毛病」。要放开就把这个数字调大,别把它删掉。 */
+const TAP_HINT_KEY  = "lafemme_tap_hint_v1";
+const TAP_HINT_DWELL = 2000;   // 停下不动多久才开始
+const TAP_HINT_SHOW  = 3000;   // 手停留多久
+const TAP_HINT_GAP   = 7000;   // 两轮之间隔多久
+const TAP_HINT_MAX   = 4;      // 一次浏览最多演几轮(见上面那段)
+let tapHintOff = false, tapHintShows = 0, tapHintSeq = 0;
+let tapHintT = null;           // 唯一的定时器 —— 三个阶段共用,永远只有一个在跑
+try { tapHintOff = localStorage.getItem(TAP_HINT_KEY) === "1"; } catch(e){}
+
+/* 一只手,食指点下去。
+   🔴 前两版都画歪了,而且歪得很难看:
+     · 第一版一条 path 写下来,`v27h1.5` 那一段多长出一根手指 → 看着像**两根手指**;
+     · 第二版改成基本图形,但食指在拳头**正中间**、拳头是个光滑的圆
+       → 一根手指从圆拳中间竖起来,读出来是**竖中指**。
+   ⛔ 装饰图形一定要**按最终尺寸截图看过**再用(v169 那个「像国际象棋兵」也是这么查出来的)。
+   现在这版三件事让它读成「点一下」:食指挪到**左侧**(食指本来就在左边)、
+   右边加三个**指节**(手指是折起来的,不是没有)、左下角一个拇指。
+   ⚠️ 同一组图形画两遍:第一遍带粗描边当轮廓,第二遍纯白盖住内部的描边线,
+      这样重叠处不会有多余的线。**不要用 <use> + id** —— 淡出的旧提示和新提示会
+      短暂共存,id 撞车这个项目已经踩过一次(cloneNode 那次)。 */
+const TAP_HAND_SHAPES =
+    '<rect x="14" y="5" width="12" height="38" rx="6"/>'
+  + '<rect x="24" y="26" width="12" height="18" rx="6"/>'
+  + '<rect x="32" y="29" width="11" height="16" rx="5.5"/>'
+  + '<rect x="39" y="33" width="10" height="14" rx="5"/>'
+  + '<rect x="13" y="36" width="36" height="30" rx="14"/>'
+  + '<rect x="4" y="38" width="11" height="19" rx="5.5" transform="rotate(-28 9.5 47.5)"/>';
+const TAP_HAND_SVG =
+  '<svg class="tap-hint-hand" viewBox="0 0 56 74" aria-hidden="true" focusable="false">'
+  + '<g class="tap-hand-out">' + TAP_HAND_SHAPES + '</g>'
+  + '<g class="tap-hand-in">'  + TAP_HAND_SHAPES + '</g></svg>';
+
+function tapHintClear(){
+  if (tapHintT){ clearTimeout(tapHintT); tapHintT = null; }
+}
+function tapHintHide(){
+  const el = document.querySelector(".tap-hint");
+  if (!el) return;
+  el.classList.remove("on");
+  setTimeout(() => { try { el.remove(); } catch(e){} }, 450);
+}
+/* 点开过 = 学会了,永久关掉 */
+function tapHintLearned(){
+  tapHintOff = true;
+  tapHintClear(); tapHintHide();
+  try { localStorage.setItem(TAP_HINT_KEY, "1"); } catch(e){}
+}
+/* 当前**看得见**的卡(至少露出一半),按 DOM 顺序 */
+function tapHintCards(){
+  const gridEl = document.getElementById("grid");
+  if (!gridEl) return [];
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  return [...gridEl.querySelectorAll(".card")].filter(c => {
+    /* ⚠️ 隐藏用的是 `.card.hide`(display:none),不是内联 style —— 判断要看 class */
+    if (c.classList.contains("hide") || c.offsetParent === null) return false;
+    const ph = c.querySelector(".ph"); if (!ph) return false;
+    const r = ph.getBoundingClientRect();
+    if (!r.height) return false;
+    const seen = Math.min(r.bottom, vh) - Math.max(r.top, 0);
+    return seen / r.height >= .55;
+  }).map(c => c.querySelector(".ph"));
+}
+/* 「停下不动 2 秒」的闸 —— 滚动、触摸都会把它按回去重新计时 */
+function tapHintArm(){
+  if (tapHintOff || tapHintShows >= TAP_HINT_MAX) return;
+  tapHintClear();
+  tapHintT = setTimeout(tapHintRound, TAP_HINT_DWELL);
+}
+function tapHintRound(){
+  tapHintT = null;
+  if (tapHintOff || tapHintShows >= TAP_HINT_MAX) return;
+  if (document.hidden) { tapHintArm(); return; }   // 切到别的标签页不演
+  const cards = tapHintCards();
+  if (!cards.length){ tapHintArm(); return; }      // 屏幕上没有卡,继续等
+  /* 轮转:这一轮用第 tapHintSeq 张,下一轮自动换下一张。
+     用取模,所以看得见的卡从 4 张变成 2 张也不会越界。 */
+  const target = cards[tapHintSeq % cards.length];
+  tapHintSeq++;
+  tapHintShow(target);
+}
+function tapHintShow(target){
+  if (tapHintOff || !target || !target.isConnected) return;
+  tapHintHide();                                   // 保证同一时间只有一只手
+  const h = document.createElement("div");
+  h.className = "tap-hint";
+  h.setAttribute("aria-hidden", "true");           // 纯装饰,读屏软件不需要听见
+  h.innerHTML = '<span class="tap-hint-ring"></span>' + TAP_HAND_SVG;
+  target.appendChild(h);
+  requestAnimationFrame(() => h.classList.add("on"));
+  tapHintShows++;
+  tapHintClear();
+  tapHintT = setTimeout(() => {
+    tapHintT = null;
+    tapHintHide();
+    if (tapHintShows < TAP_HINT_MAX) tapHintT = setTimeout(tapHintRound, TAP_HINT_GAP);
+  }, TAP_HINT_SHOW);
+}
+/* 客人还在动 = 收起,重新等 2 秒。
+   ⚠️ scroll 必须 passive —— 这个监听器挂在整页滚动上,不能拖慢滚动。 */
+function tapHintUserMoved(){
+  if (tapHintOff) return;
+  tapHintHide();
+  tapHintArm();
+}
+window.addEventListener("scroll", tapHintUserMoved, { passive: true });
+window.addEventListener("pointerdown", tapHintUserMoved, { passive: true });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) tapHintArm(); });
+/* 目录会渲染两次(离线副本 → Supabase 实时数据),第二次 `grid.innerHTML = ""`
+   会把手连同那张卡一起删掉 —— 所以每次渲染完都重新起一轮。 */
+function maybeTapHint(){ tapHintArm(); }
+
 function checkEmpty(){
   // don't show "nothing in that combination" when the catalogue itself failed to load
   const none = visible().length === 0 && CAT.length > 0;
@@ -2949,7 +3122,7 @@ chipsBox.addEventListener("click", e => {
   track("filter_use", { filter_key: "category", filter_value: state.category });
   clearSearchInput();
   pruneColor();
-  renderCategoryChips(); renderMaterialChips(); renderSwatches(); applyFilter(); revealStagger(visible()); checkEmpty();
+  renderCategoryChips(); renderMaterialChips(); renderSwatches(); applyFilter(); revealStagger(visible()); checkEmpty(); maybeTapHint();
 });
 if (materialChips) materialChips.addEventListener("click", e => {
   const chip = e.target.closest(".chip"); if (!chip) return;
@@ -2958,7 +3131,7 @@ if (materialChips) materialChips.addEventListener("click", e => {
   track("filter_use", { filter_key: "material", filter_value: state.material });
   clearSearchInput();
   pruneColor();
-  renderCategoryChips(); renderMaterialChips(); renderSwatches(); applyFilter(); revealStagger(visible()); checkEmpty();
+  renderCategoryChips(); renderMaterialChips(); renderSwatches(); applyFilter(); revealStagger(visible()); checkEmpty(); maybeTapHint();
 });
 swatchBox.addEventListener("click", e => {
   const btn = e.target.closest("[data-color]"); if (!btn) return;
@@ -2966,7 +3139,7 @@ swatchBox.addEventListener("click", e => {
   state.color = (state.color === val) ? "all" : val;   // click again to deselect
   track("filter_use", { filter_key: "colour", filter_value: state.color });
   clearSearchInput();
-  renderSwatches(); applyFilter(); revealStagger(visible()); checkEmpty();
+  renderSwatches(); applyFilter(); revealStagger(visible()); checkEmpty(); maybeTapHint();
 });
 if (brandChips) brandChips.addEventListener("click", e => {
   const chip = e.target.closest(".chip"); if (!chip) return;
@@ -2974,7 +3147,7 @@ if (brandChips) brandChips.addEventListener("click", e => {
   state.brand = (state.brand === val) ? "all" : val;   // click again to deselect
   track("filter_use", { filter_key: "brand", filter_value: state.brand });
   clearSearchInput();
-  renderBrandChips(); applyFilter(); revealStagger(visible()); checkEmpty();
+  renderBrandChips(); applyFilter(); revealStagger(visible()); checkEmpty(); maybeTapHint();
 });
 
 /* ---------- Women / Men tabs ---------- */
@@ -3008,7 +3181,7 @@ document.querySelectorAll(".tab").forEach(tab => {
     state.material = "all";
     state.color    = "all";
     state.brand    = "all";
-    renderCategoryChips(); renderMaterialChips(); renderSwatches(); renderBrandChips(); applyFilter(); revealStagger(visible()); checkEmpty();
+    renderCategoryChips(); renderMaterialChips(); renderSwatches(); renderBrandChips(); applyFilter(); revealStagger(visible()); checkEmpty(); maybeTapHint();
     updateMenNotice();
   });
 });
@@ -3118,7 +3291,7 @@ if (filterClearBtn) filterClearBtn.addEventListener("click", () => {
   state.category = "all"; state.material = "all"; state.color = "all"; state.brand = "all";
   clearSearchInput();
   renderCategoryChips(); renderMaterialChips(); renderSwatches(); renderBrandChips();
-  applyFilter(); revealStagger(visible()); checkEmpty();
+  applyFilter(); revealStagger(visible()); checkEmpty(); maybeTapHint();
 });
 
 /* The collection section uses will-change/opacity (data-aura), which creates a stacking
@@ -3228,6 +3401,7 @@ function fitTitle(){
 window.addEventListener("resize", () => { if (lb && lb.classList.contains("open")) fitTitle(); });
 
 function openLb(i, vi){
+  tapHintLearned();   /* v170 —— 点开过一次就永远不用再教了 */
   const st = CAT[i]; let cur = vi || 0;
   const v0 = st.v[cur];
   track("card_open", { gender: st.g, style_id: st.i, style_name: st.n, style_ref: v0.ref, colour: v0.c, colour_family: v0.f });

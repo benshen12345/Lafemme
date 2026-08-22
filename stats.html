@@ -778,9 +778,13 @@ async function loadColourSplit(r){
   CSPLIT = {}; CSPLIT_ID = {};
   try {
     const { data, error } = await withTimeout(
+      /* 🔴 v133 —— 补上 order。没有 order 的 `.limit()` 留下的是**最旧**的一万条,
+         所以最近上新的款在颜色点上会一个点都没有。newest first 之后,
+         被切掉的是范围最旧那一头 —— 至少是可预期的那一头。 */
       sb.from("events").select("style_id, colour_family")
         .eq("event_type", "colour_switch")
         .gte("occurred_at", r.p_from).lt("occurred_at", r.p_to)
+        .order("occurred_at", { ascending: false })
         .limit(10000), 12000, "Colours");
     if (error || !data) return;
     data.forEach(e => {
@@ -810,29 +814,61 @@ function colourDots(s){
    (search stores q; filter_use stores filter_key + filter_value), so no SQL is needed.
    Terms are grouped case-insensitively and counted. */
 let SEARCHES = [], FILTERS = {}, FAQS = [], SHARED = {}, SHARED_PIECE = {}, BEHAV_ERR = "";
+let BEHAV_TRUNC = {};   /* event_type → 被截断时的条数上限,用来在面板上直说 */
+
+/* 🔴 v133 —— 一次读一种事件,而且**永远 newest first**。
+   以前四种事件挤在同一条查询里、共用一个 `.limit(10000)`,而且**没有 order** ——
+   Postgres 不保证顺序,实际按物理顺序(≈最旧优先)返回,于是 10000 条一满,
+   最新的那一头被整批丢掉:
+     · `share_view` 是 8/17 才加的按钮 —— 它的行**全部**在最新那一头,
+       所以 30 天范围里「最常被分享的视图 / 单品」两个面板**永远是空的**;
+     · 搜索词同理,只有窗口窄到总量不足 10000(比如「最近 7 天」)才看得见。
+   这正是 loadSessions 那段注释里已经记过一次的错(`ascending: true` + 上限
+   = 留下最旧的、丢掉最新的),但当时只修了 Visits 那一处,这里、颜色拆分、
+   预约计数三处都还留着。
+   ⛔ 改这段之前记住两条:
+     1. 有 `.limit()` 就**必须**有 `.order()`,否则「留下哪些」是随机的;
+     2. 上限被打满要**说出来**,不能让「只统计了一部分」看起来像「就这么多」。
+   代价:4 次往返代替 1 次,但四条并发发出,慢的是最慢那一条,不是四条相加。
+   而且每种事件各有各的额度 —— 话最多的 `filter_use` 再也挤不掉搜索和分享。 */
+const BEHAV_CAP = 10000;
+async function loadBehavRows(type, cols, r, label){
+  const { data, error } = await withTimeout(
+    sb.from("events").select(cols)
+      .eq("event_type", type)
+      .gte("occurred_at", r.p_from).lt("occurred_at", r.p_to)
+      .order("occurred_at", { ascending: false })
+      .limit(BEHAV_CAP), 12000, label);
+  if (error) throw new Error(error.message || "the query was refused");
+  if (!data) throw new Error("no response from the database");
+  if (data.length >= BEHAV_CAP) BEHAV_TRUNC[type] = BEHAV_CAP;
+  return data;
+}
 async function loadSearchAndFilters(r){
-  SEARCHES = []; FILTERS = {}; FAQS = []; SHARED = {}; SHARED_PIECE = {}; BEHAV_ERR = "";
+  SEARCHES = []; FILTERS = {}; FAQS = []; SHARED = {}; SHARED_PIECE = {}; BEHAV_ERR = ""; BEHAV_TRUNC = {};
   try {
-    const { data, error } = await withTimeout(
-      /* v131 —— 多取 style_id / style_name / colour 三列,给「最常被分享的单品」用。
-         同一条查询,只是多几列,没有多一次往返。 */
-      sb.from("events").select("event_type, q, filter_key, filter_value, style_id, style_name, colour")
-        .in("event_type", ["search", "filter_use", "faq_open", "share_view"])
-        .gte("occurred_at", r.p_from).lt("occurred_at", r.p_to)
-        .limit(10000), 12000, "Searches");
-    /* an empty panel used to look identical whether the query returned nothing or failed
-       outright, so a permissions problem read as "no customers did this yet". Keep the
-       reason and show it. */
-    if (error){ BEHAV_ERR = error.message || "the query was refused"; return; }
-    if (!data){ BEHAV_ERR = "no response from the database"; return; }
+    /* v131 —— share_view 多取 style_id / style_name / colour 三列,给「最常被分享的单品」用。 */
+    const [searchRows, filterRows, faqRows, shareRows] = await Promise.all([
+      loadBehavRows("search",     "q",                                           r, "Searches"),
+      loadBehavRows("filter_use", "filter_key, filter_value",                    r, "Filters"),
+      loadBehavRows("faq_open",   "q",                                           r, "FAQ"),
+      loadBehavRows("share_view", "filter_key, filter_value, style_id, style_name, colour", r, "Shares")
+    ]);
     const terms = {}, faqs = {};
-    data.forEach(e => {
-      if (e.event_type === "search" && e.q) {
-        const key = e.q.trim().toLowerCase();
-        if (key) terms[key] = (terms[key] || 0) + 1;
-      } else if (e.event_type === "faq_open" && e.q) {
-        faqs[e.q] = (faqs[e.q] || 0) + 1;
-      } else if (e.event_type === "share_view" && e.filter_key === "piece") {
+    searchRows.forEach(e => {
+      if (!e.q) return;
+      const key = e.q.trim().toLowerCase();
+      if (key) terms[key] = (terms[key] || 0) + 1;
+    });
+    faqRows.forEach(e => { if (e.q) faqs[e.q] = (faqs[e.q] || 0) + 1; });
+    filterRows.forEach(e => {
+      if (e.filter_key && e.filter_value && e.filter_value !== "all"){
+        (FILTERS[e.filter_key] || (FILTERS[e.filter_key] = {}))[e.filter_value] =
+          (FILTERS[e.filter_key][e.filter_value] || 0) + 1;
+      }
+    });
+    shareRows.forEach(e => {
+      if (e.filter_key === "piece") {
         /* v131 —— 弹窗里的「分享这一件」。跟上面那种分享共用 event_type(免得
            events 多一个新的 event_type 值),靠 filter_key='piece' 区分。
            按「款 + 颜色」归组:同一条裙子的黑色和红色是两件不同的东西。 */
@@ -844,14 +880,11 @@ async function loadSearchAndFilters(r){
           row.n++;
           if (!row.name && e.style_name) row.name = e.style_name;
         }
-      } else if (e.event_type === "share_view") {
+      } else {
         /* filter_value 就是分享那一刻地址栏的查询串;没有查询串时写的是 "all"(整个目录)。
            按查询串归组 —— 同一个视图被分享几次就数几次。 */
         const qs = e.filter_value || "all";
         SHARED[qs] = (SHARED[qs] || 0) + 1;
-      } else if (e.event_type === "filter_use" && e.filter_key && e.filter_value && e.filter_value !== "all") {
-        (FILTERS[e.filter_key] || (FILTERS[e.filter_key] = {}))[e.filter_value] =
-          (FILTERS[e.filter_key][e.filter_value] || 0) + 1;
       }
     });
     SEARCHES = Object.entries(terms).sort((a, b) => b[1] - a[1]);
@@ -882,30 +915,38 @@ async function loadSearchAndFilters(r){
    an inference about old data, so the UI labels that part as estimated rather than passing
    it off as recorded. */
 let BOOK_ERR = "";
+/* 🔴 v133 —— 这块以前是「把行拉回来自己数」,`.limit(10000)` 而且没有 order。
+   同一个坑:范围一宽,10000 条满了就只留最旧的一段,**KPI 上那个「预约表单已发」
+   会少算**,而且少得毫无痕迹 —— 一个偏低的数字看起来跟真实的低一模一样。
+   现在改成让数据库自己数(`count:"exact", head:true`):不传任何行回来,
+   没有上限可打,数字**永远是准的**。
+   legacy `book_click`(2026-08-07 之前)的拆分靠 style_id 是否为空,
+   正好能用 `.is("style_id", null)` 直接在服务端分两次数。
+   ⛔ 以后再想「拉回来自己数」之前先想一次:能不能让数据库数。 */
+async function countEvents(build, label){
+  const { count, error } = await withTimeout(build, 12000, label);
+  if (error) throw new Error(error.message || "the query was refused");
+  return Number(count) || 0;
+}
 async function loadBookingCounts(r){
   BOOK_ERR = "";
+  const base = () => sb.from("events").select("*", { count: "exact", head: true })
+    .gte("occurred_at", r.p_from).lt("occurred_at", r.p_to);
   try {
-    const { data, error } = await withTimeout(
-      sb.from("events").select("event_type, style_id")
-        .in("event_type", ["book_submit", "add_fitting", "book_click"])
-        .gte("occurred_at", r.p_from).lt("occurred_at", r.p_to)
-        .limit(10000), 12000, "Bookings");
-    if (error){ BOOK_ERR = error.message || "the query was refused"; return null; }
-    if (!data){ BOOK_ERR = "no response from the database"; return null; }
-    let sent = 0, added = 0, legacySent = 0;
-    data.forEach(e => {
-      if (e.event_type === "book_submit") { sent++; return; }
-      if (e.event_type === "add_fitting") { added++; return; }
-      /* legacy `book_click` (pre 7 Aug 2026). The two call sites sent different fields,
-         which is what makes the split possible after the fact:
-           popup "add to fitting list" → the full meta, so style_id is SET
-           booking form submit         → only style_ref, so style_id is NULL
-         Verified against the v112 source before relying on it. The last book_click row
-         is 2026-08-06 and the first book_submit is 2026-08-07, so the two never overlap
-         and adding them cannot double-count. */
-      if (e.style_id) added++; else { sent++; legacySent++; }
-    });
-    return { sent, added, legacySent };
+    /* legacy `book_click` (pre 7 Aug 2026). The two call sites sent different fields,
+       which is what makes the split possible after the fact:
+         popup "add to fitting list" → the full meta, so style_id is SET
+         booking form submit         → only style_ref, so style_id is NULL
+       Verified against the v112 source before relying on it. The last book_click row
+       is 2026-08-06 and the first book_submit is 2026-08-07, so the two never overlap
+       and adding them cannot double-count. */
+    const [submits, adds, legacySent, legacyAdded] = await Promise.all([
+      countEvents(base().eq("event_type", "book_submit"), "Bookings"),
+      countEvents(base().eq("event_type", "add_fitting"), "Bookings"),
+      countEvents(base().eq("event_type", "book_click").is("style_id", null),  "Bookings"),
+      countEvents(base().eq("event_type", "book_click").not("style_id", "is", null), "Bookings")
+    ]);
+    return { sent: submits + legacySent, added: adds + legacyAdded, legacySent };
   } catch(e){ BOOK_ERR = (e && e.message) || String(e); return null; }
 }
 
@@ -1026,6 +1067,16 @@ function behavEmpty(){
     ? `<p style="color:var(--bad);font-size:13px;line-height:1.6">Couldn't load this — ${esc(BEHAV_ERR)}.<br><span style="color:var(--muted)">The other panels use a different route to the database, so they can still work while this one doesn't.</span></p>`
     : NODATA;
 }
+/* 🔴 v133 —— 打满上限要说出来。
+   一个「只统计了一部分」的面板,长得跟「就这么多」一模一样 —— 这正是
+   share_view 那两个面板空了好几天没人发现的原因。 */
+function truncNote(type){
+  const cap = BEHAV_TRUNC[type];
+  if (!cap) return "";
+  return `<p style="color:var(--bad);font-size:12px;line-height:1.55;margin-top:10px">
+    Only the most recent ${cap.toLocaleString()} of these were counted — this date range has more.
+    <span style="color:var(--muted)">Narrow the range to see a complete count.</span></p>`;
+}
 
 /* rental FAQ labels: the event stores a short slug, shown here as a readable question */
 const FAQ_LABELS = {
@@ -1092,7 +1143,7 @@ function renderSharedPieces(){
       <span class="termbar"><i style="width:${(o.n / max * 100).toFixed(1)}%"></i></span>
       <span class="termc">${o.n}</span>
     </div>`;
-  }).join("");
+  }).join("") + truncNote("share_view");
 }
 function renderSharedViews(){
   const box = $("sharedViews");
@@ -1120,7 +1171,7 @@ function renderSharedViews(){
       <span class="termbar"><i style="width:${(o.n / max * 100).toFixed(1)}%"></i></span>
       <span class="termc">${o.n}</span>
     </div>`;
-  }).join("");
+  }).join("") + truncNote("share_view");
 }
 function renderSearchTerms(){
   const box = $("searchTerms");
@@ -1132,7 +1183,7 @@ function renderSearchTerms(){
        <span class="termn">${esc(term)}</span>
        <span class="termbar"><i style="width:${(n / max * 100).toFixed(1)}%"></i></span>
        <span class="termc">${n}</span>
-     </div>`).join("");
+     </div>`).join("") + truncNote("search");
 }
 function renderFilterUse(){
   const box = $("filterUse");
@@ -1155,7 +1206,7 @@ function renderFilterUse(){
         </div>`;
       }).join("")}
     </div>`;
-  }).join("");
+  }).join("") + truncNote("filter_use");
 }
 
 function pieceOf(s){
