@@ -2646,29 +2646,29 @@ const visible = () => [...document.querySelectorAll(".card:not(.hide)")];
       and the screen will only have 1 picture have this function —
       if have 4 gowns or suits display then only 1 will appear,
       or they continue 1 by 1」
+   2026-08-22 又定了两条(他明确选的):
+     「when the user stop at **no matter which part of collection**, will trigger」
+     → ① **完全不记忆**,② **不限轮数**。
 
-   于是这是一个**循环**,不是一次性提示:
+   于是这是一个**一直在跑的循环**:
      停下不动 2 秒 → 挑一张卡,手点 3 秒 → 收起 → 等 7 秒 → **换下一张卡** → …
 
-   四条硬约束:
-     ⛔ **同一时间只有一张卡有手**。四只手一起冒出来像故障,不像引导。
-     ⛔ **每一轮换下一张**(按 DOM 顺序在「当前看得见的卡」里轮转),
-        所以客人看到的是「这张能点、那张也能点」,而不是同一张一直闪。
-     ⛔ **一动就重来**:滚动 / 触摸都算「还在动」,当场收起,重新等 2 秒。
-        在滚动过程中播动画等于没播,而且会让人以为页面卡了。
-     ⛔ **点开过任何一件就永久停**(localStorage)—— 他已经学会了,再教就是骚扰。
+   🔴 **推上线之后 Ben 说「看不到」,原因就是原来那道记忆闸**:
+      老版本在 `openLb()` 里写 `localStorage["lafemme_tap_hint_v1"]="1"` 永久关掉,
+      而他自己在这个站上点开过无数次礼服 —— 所以对他(和任何回头客)**永远不会再出现**。
+      实测:同一份线上文件,全新浏览器能出现,预置了那个 flag 的浏览器一次都不出现。
+   ⚠️ 现在**不写任何 localStorage / sessionStorage**。
+      代价 Ben 知道并且接受:**已经会点的客人每次停下都会被提示一次**。
+      要收回去的话,把 `tapHintSeen` 那类记忆加回来,别去动下面的节奏常量。
 
-   ⚠️ 还有一道闸 Ben 没提但必须有:`TAP_HINT_MAX` —— 一次浏览最多演 4 轮。
-      没有这个上限它会**一直循环到客人关掉页面**,一个永远在动的东西会先变成噪音、
-      再变成「这网站有毛病」。要放开就把这个数字调大,别把它删掉。 */
-const TAP_HINT_KEY  = "lafemme_tap_hint_v1";
+   ⛔ **没有轮数上限之后,「弹窗开着不能演」就从锦上添花变成了必需**:
+      大图弹窗 / 筛选抽屉盖住屏幕时,底下的卡片在几何上仍然是「可见」的,
+      不挡的话手会在弹窗**背后**动,客人只看到边缘一闪一闪。 */
 const TAP_HINT_DWELL = 2000;   // 停下不动多久才开始
 const TAP_HINT_SHOW  = 3000;   // 手停留多久
 const TAP_HINT_GAP   = 7000;   // 两轮之间隔多久
-const TAP_HINT_MAX   = 4;      // 一次浏览最多演几轮(见上面那段)
-let tapHintOff = false, tapHintShows = 0, tapHintSeq = 0;
+let tapHintSeq = 0;
 let tapHintT = null;           // 唯一的定时器 —— 三个阶段共用,永远只有一个在跑
-try { tapHintOff = localStorage.getItem(TAP_HINT_KEY) === "1"; } catch(e){}
 
 /* 一只手,食指点下去 —— **一条细金线,不填色**。
    🔴 前三版都被否掉了,每一版都是截图才看出来的:
@@ -2696,11 +2696,20 @@ function tapHintHide(){
   el.classList.remove("on");
   setTimeout(() => { try { el.remove(); } catch(e){} }, 450);
 }
-/* 点开过 = 学会了,永久关掉 */
-function tapHintLearned(){
-  tapHintOff = true;
-  tapHintClear(); tapHintHide();
-  try { localStorage.setItem(TAP_HINT_KEY, "1"); } catch(e){}
+/* 🔴 屏幕被盖住的时候不演。
+   大图弹窗和筛选抽屉都是覆盖层,底下的卡片在 getBoundingClientRect 看来**照样可见** ——
+   不挡的话手会在弹窗背后动,客人只看到边缘一闪一闪,像故障。 */
+function tapHintBlocked(){
+  const lbEl = document.getElementById("lb");
+  if (lbEl && lbEl.classList.contains("open")) return true;
+  const fp = document.getElementById("filterPanel");
+  if (fp && fp.classList.contains("open")) return true;
+  return false;
+}
+/* 收起并停掉,但**不写任何记忆** —— 关掉弹窗之后还会继续教 */
+function tapHintSuspend(){
+  tapHintClear();
+  tapHintHide();
 }
 /* 当前**看得见**的卡(至少露出一半),按 DOM 顺序 */
 function tapHintCards(){
@@ -2719,16 +2728,14 @@ function tapHintCards(){
 }
 /* 「停下不动 2 秒」的闸 —— 滚动、触摸都会把它按回去重新计时 */
 function tapHintArm(){
-  if (tapHintOff || tapHintShows >= TAP_HINT_MAX) return;
   tapHintClear();
   tapHintT = setTimeout(tapHintRound, TAP_HINT_DWELL);
 }
 function tapHintRound(){
   tapHintT = null;
-  if (tapHintOff || tapHintShows >= TAP_HINT_MAX) return;
-  if (document.hidden) { tapHintArm(); return; }   // 切到别的标签页不演
+  if (document.hidden || tapHintBlocked()){ tapHintArm(); return; }  // 盖住了/切走了就继续等
   const cards = tapHintCards();
-  if (!cards.length){ tapHintArm(); return; }      // 屏幕上没有卡,继续等
+  if (!cards.length){ tapHintArm(); return; }   // 屏幕上没有卡(在首屏或页脚),继续等
   /* 轮转:这一轮用第 tapHintSeq 张,下一轮自动换下一张。
      用取模,所以看得见的卡从 4 张变成 2 张也不会越界。 */
   const target = cards[tapHintSeq % cards.length];
@@ -2736,7 +2743,7 @@ function tapHintRound(){
   tapHintShow(target);
 }
 function tapHintShow(target){
-  if (tapHintOff || !target || !target.isConnected) return;
+  if (!target || !target.isConnected) return;
   tapHintHide();                                   // 保证同一时间只有一只手
   const h = document.createElement("div");
   h.className = "tap-hint";
@@ -2744,18 +2751,16 @@ function tapHintShow(target){
   h.innerHTML = '<span class="tap-hint-ring"></span>' + TAP_HAND_SVG;
   target.appendChild(h);
   requestAnimationFrame(() => h.classList.add("on"));
-  tapHintShows++;
   tapHintClear();
   tapHintT = setTimeout(() => {
     tapHintT = null;
     tapHintHide();
-    if (tapHintShows < TAP_HINT_MAX) tapHintT = setTimeout(tapHintRound, TAP_HINT_GAP);
+    tapHintT = setTimeout(tapHintRound, TAP_HINT_GAP);   // 不限轮数:一直循环
   }, TAP_HINT_SHOW);
 }
 /* 客人还在动 = 收起,重新等 2 秒。
    ⚠️ scroll 必须 passive —— 这个监听器挂在整页滚动上,不能拖慢滚动。 */
 function tapHintUserMoved(){
-  if (tapHintOff) return;
   tapHintHide();
   tapHintArm();
 }
@@ -3401,7 +3406,7 @@ function fitTitle(){
 window.addEventListener("resize", () => { if (lb && lb.classList.contains("open")) fitTitle(); });
 
 function openLb(i, vi){
-  tapHintLearned();   /* v170 —— 点开过一次就永远不用再教了 */
+  tapHintSuspend();   /* v170 —— 弹窗开着的时候不演;关掉之后 closeLb 会重新起一轮 */
   const st = CAT[i]; let cur = vi || 0;
   const v0 = st.v[cur];
   track("card_open", { gender: st.g, style_id: st.i, style_name: st.n, style_ref: v0.ref, colour: v0.c, colour_family: v0.f });
@@ -3610,6 +3615,7 @@ let lbHistoryActive = false;
 let LB_PREV_SR = "auto";
 function closeLb(fromPop){
   lb.classList.remove("open");
+  tapHintArm();   /* v170 —— 关掉大图之后重新起一轮(不记忆,所以还会继续教) */
   document.body.style.overflow = "";
   if (lastFocus) lastFocus.focus();
   if (lbHistoryActive){
