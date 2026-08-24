@@ -132,7 +132,16 @@
      下面那条 scroll-margin-top 一写,浏览器自己就会按这个距离停 ——
      JS 不再需要「量头高 + 减 NAV_GAP」那套算术。
      以后某个区块要单独调,就给它的锚点单独写一条 scroll-margin-top,不用改 JS。 */
-  html{scroll-behavior:smooth;overflow-x:clip;
+  /* 🔴 v171 —— `overflow:clip` 要 **iOS Safari 16.0+**(caniuse,2026-08-22 查证)。
+     iOS 15 及更早**整条声明被丢掉** → 等于 `overflow-x:visible`,
+     页面就可能被横向拖动(Ben 的朋友那台 iPhone 报的「边缘能拖、不稳」)。
+     所以先写 `hidden` 兜底,再用 @supports 让新浏览器用 `clip`。
+     ⚠️ 为什么不直接一直用 hidden:`overflow:hidden` 会把根元素变成**滚动容器**,
+        会破坏 `position:sticky`(本项目 0 处使用,所以这个兜底是安全的)。
+        以后**要用 sticky 之前先回来看这一段**。 */
+  html,body{overflow-x:hidden}
+  @supports (overflow:clip){ html,body{overflow-x:clip} }
+  html{scroll-behavior:smooth;
        -webkit-text-size-adjust:100%;text-size-adjust:100%;
        --hdr-h:82px; --nav-gap:34px;
        scroll-padding-top:calc(var(--hdr-h) + var(--nav-gap))}
@@ -351,10 +360,26 @@
   .hero-left{
     position:relative;z-index:3;
     display:flex;align-items:center;padding:120px 6% 64px 14%;
+    /* ⛔ grid 项默认 `min-width:auto` —— 里面只要有一个不可换行的长块,
+       它就会**把整条 grid 撑宽**,而不是自己被裁。这正是 383px 那个 bug 的机制。
+       钉成 0 之后,再长的内容也只会在自己格子里被裁,不会顶穿页面。 */
+    min-width:0;
   }
+  .hero-right{min-width:0}
   .hero-copy{max-width:460px}
   .hero-copy .kicker{display:block;color:var(--gold-deep);opacity:0;animation:fadeup .9s ease .5s forwards}
-  .hero-copy h1{font-size:clamp(46px,4.8vw,82px);line-height:1.02;margin:22px 0 8px;color:var(--gold-deep);font-weight:500}
+  /* 🔴 v171 —— 窄屏字号必须跟着缩,否则首屏会把页面撑宽。
+     h1 里两行都用 `&nbsp;` 钉成**不可换行**(那是设计:两行,每行不断开),
+     所以「the moment.」在 46px 下是一个 **323px 的整块**。
+     加上 .hero-left 的左右内边距 60px = **383px** —— 比 320/360/375 的屏幕都宽。
+     ⚠️ **这个在 Chromium 上量不出来**(23 档全报 0 溢出),
+        是 2026-08-23 装了真 WebKit(WebKitGTK 2.52.3 / AppleWebKit 605.1.15)才照出来的:
+        320 → 超出 63px,360 → 23px,375 → 8px。
+        iOS 16+ 被 overflow:clip 藏住了,iOS 15 及更早 clip 无效 → **页面能横向拖**。
+     曲线:≥407px 跟原来**一模一样**(46px 起,4.8vw 到 82px 封顶),
+           只有 <407px 才按 11.3vw 缩下去 —— 320px 上是 36px。
+     ⛔ 改这行之前先算一遍:最长那行 46px 时 323px,按比例缩完必须 ≤ 视口 − 60。 */
+  .hero-copy h1{font-size:clamp(36px,max(min(11.3vw,46px),4.8vw),82px);line-height:1.02;margin:22px 0 8px;color:var(--gold-deep);font-weight:500}
   .hero-copy h1 .w{display:inline-block;overflow:hidden;vertical-align:bottom}
   .hero-copy h1 .w span{display:inline-block;transform:translateY(110%);animation:riseword .9s cubic-bezier(.19,1,.22,1) forwards}
   .hero-copy h1 .w:nth-child(1) span{animation-delay:.65s}
@@ -974,6 +999,19 @@
      they can only be removed. The fade alone still gives the panel an entrance. */
   @keyframes lbpop{from{opacity:0}to{opacity:1}}
   .lb-ph{position:relative;aspect-ratio:2/3;min-height:0;background:var(--panel);overflow:hidden}
+  /* v171 —— 大图可以放大看细节(蕾丝、亮片、走线)。
+     ⚠️ 只在**放大之后**才设 touch-action:none —— 1 倍时必须让 iOS 照常滚页面、
+        也让左右滑动换色继续工作。一上来就 none 会把整页滚动锁死在照片上。 */
+  .lb-img{transform-origin:0 0;will-change:transform}
+  .lb-ph.zoomed{touch-action:none;cursor:grab}
+  .lb-ph.zoomed .lb-nav{opacity:0;pointer-events:none}   /* 放大时左右箭头让位给拖动 */
+  .lb-zoom-tip{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);
+    z-index:4;pointer-events:none;white-space:nowrap;
+    background:rgba(20,16,12,.62);color:#FAF7F2;
+    -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+    padding:6px 12px;border-radius:999px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    opacity:0;transition:opacity .4s ease}
+  .lb-zoom-tip.on{opacity:1}
   .lb-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:40px;height:40px;border-radius:50%;border:0;background:rgba(20,16,12,.42);color:#fff;font-size:24px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .2s ease;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
   .lb-nav:hover{background:rgba(20,16,12,.66)}
   .lb-prev{left:10px}
@@ -3407,6 +3445,10 @@ window.addEventListener("resize", () => { if (lb && lb.classList.contains("open"
 
 function openLb(i, vi){
   tapHintSuspend();   /* v170 —— 弹窗开着的时候不演;关掉之后 closeLb 会重新起一轮 */
+  /* v171 —— 每次打开都从 1 倍开始,并提示一次可以放大。
+     ⛔ 不重置的话下一件会**继承上一件的放大和位移**,客人打开就是一片布料特写。 */
+  try { window.lbResetZoom && window.lbResetZoom(); } catch(e){}
+  try { window.lbZoomTip  && setTimeout(window.lbZoomTip, 700); } catch(e){}
   const st = CAT[i]; let cur = vi || 0;
   const v0 = st.v[cur];
   track("card_open", { gender: st.g, style_id: st.i, style_name: st.n, style_ref: v0.ref, colour: v0.c, colour_family: v0.f });
@@ -3582,7 +3624,9 @@ function openLb(i, vi){
   const multi = st.v.length > 1;
   const lbPrev = document.getElementById("lbPrev"), lbNext = document.getElementById("lbNext");
   lbPrev.style.display = lbNext.style.display = multi ? "flex" : "none";
-  const step = (d) => show(cur + d, d > 0 ? 1 : -1);
+  /* v171 —— 换颜色要回到 1 倍。放大着换色的话,新照片会顶着旧的位移出现,
+     看起来像照片跳了一下。 */
+  const step = (d) => { try { window.lbResetZoom && window.lbResetZoom(); } catch(e){} return show(cur + d, d > 0 ? 1 : -1); };
   lbPrev.onclick = () => step(-1);
   lbNext.onclick = () => step(1);
   lbNav = multi ? step : null;
@@ -3615,6 +3659,7 @@ let lbHistoryActive = false;
 let LB_PREV_SR = "auto";
 function closeLb(fromPop){
   lb.classList.remove("open");
+  try { window.lbResetZoom && window.lbResetZoom(); } catch(e){}   /* v171 */
   tapHintArm();   /* v170 —— 关掉大图之后重新起一轮(不记忆,所以还会继续教) */
   document.body.style.overflow = "";
   if (lastFocus) lastFocus.focus();
@@ -3634,29 +3679,146 @@ document.addEventListener("keydown", e => {
   if (e.key === "ArrowLeft")  lbNav(-1);
   if (e.key === "ArrowRight") lbNav(1);
 });
-/* swipe left/right on the popup photo to change colour (attached once; reads lbNav) */
-(function lbSwipe(){
+/* ===== v171 —— 大图:滑动换色 + 双指 / 双击放大 =====
+   Ben 2026-08-22:「after they click the gown, they can zoom it」。
+
+   两件事**必须写在同一个闭包里**,因为它们抢同一块手势:
+     · 1 倍时:一根手指左右滑 = 换色,上下滑 = 滚页面(维持原样)
+     · 放大后:一根手指 = 拖动照片,左右箭头让位,不再换色
+
+   ⛔ **1 倍时绝不能设 `touch-action:none`** —— 那会把整页滚动锁死在照片上。
+      只有 `.zoomed` 那一档才设,靠 class 切换。
+   ⛔ iOS Safari 的双指缩放要拦 **`gesturestart` / `gesturechange`**(WebKit 私有事件)
+      —— 光靠 touchmove 的 preventDefault 在部分 iOS 版本上拦不住整页缩放,
+      而整页被缩放之后就会出现「边缘能拖、页面不稳」。
+   ⚠️ 沙箱只有 Chromium **没有 WebKit**:双指和 gesture* 那几条**我验不了**,
+      下面测到的是 Chromium 的 pointer/touch 行为。真机要 Ben 看一眼。 */
+(function lbPhoto(){
   const lbPh = document.querySelector(".lb-ph");
-  if (!lbPh) return;
+  const img  = document.getElementById("lbImg");
+  if (!lbPh || !img) return;
+
+  const MAX = 4, DBL = 2.5;
+  let scale = 1, tx = 0, ty = 0;
+
+  function apply(){
+    img.style.transform = scale === 1 ? "" : `translate(${tx}px,${ty}px) scale(${scale})`;
+    lbPh.classList.toggle("zoomed", scale > 1);
+    lbPh.style.touchAction = scale > 1 ? "none" : "pan-y";
+  }
+  /* 夹住边界:放大后不能把照片拖出框,留白比照片本身更显廉价 */
+  function clamp(){
+    const r = lbPh.getBoundingClientRect();
+    const maxX = r.width  * (scale - 1);
+    const maxY = r.height * (scale - 1);
+    tx = Math.min(0, Math.max(-maxX, tx));
+    ty = Math.min(0, Math.max(-maxY, ty));
+  }
+  /* 以某一点为锚缩放 —— 双指的中点、或双击的落点,那一点在屏幕上不能动 */
+  function zoomAt(next, cx, cy){
+    const r = lbPh.getBoundingClientRect();
+    const px = cx - r.left, py = cy - r.top;
+    next = Math.min(MAX, Math.max(1, next));
+    const k = next / scale;
+    tx = px - k * (px - tx);
+    ty = py - k * (py - ty);
+    scale = next;
+    if (scale === 1){ tx = 0; ty = 0; }
+    clamp(); apply();
+  }
+  /* 换色 / 关掉弹窗都要回到 1 倍 —— 否则下一张会「继承」上一张的放大和位移 */
+  window.lbResetZoom = function(){ scale = 1; tx = 0; ty = 0; apply(); };
+
   lbPh.style.touchAction = "pan-y";
-  let sx = 0, sy = 0, axis = null, tracking = false;
+
+  /* ---- 双指缩放 ---- */
+  let pinch = null;
+  const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  const mid  = t => [(t[0].clientX + t[1].clientX) / 2, (t[0].clientY + t[1].clientY) / 2];
+
+  /* ---- 单指:1 倍滑动换色 / 放大后拖动 ---- */
+  let sx = 0, sy = 0, axis = null, tracking = false, panX = 0, panY = 0;
+
   lbPh.addEventListener("touchstart", e => {
+    if (e.touches.length === 2){
+      tracking = false;
+      const t = [e.touches[0], e.touches[1]];
+      pinch = { d: dist(t), s: scale };
+      e.preventDefault();
+      return;
+    }
     if (e.touches.length !== 1) return;
-    sx = e.touches[0].clientX; sy = e.touches[0].clientY; axis = null; tracking = true;
-  }, { passive: true });
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+    panX = tx; panY = ty; axis = null; tracking = true;
+  }, { passive: false });
+
   lbPh.addEventListener("touchmove", e => {
-    if (!tracking) return;
+    if (e.touches.length === 2 && pinch){
+      const t = [e.touches[0], e.touches[1]];
+      const [cx, cy] = mid(t);
+      zoomAt(pinch.s * (dist(t) / pinch.d), cx, cy);
+      e.preventDefault();
+      return;
+    }
+    if (!tracking || e.touches.length !== 1) return;
     const dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
+    if (scale > 1){                        // 放大后:拖照片
+      tx = panX + dx; ty = panY + dy; clamp(); apply();
+      e.preventDefault();
+      return;
+    }
     if (axis === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
     if (axis === "x") e.preventDefault();
   }, { passive: false });
+
   lbPh.addEventListener("touchend", e => {
+    if (pinch && e.touches.length < 2){ pinch = null; if (scale <= 1.02) window.lbResetZoom(); }
     if (!tracking) return; tracking = false;
+    if (scale > 1) return;                 // 放大状态不换色
     if (axis !== "x" || !lbNav) return;
-    const dx = e.changedTouches[0].clientX - sx;
+    /* ⛔ changedTouches 可能是空的(某些浏览器在手势被系统接管后就这样收尾)。
+       原来直接取 [0].clientX,一空就抛 TypeError,**整个 touchend 处理断掉**,
+       连换色都不会发生。测试里合成空的 changedTouches 时照出来的。 */
+    const ct = e.changedTouches && e.changedTouches[0];
+    if (!ct) return;
+    const dx = ct.clientX - sx;
     if (dx <= -30) lbNav(1);
     else if (dx >= 30) lbNav(-1);
   }, { passive: true });
+
+  /* ⛔ iOS Safari 专用:不拦这两个,双指会缩放**整个页面**,
+     然后页面就能被拖来拖去 —— 正是「边缘能移动、不稳」那个症状。 */
+  ["gesturestart", "gesturechange", "gestureend"].forEach(t =>
+    lbPh.addEventListener(t, e => e.preventDefault(), { passive: false }));
+
+  /* ---- 双击 / 双击 放大 ---- */
+  let lastTap = 0;
+  lbPh.addEventListener("click", e => {
+    if (e.target.closest(".lb-nav")) return;      // 箭头不参与
+    const now = e.timeStamp || 0;
+    if (now - lastTap < 320){
+      lastTap = 0;
+      zoomAt(scale > 1 ? 1 : DBL, e.clientX, e.clientY);
+    } else lastTap = now;
+  });
+
+  /* ---- 桌面:滚轮 + Ctrl 缩放,双击也通用 ---- */
+  lbPh.addEventListener("wheel", e => {
+    if (!e.ctrlKey && scale === 1) return;        // 普通滚轮照常滚页面
+    e.preventDefault();
+    zoomAt(scale * (e.deltaY < 0 ? 1.12 : 1 / 1.12), e.clientX, e.clientY);
+  }, { passive: false });
+
+  /* 第一次打开大图时提示一次「双指放大」,3 秒后淡掉 */
+  const tip = document.createElement("div");
+  tip.className = "lb-zoom-tip";
+  tip.setAttribute("aria-hidden", "true");
+  lbPh.appendChild(tip);
+  window.lbZoomTip = function(){
+    tip.textContent = (LANG === "zh") ? "双指放大 · 双击也可以" : "Pinch to zoom · or double-tap";
+    tip.classList.add("on");
+    setTimeout(() => tip.classList.remove("on"), 3000);
+  };
 })();
 
 /* ---------- booking form → WhatsApp ---------- */
