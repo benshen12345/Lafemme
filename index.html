@@ -817,34 +817,34 @@
         径向渐变没有边界,看起来像光,不像控件。 */
   .tap-hint::before{content:"";position:absolute;inset:0;pointer-events:none;
     background:radial-gradient(circle at 50% 44%,rgba(20,16,12,.30),transparent 60%)}
-  /* 涟漪:一圈细金线,从**指尖**那一点扩散出去。
-     圆心要落在指尖上,不是手的中心 —— 指尖在图标里大约偏上 14px、偏左 5px。 */
+  /* 2026-08-25 —— Ben 不喜欢手形图标(四版都不满意,最后一版「不够高级」),
+     改口要「圆形,像 cursor 图标那样」。问清楚之后是:**不画手,换成纯圆点 + 波纹**,
+     像手机点一下屏幕那种反馈,而不是一个具体的手。
+     圆心就是卡片正中间 —— 不再需要偏移去对指尖,因为没有指尖了。 */
   .tap-hint-ring{position:absolute;top:50%;left:50%;border-radius:50%;
-    margin-top:-14px;margin-left:-5px;transform:translate(-50%,-50%);
+    transform:translate(-50%,-50%);
     border:1px solid rgba(232,207,149,.9);
     animation:tapRing 1.5s ease-out 2 both}
-  /* 手:只有一条细金线,不填色。
-     ⚠️ 必须配 drop-shadow —— 金线压在浅金色礼服上会直接消失,
-        阴影是它在浅底照片上唯一的分界。 */
-  .tap-hint-hand{position:absolute;top:50%;left:50%;width:44px;height:auto;
-    transform:translate(-50%,-50%);opacity:.92;
-    filter:drop-shadow(0 1px 3px rgba(20,16,12,.6));
-    animation:tapPress 1.5s ease-in-out 2 both}
-  .tap-hint-hand path{fill:none;stroke:#E8CF95;stroke-width:2.1;
-    stroke-linejoin:round;stroke-linecap:round}
+  /* 点:一个实心小圆点,代表「点这里」的那一下。
+     ⚠️ 配 drop-shadow(不是 box-shadow 也行,这里用 box-shadow 更轻)——
+        金色点压在浅金色礼服上需要一点阴影才分得出来。 */
+  .tap-hint-dot{position:absolute;top:50%;left:50%;width:9px;height:9px;border-radius:50%;
+    transform:translate(-50%,-50%);background:#E8CF95;
+    box-shadow:0 1px 3px rgba(20,16,12,.55);
+    animation:tapDot 1.5s ease-in-out 2 both}
   @keyframes tapRing{
     0%{width:10px;height:10px;opacity:0}
     18%{opacity:.85}
     70%{width:62px;height:62px;opacity:0}
     100%{width:62px;height:62px;opacity:0}}
-  /* 手往下压再回来 —— 幅度只有 7px,再大就像在挥手不像在点 */
-  @keyframes tapPress{
-    0%,100%{transform:translate(-50%,-50%)}
-    22%{transform:translate(-50%,calc(-50% + 7px))}
-    46%{transform:translate(-50%,-50%)}}
-  /* 关掉动画的人:手静止显示,涟漪停在最大那一圈 —— 信息还在,没有任何跳动 */
+  /* 点往里缩一下再弹回来 —— 就是「按下去」的手感,幅度不大,不抢眼 */
+  @keyframes tapDot{
+    0%,100%{transform:translate(-50%,-50%) scale(1)}
+    22%{transform:translate(-50%,-50%) scale(.7)}
+    46%{transform:translate(-50%,-50%) scale(1)}}
+  /* 关掉动画的人:点静止显示,涟漪停在最大那一圈 —— 信息还在,没有任何跳动 */
   @media(prefers-reduced-motion:reduce){
-    .tap-hint-hand{animation:none}
+    .tap-hint-dot{animation:none}
     .tap-hint-ring{animation:none;width:62px;height:62px;opacity:.7}
   }
   /* v150 —— 大图改回填满整个框(cover),不再留边。
@@ -1580,7 +1580,7 @@
       <button class="tab" data-gender="m" role="tab" aria-selected="false">Men Suits</button>
     </div>
 
-    <div class="search-wrap reveal">
+    <div id="searchWrap" class="search-wrap reveal">
       <svg class="search-ico" viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="13.5" y1="13.5" x2="18" y2="18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       <input id="searchInput" type="search" class="search-input" placeholder="Search by name, colour or style…" autocomplete="off" enterkeyhint="search" aria-label="Search the collection">
       <button id="searchClear" class="search-clear" type="button" aria-label="Clear search" hidden>✕</button>
@@ -2695,22 +2695,18 @@ const TAP_HINT_GAP   = 7000;   // 两轮之间隔多久
 let tapHintSeq = 0;
 let tapHintT = null;           // 唯一的定时器 —— 三个阶段共用,永远只有一个在跑
 
-/* 一只手,食指点下去 —— **一条细金线,不填色**。
+/* 手形图标(四版都被否掉,见下面这段历史)已经在 2026-08-25 撤掉。
    🔴 前三版都被否掉了,每一版都是截图才看出来的:
      · 一条 path 写下来,`v27h1.5` 那段多长出一根 → 像**两根手指**;
      · 改成基本图形,但食指在**光滑圆拳的正中间** → 读出来是**竖中指**;
      · 补上指节和拇指之后形状终于对了,但**白色实心 + 粗黑描边**太像剪贴画 ——
        Ben 2026-08-21:「i dont like the current hand icon, it's look not high class」。
-   现在这版:单条闭合路径、`fill:none`、2.1px 金线(#E8CF95)、44px、opacity .92,
-   配一层没有边界的径向柔光罩。轻,而且是金的。
+   第四版(单条闭合路径、金线、44px)Ben 用了几天之后还是不满意,2026-08-25 改口:
+   「换成圆形,像 cursor 图标那样」—— 问清楚之后是**不画手,换成纯圆点 + 波纹**,
+   参考的是手机点一下屏幕那种反馈,不是某个具体图标。见下面 tapHintShow()。
    ⛔ **装饰图形必须按最终尺寸、压在真实照片上截图看过再用。**
-      放大图看不出比例问题,浅色照片上看不出对比度问题 —— 这两样都栽过。 */
-const TAP_HAND_SVG =
-  '<svg class="tap-hint-hand" viewBox="0 0 48 62" aria-hidden="true" focusable="false">'
-  + '<path d="M16.2 16a3 3 0 0 1 6 0v12.6c.6-.9 1.6-1.5 2.7-1.5 1.7 0 3 1.4 3 3.1v.6'
-  + 'c.6-.9 1.5-1.4 2.6-1.4 1.7 0 3 1.4 3 3.1v.8c.5-.8 1.4-1.3 2.4-1.3 1.7 0 2.9 1.3 2.9 3'
-  + 'v6.4c0 7.4-5 12.6-12 12.6h-1.9c-5.9 0-9.8-3-11.7-8.3l-3-8c-.7-1.9.1-3.7 1.8-4.3'
-  + ' 1.6-.6 3.2.3 4.1 2l1.1 2.1V16Z"/></svg>';
+      放大图看不出比例问题,浅色照片上看不出对比度问题 —— 这两样都栽过,
+      圆点这版也一样在真实卡片上截图看过。 */
 
 function tapHintClear(){
   if (tapHintT){ clearTimeout(tapHintT); tapHintT = null; }
@@ -2773,7 +2769,7 @@ function tapHintShow(target){
   const h = document.createElement("div");
   h.className = "tap-hint";
   h.setAttribute("aria-hidden", "true");           // 纯装饰,读屏软件不需要听见
-  h.innerHTML = '<span class="tap-hint-ring"></span>' + TAP_HAND_SVG;
+  h.innerHTML = '<span class="tap-hint-ring"></span><span class="tap-hint-dot"></span>';
   target.appendChild(h);
   requestAnimationFrame(() => h.classList.add("on"));
   tapHintClear();
@@ -3224,6 +3220,30 @@ const filterCloseBtn  = document.getElementById("filterClose");
 const filterClearBtn  = document.getElementById("filterClear");
 const filterApplyBtn  = document.getElementById("filterApply");
 
+/* 2026-08-25 —— Ben:「筛选里没有搜索,很奇怪」。查下去:确实没有 —— 搜索框
+   一直活在 #filterPanel **外面**,而这个面板不管从哪条路打开(手机上的 Filters
+   按钮、桌面上从导航点 Filters 临时浮起来)都是**盖住整个屏幕**的抽屉/浮层,
+   搜索框就在它背后,看不见也点不到。
+   ⛔ 不新开一个 <input id="searchInput"> —— 这份文件里 runSearch / closeDrop /
+      renderDrop 全部靠 getElementById("searchInput") 找输入框,重名 id 只会撞车,
+      两个框还要手动同步,平白多一套状态。
+   跟上面 liftFilters()/dropFilters() 一个思路:只有一份真的搜索框,面板开着的
+   时候借进抽屉顶部,关掉之后还回原来的位置 —— 不需要副本(ghost),因为它借出去
+   的这段时间,原来那个位置本来就被抽屉的背景遮住,没人看得见那里空着。 */
+const searchWrap = document.getElementById("searchWrap");
+let _searchHome = null;
+function borrowSearch(){
+  const body = filterPanel && filterPanel.querySelector(".filter-panel-body");
+  if (!searchWrap || !body || searchWrap.parentElement === body) return;
+  _searchHome = { parent: searchWrap.parentElement, next: searchWrap.nextSibling };
+  body.insertBefore(searchWrap, body.firstChild);
+}
+function returnSearch(){
+  if (!searchWrap || !_searchHome) return;
+  _searchHome.parent.insertBefore(searchWrap, _searchHome.next);
+  _searchHome = null;
+}
+
 let filterHistoryActive = false;
 function openFilters(){
   if (!filterPanel) return;
@@ -3231,6 +3251,7 @@ function openFilters(){
   if (filterBackdrop) filterBackdrop.classList.add("open");
   document.body.classList.add("filter-open");
   if (filterToggle) filterToggle.setAttribute("aria-expanded", "true");
+  borrowSearch();
   if (!filterHistoryActive){
     /* v153 —— 跟灯箱一样(见 openLb 里那段):筛选面板开着的时候关掉浏览器的滚动恢复。
        closeFilters 会 history.back(),浏览器会把滚动位置盖回「压这条记录那一刻」的值;
@@ -3248,6 +3269,9 @@ function closeFilters(fromPop){
   if (filterBackdrop) filterBackdrop.classList.remove("open");
   document.body.classList.remove("filter-open");
   if (filterToggle) filterToggle.setAttribute("aria-expanded", "false");
+  /* 搜索框借出去的时候也等抽屉滑完再还 —— 提早还的话,还没滑完的抽屉里会
+     凭空掉一块,跟下面 floating 那步等的是同一个理由、同一段时长。 */
+  setTimeout(() => { if (!filterPanel.classList.contains("open")) returnSearch(); }, REDUCED ? 0 : 340);
   /* wait for the slide-out before handing the panel back to the page flow,
      otherwise it snaps into place mid-animation */
   if (filterPanel.classList.contains("floating")){
