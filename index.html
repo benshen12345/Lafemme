@@ -1171,7 +1171,12 @@
     transition:border-color .3s ease, background .8s ease;border-radius:0;-webkit-appearance:none;appearance:none;
   }
   .field select{background-image:linear-gradient(45deg,transparent 49%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 51%);background-position:calc(100% - 20px) 50%,calc(100% - 15px) 50%;background-size:5px 5px;background-repeat:no-repeat}
-  .field input::placeholder,.field textarea::placeholder{color:var(--muted);opacity:.55}
+  /* v175 — Ben 2026-09-01: 预约表单里几种字段的提示字颜色深浅不一样,要统一成一个色阶。
+     以前文字类字段(姓名/电话/尺寸/备注)的提示字是 var(--muted) 打 55% 透明度算出来的
+     浅灰,跟下拉框/日期字段「未选择」状态直接用的 var(--hint) 实色不是同一个值——
+     两条路径凑巧数值接近但不完全一样,肉眼能看出深浅差。改成跟下拉框/日期字段
+     同一条规则:直接用 var(--hint) 实色,不再叠加透明度,保证算出来的颜色完全一样。 */
+  .field input::placeholder,.field textarea::placeholder{color:var(--hint);opacity:1}
   /* empty date + select show as light hints, not as filled-in answers */
   .field select:not(.filled),
   .field input[type="date"]:not(.filled){color:var(--hint)}
