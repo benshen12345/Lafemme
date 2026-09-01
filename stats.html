@@ -428,7 +428,8 @@
         asked the price of <b>3</b> and sent a booking. In the totals that is just "+1 booking".
         <br><b>A page reload starts a new row.</b> Rows minutes apart on the same day are very
         likely one person — read them together, the way that 47-minute visit is really three rows.
-        Only visits that opened at least one piece are listed, and "active for" is the span
+        Every visit that opened a piece, asked a price, shortlisted, or sent a booking is listed
+        (a visit that did none of those leaves no trace to show), and "active for" is the span
         between the first and last thing they did in this table — not how long the tab sat open.
       </p>
       <div class="intentbar">
@@ -1001,7 +1002,14 @@ async function loadSessions(r){
       /* legacy rows, split the same way the booking tile splits them */
       else if (e.event_type === "book_click"){ if (e.style_id) s.adds++; else s.sent++; }
     });
-    SESSIONS = Object.values(m).filter(s => s.opens > 0);
+    /* ⚠️ was `s.opens > 0` only — that silently dropped any visit whose ONLY activity was a
+       booking submission with zero card_open events in that same visit_id. visit_id resets on
+       every page load, so a customer who browses, leaves, then comes back later just to submit
+       the booking form gets a fresh visit_id for that return visit — a real visit with a real
+       booking, invisible in this table while still counted in the "BOOKING FORMS SENT" tile
+       above (that tile is a separate direct count, not built from this SESSIONS grouping at
+       all). Broadened to any tracked activity so a booking-only visit still shows its row. */
+    SESSIONS = Object.values(m).filter(s => s.opens > 0 || s.asks > 0 || s.adds > 0 || s.sent > 0);
   } catch(e){ SESS_ERR = (e && e.message) || String(e); }
 }
 
@@ -1022,7 +1030,7 @@ function renderSessions(){
     note.textContent = ""; return;
   }
   if (!SESSIONS.length){
-    body.innerHTML = `<tr><td colspan="7" style="color:var(--muted)">No visit opened a piece in this range.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="7" style="color:var(--muted)">No tracked activity in this range.</td></tr>`;
     note.textContent = ""; return;
   }
   const ordered = SESSIONS.slice().sort(sessSort === "deep"
@@ -1044,7 +1052,7 @@ function renderSessions(){
       <td style="color:var(--muted)">${esc(s.device === "mobile" ? "narrow" : s.device || "—")}</td>
     </tr>`).join("");
   const bits = [];
-  bits.push(SESSIONS.length + " visit" + (SESSIONS.length === 1 ? "" : "s") + " opened at least one piece");
+  bits.push(SESSIONS.length + " visit" + (SESSIONS.length === 1 ? "" : "s") + " with tracked activity");
   if (SESSIONS.length > LIMIT)
     bits.push("showing " + LIMIT + " of them — " + (sessSort === "deep" ? "the most engaged" : "the most recent"));
   /* the table renders in the browser's timezone while the database stores UTC, so a visit
