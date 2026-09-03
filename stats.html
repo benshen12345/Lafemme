@@ -357,6 +357,12 @@
             of event, so a piece share never inflates the "shared views" numbers and the other way
             round.</span></dd>
 
+        <dt>How they heard about us</dt>
+        <dd>What customers picked in the booking form's "How did you hear about us?" question.
+          It only counts forms actually sent, and the question is optional — so this total is
+          normally smaller than "Booking forms sent". Started being recorded on 3 Sep 2026;
+          before that date it shows nothing, which is not the same as nobody answering.</dd>
+
         <dt>Rental questions opened</dt>
         <dd>Which rental FAQ questions customers expanded — deposit, fitting fee, cleaning, and so on. Heavy interest in one question tells you what's on people's minds before they book.</dd>
 
@@ -469,6 +475,19 @@
         <p class="ph">Which FAQ questions customers expanded. A question opened a lot is a concern worth answering up front.</p>
         <div id="faqOpens">No data yet.</div>
       </div>
+    </div>
+
+    <!-- v187 —— 预约表单里「你从哪里得知我们」那一题 -->
+    <div class="card2">
+      <h3>How they heard about us</h3>
+      <p class="ph">The answer customers picked in the booking form. This is the only place on the
+        site that tells you which channel is actually bringing people in — worth reading next to
+        what you are spending time on.
+        <br><span style="color:var(--muted)">Recorded from 3 Sep 2026, when this question started
+        being saved — any date range before that has nothing to show, which is not the same as
+        nobody answering. The question is optional, so the total here is normally smaller than
+        "Booking forms sent".</span></p>
+      <div id="heardAbout">No data yet.</div>
     </div>
 
     <div class="card2">
@@ -685,6 +704,7 @@ async function loadDash() {
   renderSearchTerms();
   renderFilterUse();
   renderFaqOpens();
+  renderHeard();
   renderSharedViews();
   renderSharedPieces();
   renderSessions();
@@ -846,15 +866,24 @@ async function loadBehavRows(type, cols, r, label){
   return data;
 }
 async function loadSearchAndFilters(r){
-  SEARCHES = []; FILTERS = {}; FAQS = []; SHARED = {}; SHARED_PIECE = {}; BEHAV_ERR = ""; BEHAV_TRUNC = {};
+  SEARCHES = []; FILTERS = {}; FAQS = []; SHARED = {}; SHARED_PIECE = {}; HEARD = {}; BEHAV_ERR = ""; BEHAV_TRUNC = {};
   try {
     /* v131 —— share_view 多取 style_id / style_name / colour 三列,给「最常被分享的单品」用。 */
-    const [searchRows, filterRows, faqRows, shareRows] = await Promise.all([
-      loadBehavRows("search",     "q",                                           r, "Searches"),
-      loadBehavRows("filter_use", "filter_key, filter_value",                    r, "Filters"),
-      loadBehavRows("faq_open",   "q",                                           r, "FAQ"),
-      loadBehavRows("share_view", "filter_key, filter_value, style_id, style_name, colour", r, "Shares")
+    /* v187 —— 多读一次 book_submit,只为了「他们从哪里得知我们」那一块。
+       ⚠️ 预约那几个数字是**服务端 count** 出来的(loadBookingCounts,没有上限、永远准);
+          这里拉行是另一件事,受 BEHAV_CAP 限制,所以下面会带截断提示。两者别混。 */
+    const [searchRows, filterRows, faqRows, shareRows, bookRows] = await Promise.all([
+      loadBehavRows("search",      "q",                                           r, "Searches"),
+      loadBehavRows("filter_use",  "filter_key, filter_value",                    r, "Filters"),
+      loadBehavRows("faq_open",    "q",                                           r, "FAQ"),
+      loadBehavRows("share_view",  "filter_key, filter_value, style_id, style_name, colour", r, "Shares"),
+      loadBehavRows("book_submit", "filter_key, filter_value",                    r, "Bookings")
     ]);
+    /* 只认 filter_key='heard' 的那些行 —— book_submit 里其余的行是没填这一题的。 */
+    bookRows.forEach(e => {
+      if (e.filter_key === "heard" && e.filter_value)
+        HEARD[e.filter_value] = (HEARD[e.filter_value] || 0) + 1;
+    });
     const terms = {}, faqs = {};
     searchRows.forEach(e => {
       if (!e.q) return;
@@ -915,6 +944,7 @@ async function loadSearchAndFilters(r){
    metric's entire baseline (14 real sends over 20 Jul – 6 Aug) for no reason. The split is
    an inference about old data, so the UI labels that part as estimated rather than passing
    it off as recorded. */
+let HEARD = {};
 let BOOK_ERR = "";
 /* 🔴 v133 —— 这块以前是「把行拉回来自己数」,`.limit(10000)` 而且没有 order。
    同一个坑:范围一宽,10000 条满了就只留最旧的一段,**KPI 上那个「预约表单已发」
@@ -1215,6 +1245,27 @@ function renderFilterUse(){
       }).join("")}
     </div>`;
   }).join("") + truncNote("filter_use");
+}
+
+/* v187 —— 「他们从哪里得知我们」。数据来自预约表单里那一题,
+   写在 book_submit 的 filter_key='heard' / filter_value=<答案> 上(见 index.html)。
+   ⚠️ 这一题**不是必填**,所以这里的总数通常小于「预约表单已发」那个数字 ——
+      面板上把两个数都写出来,免得看的人以为漏记了。 */
+function renderHeard(){
+  const box = $("heardAbout");
+  if (!box) return;
+  const items = Object.entries(HEARD).sort((a, b) => b[1] - a[1]);
+  if (!items.length){ box.innerHTML = behavEmpty(); return; }
+  const total = items.reduce((n, x) => n + x[1], 0);
+  const max = items[0][1];
+  box.innerHTML = items.map(([val, n]) => `
+      <div class="termrow">
+        <span class="termn">${esc(val)}</span>
+        <span class="termbar"><i style="width:${(n / max * 100).toFixed(1)}%"></i></span>
+        <span class="termc">${n} · ${(n / total * 100).toFixed(0)}%</span>
+      </div>`).join("")
+    + `<div class="ph" style="margin-top:10px">共 ${total} 份预约填了这一题。</div>`
+    + truncNote("book_submit");
 }
 
 function pieceOf(s){

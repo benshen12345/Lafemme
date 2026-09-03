@@ -655,20 +655,26 @@
     box-shadow:0 8px 18px rgba(28,26,23,.14);
     transform-style:preserve-3d;
   }
-  /* 🔴 v184 —— 进首屏时五张照片**一张一张淡进来**(Ben 2026-09-03:
-     「when load into the cover page those photos will faded in also 1 by 1」)。
-     ⚠️ 动画只碰 opacity,**不能碰 transform** —— 每张卡的座位(rotateY + translateZ)
-        就写在 transform 上,keyframes 里一旦出现 transform,座位会被整条盖掉,
-        五张卡会叠在正中间。(同一个坑 v176 在 .reel-tilt / .reel-in 上踩过一次。)
-     ⚠️ 起始延迟 .55s 是跟着 loader 走的:loader 最少盖 500ms,再早也看不见。
-        跟 .kicker(.5s)/ h1 / 按钮(1.65s)那串是同一套节奏。 */
-  @keyframes reelin{from{opacity:0}to{opacity:1}}
-  .reel picture{opacity:0;animation:reelin .85s ease forwards}
-  .reel picture:nth-child(1){animation-delay:.55s}
-  .reel picture:nth-child(2){animation-delay:.71s}
-  .reel picture:nth-child(3){animation-delay:.87s}
-  .reel picture:nth-child(4){animation-delay:1.03s}
-  .reel picture:nth-child(5){animation-delay:1.19s}
+  /* 🔴 v186 —— 入场不再按固定秒数排,而是**跟着转盘走**(Ben 2026-09-03:
+     「the first photos appear on middle then when it spin to the right,
+       the second photos just faded in till 5」)。
+     第一张一开始就在正面,直接亮;之后每一张**快转到正面时**(还差 40°)才淡进来,
+     等它转到中间已经完全亮了。五张于是按「谁下一个转到中间」的顺序依次出现。
+
+     ⚠️ 淡入只碰 opacity,**不能碰 transform** —— 每张卡的座位(rotateY + translateZ)
+        就写在 transform 上,动画里一旦出现 transform,座位会被整条盖掉,
+        五张卡会叠在正中间。(同一个坑 v176 在 .reel-tilt / .reel-in 上踩过。)
+
+     ⛔ 默认是 `opacity:1`,**藏起来这件事由 JS 加 `.staged` 才发生**。
+        这样 JS 没跑起来 / 出错 / 被拦掉的时候,首屏是五张照片好端端摆着,
+        而不是**一片空白**。把「藏」写进默认样式是在拿首屏赌 JS 一定能跑。 */
+  .reel picture{opacity:1}
+  /* ⛔ 过渡写在 `.in` 上,**不能写在 `.staged picture` 上**。
+     写在后者的话,JS 加上 `.staged` 的那一刻,五张会从 1 **淡出到 0**(0.9 秒),
+     客人看到的是「五张先一起淡掉、再一张张淡回来」—— 而且 loader 只盖到 0.7 秒,
+     最后那 0.2 秒的淡出是露出来的。藏要瞬间藏,亮才有过渡。 */
+  .reel.staged picture{opacity:0}
+  .reel.staged picture.in{opacity:1;transition:opacity .9s ease}
   .reel picture:nth-child(1){transform:rotateY(0deg)   translateZ(var(--ring-r))}
   .reel picture:nth-child(2){transform:rotateY(72deg)  translateZ(var(--ring-r))}
   .reel picture:nth-child(3){transform:rotateY(144deg) translateZ(var(--ring-r))}
@@ -697,7 +703,9 @@
     /* 不转,但五张都要看得见 —— 旧版是「只显示第一张、其余 opacity:0」,
        那是给交叉淡入用的;转盘上照搬会只剩一张卡孤零零挂着。 */
     .reel-in{animation:none}
-    .reel picture{opacity:1;animation:none}     /* v184:连入场淡入也一起关掉 */
+    .reel picture{opacity:1}                    /* 减少动画:不淡入,直接五张都在
+       (JS 那边 REDUCED 时根本不会加 .staged,这里再兜一层) */
+    .reel.staged picture{opacity:1;transition:none}
     .reel picture img{transition:none}
   }
 
@@ -4176,7 +4184,20 @@ document.getElementById("bookForm").addEventListener("submit", e=>{
      row here means one filled-in form actually sent, not an abandoned attempt. Renamed so
      the dashboard number can never mix with the old, looser meaning: a date range before
      this deploys reads 0 instead of silently reading inflated. */
-  track("book_submit", { style_ref: fittingList.length ? fittingList.map(p => p.ref).join(", ") : null });
+  /* 🔴 v187 —— 顺带把「你从哪里得知我们」记下来(Ben 2026-09-03 要在看板上看到)。
+     ⛔ events 表**没有** heard 这一列,新造一个键会让整批(最多 8 条)事件 400 掉 ——
+        v129 就是这么丢过一批。这里复用现成的 `filter_key` / `filter_value` 两列,
+        跟 v140「单件分享复用 share_view」是同一个做法。
+     ⚠️ 看板那边每一次读 filter_key 都带着 event_type 过滤
+        (filter_use / share_view 各读各的),所以这两列写在 book_submit 上
+        **不会**污染「用了哪些筛选」那块。
+     ⚠️ 没填就写 null,别写空字符串 —— 看板按「有没有值」算占比,空串会被当成一个选项。 */
+  const heard = v("fHeard") || null;
+  track("book_submit", {
+    style_ref: fittingList.length ? fittingList.map(p => p.ref).join(", ") : null,
+    filter_key: heard ? "heard" : null,
+    filter_value: heard,
+  });
   window.open(waLink(lines.join("\n")), "_blank");
   /* clear the list after sending so a later, unrelated booking doesn't carry it */
   fittingList = []; saveFit(); renderFittingFor();
@@ -4296,6 +4317,71 @@ if(!REDUCED && moods.length){
       entries.forEach(en => reel.classList.toggle("offscreen", !en.isIntersecting));
     }, { threshold: 0 }).observe(hero);
   }
+})();
+
+
+/* ---------- v186 hero 转盘入场:每张卡**快转到正面时**才淡进来 ----------
+   Ben 2026-09-03:
+     「i want animation like the first photos appear on middle then when it spin
+       to the right, the second photos just faded in till 5」
+
+   第一张一开始就在正面 → 直接亮。
+   之后每一张在**离正面还有 40°** 的时候开始淡入(0.9 秒),等它转到中间时已经全亮。
+   五个座位差 72°,所以「下一个转到中间」这件事每 dur/5 发生一次 ——
+   34 秒一圈就是每 6.8 秒亮一张,五张走完约 27 秒。
+
+   ⚠️ 为什么提前 40° 而不是等它转到正中间才亮:正中间是最显眼的位置,
+      在那儿凭空冒出来是「啪」一下,不是「淡进来」。提前 40°(34 秒一圈 ≈ 3.8 秒)
+      开始淡,它是从左边一边转过来一边亮的 —— 正是 Ben 描述的那个样子。
+
+   ⛔ 第一张的座位角度要当成 **360°** 而不是 0° 来算,否则「累计角度 ≥ 320°」
+      这个判断会让它等到快一整圈之后才亮 —— 而它明明一开始就正对着客人。
+      (这跟 v185 那个「1 号卡被吃掉一次、要多等一整圈」是同一类的边界坑。)
+
+   ⛔ 只有确定接下来会一张张点亮,才给 .reel 加 `.staged` 把它们藏起来。
+      拿不到动画(浏览器不支持 getAnimations)就**立刻全亮** —— 首屏宁可没有入场动画,
+      也不能因为一个探测失败就空在那里。 */
+(function(){
+  const reel = document.querySelector(".reel");
+  const ring = document.getElementById("heroReel");
+  if (!reel || !ring || REDUCED) return;
+  const pics = [...ring.querySelectorAll("picture")];
+  if (pics.length < 2) return;
+
+  const SEAT = 360 / pics.length;
+  const APPROACH = 40;                       // 离正面还有多少度就开始淡入
+  const showAll = () => pics.forEach(p => p.classList.add("in"));
+
+  const anim = () => {
+    const list = ring.getAnimations ? ring.getAnimations() : [];
+    const a = list.find(x => x.animationName === "ringspin") || list[0];
+    if (!a || !a.effect || !a.effect.getTiming) return null;
+    let t = a.currentTime;
+    if (t && typeof t === "object" && t.to) t = t.to("ms").value;
+    const dur = a.effect.getTiming().duration;
+    if (typeof t !== "number" || typeof dur !== "number" || !dur) return null;
+    return t / dur;                          // 转了几圈(带小数)
+  };
+
+  if (anim() === null){ showAll(); return; } // 探测不到动画 → 五张直接亮,不藏
+  reel.classList.add("staged");
+
+  let left = pics.length;
+  const tick = () => {
+    const turns = anim();
+    if (turns === null){ showAll(); clearInterval(iv); return; }
+    pics.forEach((pic, i) => {
+      if (pic.classList.contains("in")) return;
+      const seat = (i === 0) ? 360 : i * SEAT;          // ⛔ 第一张按 360° 算,见上面注释
+      if (turns * 360 + seat >= 360 - APPROACH){ pic.classList.add("in"); left--; }
+    });
+    if (left <= 0) clearInterval(iv);
+  };
+  const iv = setInterval(tick, 120);
+  /* ⚠️ 隔一帧再点第一张:`.staged` 和 `.in` 如果在同一个任务里加完,
+     浏览器根本没机会把 opacity:0 那一帧算出来,过渡就不会发生 —— 第一张会直接蹦出来。
+     等一帧,让 0 落地,再点亮它,它才是淡进来的。 */
+  requestAnimationFrame(tick);
 })();
 
 
