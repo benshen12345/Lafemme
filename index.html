@@ -97,6 +97,12 @@
           相框跟着它们走,改主题色的时候相框会被顺手改坏。相框自己一个变量。 */
     --frame:#F2E3C3;
     --frame-line:rgba(169,131,63,.45);
+    /* v184 —— 目录卡片那圈细边(Ben 2026-09-03:「very very thin gold edge only」)。
+       原来是 --hairline(中性灰),现在换成金色。
+       ⚠️ 比首屏那圈(--frame-line)**淡一档**:首屏只有 5 张卡,目录里是 215 张,
+          同样的浓度铺满一屏会吵。他要的就是「very very thin」。
+       ⛔ 想让两处完全一致的话直接用 --frame-line 就行,但先在目录整屏上看一眼再决定。 */
+    --card-line:rgba(169,131,63,.30);
     --serif:'Cormorant Garamond', Georgia, 'Times New Roman', serif;
     --script:'Cormorant Garamond', Georgia, serif;
     --sans:'Jost', 'Segoe UI', Arial, sans-serif;
@@ -123,6 +129,7 @@
        不是金色 —— 深底上一圈亮金会把照片框成「奖状」,喧宾夺主。 */
     --frame:#3B342B;
     --frame-line:rgba(212,175,106,.32);
+    --card-line:rgba(212,175,106,.24);
     color-scheme:dark;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -648,6 +655,20 @@
     box-shadow:0 8px 18px rgba(28,26,23,.14);
     transform-style:preserve-3d;
   }
+  /* 🔴 v184 —— 进首屏时五张照片**一张一张淡进来**(Ben 2026-09-03:
+     「when load into the cover page those photos will faded in also 1 by 1」)。
+     ⚠️ 动画只碰 opacity,**不能碰 transform** —— 每张卡的座位(rotateY + translateZ)
+        就写在 transform 上,keyframes 里一旦出现 transform,座位会被整条盖掉,
+        五张卡会叠在正中间。(同一个坑 v176 在 .reel-tilt / .reel-in 上踩过一次。)
+     ⚠️ 起始延迟 .55s 是跟着 loader 走的:loader 最少盖 500ms,再早也看不见。
+        跟 .kicker(.5s)/ h1 / 按钮(1.65s)那串是同一套节奏。 */
+  @keyframes reelin{from{opacity:0}to{opacity:1}}
+  .reel picture{opacity:0;animation:reelin .85s ease forwards}
+  .reel picture:nth-child(1){animation-delay:.55s}
+  .reel picture:nth-child(2){animation-delay:.71s}
+  .reel picture:nth-child(3){animation-delay:.87s}
+  .reel picture:nth-child(4){animation-delay:1.03s}
+  .reel picture:nth-child(5){animation-delay:1.19s}
   .reel picture:nth-child(1){transform:rotateY(0deg)   translateZ(var(--ring-r))}
   .reel picture:nth-child(2){transform:rotateY(72deg)  translateZ(var(--ring-r))}
   .reel picture:nth-child(3){transform:rotateY(144deg) translateZ(var(--ring-r))}
@@ -676,7 +697,7 @@
     /* 不转,但五张都要看得见 —— 旧版是「只显示第一张、其余 opacity:0」,
        那是给交叉淡入用的;转盘上照搬会只剩一张卡孤零零挂着。 */
     .reel-in{animation:none}
-    .reel picture{opacity:1}
+    .reel picture{opacity:1;animation:none}     /* v184:连入场淡入也一起关掉 */
     .reel picture img{transition:none}
   }
 
@@ -909,7 +930,7 @@
   .card-reveal{opacity:0;transform:translateY(22px)}
   .card-reveal.card-show{opacity:1;transform:none}
   .card .ph{position:relative;aspect-ratio:2/3;cursor:pointer;perspective:900px}
-  .tilt{position:absolute;inset:0;overflow:hidden;border:1px solid var(--hairline);transition:transform .5s ease;transform-style:preserve-3d;will-change:transform}
+  .tilt{position:absolute;inset:0;overflow:hidden;border:1px solid var(--card-line);transition:transform .5s ease;transform-style:preserve-3d;will-change:transform}
   .swatch{
     position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
     background:linear-gradient(115deg,var(--c1) 0%,var(--c2) 30%,var(--c1) 48%,var(--c2) 66%,var(--c1) 100%);
@@ -4278,25 +4299,36 @@ if(!REDUCED && moods.length){
 })();
 
 
-/* ---------- v182 hero 转盘:每转满一圈,在**背面**悄悄换一张新照片 ----------
-   Ben 2026-09-03:「i want in every photos spin 1 round will auto change new photos」。
+/* ---------- v184 hero 转盘:每转满一圈,五张照片**一张接一张**换掉 ----------
+   Ben 2026-09-03(问过他两轮之后的原话):
+     「first change need to be when the photos spin a round not after 22sec,
+       and only change 1 by 1」
 
-   🔴 关键在**什么时候换**,不在换什么。
-   五张卡挂在同一个鼓上,它们是**同时**转满一圈的 —— 如果按「转满一圈就换」的字面
-   实现,五张会在同一刻一起变,客人看到的是整圈闪一下。
-   所以换的时机按**每张卡自己转到背面**算:卡片转到 180° 那一带时正背对观众,
-   在那一刻换 src,客人**一次都看不见**换的过程,只会觉得转回来的是新照片。
-   五个座位差 72°,于是平均每 6.8 秒有一张在背面悄悄换掉。
+   🔴 这里的时机改过两版,把过程记下来,免得下一个人又绕一遍。
 
-   ⚠️ 头一圈不换 —— Pearly 在后台挑的那五张封面必须先完整露一圈,那是店里最好的照片。
+   **v182/v183(旧):每张卡各自转到背面(180°)时换。**
+   出发点是「在背面换,客人看不见」。问题:五个座位差 72°,**永远不会同时到背面** ——
+   第一圈结束(34 秒)之后,五张要陆续花 27 秒才轮完。Ben 盯着正面那张看,
+   它转满一圈回到面前时**还没变**(它要到 51 秒、转到背面才变),
+   于是他说「转完一圈没换、又过了十几秒才开始变,很怪」。
+   **他要的是节奏对齐,不是绝对看不见。**
+
+   **v184(现在):鼓每转满一圈,发起一次「接力」——
+     离背面最近的那张先换,之后每 1.1 秒换下一张,五张走完约 4.4 秒。**
+   节奏就是他要的「转完一圈 → 换」,而且是「1 by 1」,不是整圈一起闪。
+
+   ⚠️ 代价说清楚:接力过程中,轮到的那张**可能正对着客人**。
+      靠淡出淡入(v183)把它做柔,不是硬切 —— 客人会看见它换,但不会被「闪」到。
+      这是 Ben 在两个方案里明确挑的那一个。
+
+   ⚠️ 第一圈不换 —— Pearly 在后台挑的那五张封面必须先完整露一圈。
       判断用**动画自己的 currentTime**,不是 setTimeout:滚出视野时动画是暂停的,
       用计时器会在客人根本没看的时候把第一圈「转」完。
 
-   ⛔ 别改成 requestAnimationFrame 每帧算:每 200ms 读一次就够了
-      (34 秒一圈 → 200ms 只走 2.1°,背面那一带有 80° 宽,漏不掉),
-      而 rAF 会在首屏一直空转烧电。
+   ⛔ 别改成 requestAnimationFrame 每帧算:每 200ms 读一次就够了,
+      rAF 会在首屏一直空转烧电。
    ⛔ 换上去之前**必须先把图片下载完**再赋值:直接改 src,慢网络上那一格会先空一下,
-      而它正好要转到正面来。下载失败就整个不换,那一格继续用原来那张。 */
+      而它正好要转到正面来。 */
 (function(){
   const reel = document.querySelector(".reel");
   const ring = document.getElementById("heroReel");
@@ -4306,7 +4338,7 @@ if(!REDUCED && moods.length){
   if (pics.length < 2) return;
 
   const SEAT    = 360 / pics.length;     // 每格之间的角度(五格 = 72°)
-  const BACK_HALF = 40;                  // 背面那一带:180° ± 40°
+  const STEP_MS = 1100;                  // 接力里两张之间隔多久
 
   /* 照片池:目录里每个颜色的缩略图(667×1000)。卡片最宽 182px,缩略图绰绰有余,
      而且它们是已经压过的那一版 —— 不要用 v.hi(整张大图),五格每 34 秒换一次,
@@ -4337,7 +4369,10 @@ if(!REDUCED && moods.length){
   }
 
   const FADE_MS = 450;                                      // 跟 CSS 里 `opacity .45s` 一致
-  function swap(pic){
+  const MAX_TRY = 5;
+  function swap(pic, tries){
+    tries = tries || 0;
+    if (tries >= MAX_TRY) return;                           // 连着几张都下不来:这一轮算了,下一圈再说
     const url = nextUrl(); if (!url) return;
     const img = pic.querySelector("img"), src = pic.querySelector("source");
     if (!img) return;
@@ -4355,11 +4390,17 @@ if(!REDUCED && moods.length){
         requestAnimationFrame(() => requestAnimationFrame(() => img.classList.remove("fading")));
       }, FADE_MS);
     };
-    probe.src = url;                                        // 失败 → onload 不触发 → 这一格连淡都不淡
+    /* 🔴 v184 —— 下不来就**接着换下一张**,不是整格不动。
+       以前是「失败 → 什么都不做」,后果是:目录里只要有一张图挂了(改名、没上传、
+       CDN 抽风),抽到它的那一格就要**整整一圈**什么都不发生 ——
+       在客人眼里就是「这个转盘根本不换照片」。
+       ⛔ 别把重试写成死循环:MAX_TRY 到了就放弃,下一圈自然会再来。 */
+    probe.onerror = () => swap(pic, tries + 1);
+    probe.src = url;
   }
 
-  /* 鼓当前转到几度:直接问动画自己,不要拿 Date.now() 推算 ——
-     推算会跟真实动画慢慢错开(暂停过就更错),错开之后就不是在背面换了。 */
+  /* 鼓当前转到第几圈、转到几度:直接问动画自己,不要拿 Date.now() 推算 ——
+     推算会跟真实动画慢慢错开(滚出视野暂停过就更错),错开之后「一圈」就对不上了。 */
   function ringAngle(){
     const anims = ring.getAnimations ? ring.getAnimations() : [];
     const a = anims.find(x => x.animationName === "ringspin") || anims[0];
@@ -4369,23 +4410,34 @@ if(!REDUCED && moods.length){
     if (typeof t !== "number") return null;
     /* ⛔ 一圈多少毫秒**问动画自己要**,不要在这里写死 34000。
        写死的话,以后有人在 CSS 里把 `ringspin 34s` 调快调慢,这里算出来的角度就全错了 ——
-       而错的表现是「换照片的时候没在背面」,看起来像随机闪一下,很难查到这一行。
+       而错的表现是「一圈还没转完就换了」或者「转完两圈才换」,很难查到这一行。
        (顺带:测试也才有办法把一圈缩短到两秒钟跑完。) */
     const dur = a.effect && a.effect.getTiming ? a.effect.getTiming().duration : 0;
     if (!dur || typeof dur !== "number") return null;
     return { t, dur, deg: (t % dur) / dur * 360 };
   }
 
-  const inBack = pics.map(() => false);
+  let lastRound = -1, running = false;
   setInterval(() => {
     const r = ringAngle(); if (!r) return;
-    if (r.t < r.dur) return;                                // 头一圈:先把后台那五张封面完整放一遍
-    pics.forEach((pic, i) => {
-      const deg = ((r.deg + i * SEAT) % 360 + 360) % 360;
-      const back = Math.abs(deg - 180) <= BACK_HALF;
-      if (back && !inBack[i]) swap(pic);                    // 刚转进背面 → 换
-      inBack[i] = back;
-    });
+    const round = Math.floor(r.t / r.dur);                  // 转满几圈了
+    if (round < 1) { lastRound = Math.max(lastRound, round); return; }   // 第一圈只看不换
+    if (round === lastRound || running) return;
+    lastRound = round;
+
+    /* 接力顺序:**离背面最近的先换**。
+       就算做不到全程看不见,也让每一次都发生在尽可能远离客人视线的那一张上;
+       之后顺着转的方向一张张来,看起来像一道绕着圈走的波,而不是随机跳。 */
+    const order = pics
+      .map((pic, i) => ({ pic, d: Math.abs((((r.deg + i * SEAT) % 360 + 360) % 360) - 180) }))
+      .sort((a, b) => a.d - b.d)
+      .map(x => x.pic);
+
+    running = true;
+    order.forEach((pic, k) => setTimeout(() => {
+      swap(pic);
+      if (k === order.length - 1) running = false;
+    }, k * STEP_MS));
   }, 200);
 })();
 
