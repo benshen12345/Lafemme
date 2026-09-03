@@ -633,7 +633,11 @@
     position:absolute;display:block;
     width:var(--card-w);height:var(--card-h);
     margin-left:calc(var(--card-w) / -2);margin-top:calc(var(--card-h) / -2);
-    background:var(--frame);padding:clamp(4px,.8vw,9px);
+    /* v183 —— 相框收薄一档(Ben 2026-09-03:「the edge a bit too thick」)。
+       原来 clamp(4px,.8vw,9px):1440 上 9px、手机上 4px。现在 clamp(2px,.45vw,5px)。
+       ⛔ 别收到 0:相框就是这套设计里「照片是洗出来贴上去的」那点味道,
+          而且深色照片贴在深色背景上,没有这一圈会糊在一起。 */
+    background:var(--frame);padding:clamp(2px,.45vw,5px);
     /* 🔴 v177 —— 阴影从 `0 26px 50px .22` 收到 `0 8px 18px .14`。
        原因:转盘是 3D 的,**转到背面/侧面那几张的阴影会被一起投影出来**,
        50px 的模糊半径在它们身后拖成两大片灰糊糊的竖条,看起来像背景脏了
@@ -652,8 +656,14 @@
   .reel picture img{
     width:100%;height:100%;object-fit:cover;display:block;
     border:1px solid var(--frame-line);
-    transition:transform .35s cubic-bezier(.2,.7,.3,1);
+    /* v183 —— 多了一条 opacity 过渡:换照片时淡出淡入,不是硬切
+       (Ben 2026-09-03:「use like faded animation not flash animation」)。
+       ⚠️ 为什么背面换还是会被看到:这一圈卡片**没有** backface-visibility:hidden,
+          转到后面那两张是能从缝里看见的(只是小、偏、被挡了一半)。
+          「在背面换」把突兀降到最低,淡入淡出把剩下那点也抹掉。 */
+    transition:transform .35s cubic-bezier(.2,.7,.3,1), opacity .45s ease;
   }
+  .reel picture img.fading{opacity:0}
   /* ⛔ v182 删掉了 `.reel picture:hover img{transform:translateZ(60px) scale(1.16)}`
      和配套的 `.lift`。放大原本是配合「停下来」用的;转盘不停之后,卡片会一边变大
      一边继续滑走,看起来像卡住了。img 上那条 transition 留着 —— 换照片时的淡入还要用。 */
@@ -4326,12 +4336,26 @@ if(!REDUCED && moods.length){
     return null;
   }
 
+  const FADE_MS = 450;                                      // 跟 CSS 里 `opacity .45s` 一致
   function swap(pic){
     const url = nextUrl(); if (!url) return;
     const img = pic.querySelector("img"), src = pic.querySelector("source");
+    if (!img) return;
     const probe = new Image();
-    probe.onload = () => { if (src) src.srcset = url; if (img) img.src = url; };
-    probe.src = url;                                        // 失败 → onload 不触发 → 这一格不动
+    /* 淡出 → 换 → 淡回来。图片是**先下载完**才走到这里的,所以中间不会出现空框。
+       ⛔ 顺序不能反:先换 src 再淡入,慢一点的机器上会先闪一下新图再淡 —— 就是 Ben
+          说的 flash。淡出**必须**在改 src 之前。
+       ⚠️ 两层 requestAnimationFrame 是必须的:第一层里浏览器还没把新图画上去,
+          这一帧就摘掉 .fading 的话,淡入会从旧图开始 —— 又变成硬切。 */
+    probe.onload = () => {
+      img.classList.add("fading");
+      setTimeout(() => {
+        if (src) src.srcset = url;
+        img.src = url;
+        requestAnimationFrame(() => requestAnimationFrame(() => img.classList.remove("fading")));
+      }, FADE_MS);
+    };
+    probe.src = url;                                        // 失败 → onload 不触发 → 这一格连淡都不淡
   }
 
   /* 鼓当前转到几度:直接问动画自己,不要拿 Date.now() 推算 ——
