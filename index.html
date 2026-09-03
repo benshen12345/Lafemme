@@ -92,6 +92,11 @@
     --toggle:#DFC894;
     --ribbon-bg:linear-gradient(90deg,#EFE8DB 0%,#E8DBD1 50%,#EFE8DB 100%);
     --ribbon-fg:#5A5045;
+    /* v182 —— 转盘相框(Ben 2026-09-03:「ivory mode 相框浅金一点,noir mode 浅一点的深色」)。
+       ⛔ 不要直接用 --ivory 或 --gold-hi:那两个在两套主题里各有各的用途,
+          相框跟着它们走,改主题色的时候相框会被顺手改坏。相框自己一个变量。 */
+    --frame:#F2E3C3;
+    --frame-line:rgba(169,131,63,.45);
     --serif:'Cormorant Garamond', Georgia, 'Times New Roman', serif;
     --script:'Cormorant Garamond', Georgia, serif;
     --sans:'Jost', 'Segoe UI', Arial, sans-serif;
@@ -114,6 +119,10 @@
     --toggle:#EBD9B0;
     --ribbon-bg:linear-gradient(90deg,#2C261E 0%,#352E25 50%,#2C261E 100%);
     --ribbon-fg:#E7DECF;
+    /* 夜间的相框是**比背景浅**的深色(背景 #26211A → 相框 #3B342B),
+       不是金色 —— 深底上一圈亮金会把照片框成「奖状」,喧宾夺主。 */
+    --frame:#3B342B;
+    --frame-line:rgba(212,175,106,.32);
     color-scheme:dark;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -554,18 +563,29 @@
      ⛔ 横屏手机(高 320–430)咬不住:剩给转盘的是负数,会落到下限 78px,
         首屏照样装不下 —— 手机横过来只有 390px 高,转盘 + 文案 + 按钮 + 条子
         物理上放不下,那边本来就是该滚就滚。别为了它去砍竖屏的照片。
-     ⛔ 440 是**量出来的**,改标题字号 / 小字行数 / 按钮高度都要重量一次。 */
+     ⛔ 452 是**量出来的**(v181 量到 429–436,v182 加到 452 买一点余量)。
+        为什么要余量:Google Fonts 的 Jost 下载完之前,浏览器用的是系统兜底字体,
+        实测比 Jost 宽约 6% —— 那一两秒里这句话可能多占一行(+28px),
+        360×640 那种矮屏正好卡在边上。452 挡得住小的度量差,**挡不住整整多一行**;
+        真要挡住得留到 468,那样矮屏上照片要再小 14%,不值。
+        (加载中那一两秒页面上还盖着 loader,客人多半看不到。)
+     ⛔ 改标题字号 / 小字行数 / 按钮高度都要重量一次。 */
   .hero-right{
-    --card-w:clamp(78px,min(30vw,26svh,calc((100svh - 440px) / 2.37)),182px);
+    --card-w:clamp(78px,min(30vw,26svh,calc((100svh - 452px) / 2.37)),182px);
     --card-h:calc(var(--card-w) * 1.33);
     --ring-r:clamp(96px,min(31vw,33svh),268px);
     position:relative;
     height:calc(var(--card-h) * 1.78);
   }
   .reel{position:absolute;inset:0;z-index:1;perspective:1500px}
-  /* 转盘的「地面影子」:一圈很淡的椭圆,让它看起来是立在台面上转,不是几张卡飘着 */
+  /* 转盘的「地面影子」:一圈很淡的椭圆,让它看起来是立在台面上转,不是几张卡飘着。
+     🔴 v182 —— 往下挪(Ben 2026-09-03:「the shadow below the photos can move below a bit」)。
+     原来 `bottom:clamp(10px,2.4vw,34px)`,1440 上椭圆的上边缘在 y=407、而卡片最低点在 423 ——
+     **影子有 16px 压在卡片身上**,看起来不像地上的投影,像卡片自己糊了一块。
+     现在椭圆中心落在卡片最低点下面约 40px(桌面)/ 39px(手机)。
+     ⛔ 别改成固定像素:台面高度是跟着 --card-w 算的,固定值在矮屏上会掉出台面。 */
   .reel-floor{
-    position:absolute;left:50%;bottom:clamp(10px,2.4vw,34px);
+    position:absolute;left:50%;bottom:clamp(0px,.6vw,10px);
     width:calc(var(--ring-r) * 1.7);height:clamp(28px,5vw,64px);
     transform:translateX(-50%);border-radius:50%;pointer-events:none;
     background:radial-gradient(ellipse at center,rgba(28,26,23,.13),transparent 72%);
@@ -581,10 +601,13 @@
     transform-style:preserve-3d;animation:ringspin 34s linear infinite;
   }
   @keyframes ringspin{from{transform:rotateY(0deg)}to{transform:rotateY(360deg)}}
-  /* 鼠标移进转盘范围就停住(hover 只在有精细指针的设备上成立);
-     触屏和滚出视野走 JS 加的 .paused / .offscreen */
-  .reel:hover .reel-in,
-  .reel.paused .reel-in,
+  /* 🔴 v182 —— 转盘**永远不停**(Ben 2026-09-03:「the stop animation remove better,
+     just let the photos spin permanetely」)。
+     原来这里有 `.reel:hover` 和 `.reel.paused`(触屏点一下),连同 hover 放大一起去掉了。
+     ⚠️ 只留 `.offscreen`:那不是给客人用的交互,是首屏滚出视野之后别再空转烧电。
+        客人看不见它,它也不会打断「一直在转」这件事。
+     ⛔ 想加回「移上去停一下」之前先想清楚:v182 换照片是**在背面换**的,
+        停住之后背面那张会卡在换与不换之间,停在哪一格就露哪一格。 */
   .reel.offscreen .reel-in{animation-play-state:paused}
   /* v137 封面水印。放在 .reel 里、.reel-in 外面 —— .reel-in 带一层上下渐隐遮罩,
      水印挂在里面会被一起吃掉。z-index 2:压在照片上,但仍在左栏文案(z-index 3)下面,
@@ -610,7 +633,7 @@
     position:absolute;display:block;
     width:var(--card-w);height:var(--card-h);
     margin-left:calc(var(--card-w) / -2);margin-top:calc(var(--card-h) / -2);
-    background:var(--ivory);padding:clamp(4px,.8vw,9px);
+    background:var(--frame);padding:clamp(4px,.8vw,9px);
     /* 🔴 v177 —— 阴影从 `0 26px 50px .22` 收到 `0 8px 18px .14`。
        原因:转盘是 3D 的,**转到背面/侧面那几张的阴影会被一起投影出来**,
        50px 的模糊半径在它们身后拖成两大片灰糊糊的竖条,看起来像背景脏了
@@ -628,13 +651,12 @@
   .reel picture:nth-child(5){transform:rotateY(288deg) translateZ(var(--ring-r))}
   .reel picture img{
     width:100%;height:100%;object-fit:cover;display:block;
-    border:1px solid rgba(169,131,63,.35);
+    border:1px solid var(--frame-line);
     transition:transform .35s cubic-bezier(.2,.7,.3,1);
   }
-  .reel picture:hover img,
-  .reel picture.lift img{transform:translateZ(60px) scale(1.16)}
-  .reel picture:hover,
-  .reel picture.lift{box-shadow:0 16px 30px rgba(28,26,23,.24)}
+  /* ⛔ v182 删掉了 `.reel picture:hover img{transform:translateZ(60px) scale(1.16)}`
+     和配套的 `.lift`。放大原本是配合「停下来」用的;转盘不停之后,卡片会一边变大
+     一边继续滑走,看起来像卡住了。img 上那条 transition 留着 —— 换照片时的淡入还要用。 */
   /* ⛔ v175 以前 `.reel` / `.reel-in` 上有两层渐隐遮罩(mask-image)和 `contain:paint`。
      v176 全部去掉了,不是忘了搬 —— **遮罩和 contain 会把 3D 摊平**:一旦父层有
      mask 或 paint containment,里面的 `preserve-3d` 就失效,五张卡会退化成平面叠放,
@@ -4226,24 +4248,13 @@ if(!REDUCED && moods.length){
 }
 
 
-/* ---------- v176 hero 转盘:触屏点一下暂停,滚出视野也暂停 ---------- */
+/* ---------- v176/v182 hero 转盘:一直转,只有滚出视野才停 ---------- */
 (function(){
   const reel = document.querySelector(".reel");
   if (!reel || REDUCED) return;
 
-  /* 触屏上没有 hover —— CSS 里那条 `.reel:hover` 在手机上基本不成立(点一下最多
-     触发一次「粘滞 hover」,手指一离开就没了)。所以触屏走这里:点某张卡 = 停下
-     并把它顶到前面放大,再点一次(或点空白处)= 松开继续转。
-     ⛔ 判断用 `(hover: none)` 而不是屏幕宽度:有触屏的笔记本两样都有,按宽度判会判错。 */
-  if (window.matchMedia("(hover: none)").matches){
-    reel.addEventListener("click", e => {
-      const pic = e.target.closest("picture");
-      const wasLifted = !!(pic && pic.classList.contains("lift"));
-      reel.querySelectorAll("picture.lift").forEach(p => p.classList.remove("lift"));
-      if (pic && !wasLifted){ pic.classList.add("lift"); reel.classList.add("paused"); }
-      else { reel.classList.remove("paused"); }
-    });
-  }
+  /* ⛔ v182 删掉了触屏「点一下暂停并放大」那一段(Ben 2026-09-03 要求转盘永不停)。
+     现在触屏和鼠标一样:只看,不停。 */
 
   /* 首屏滚出视野之后就没必要继续转 —— 手机上五张照片的 3D 变换一直跑纯粹是烧电。
      ⚠️ 这个 observer 盯的是 `.hero`,它从头到尾只渲染一次(会重建的是目录那边),
@@ -4254,6 +4265,104 @@ if(!REDUCED && moods.length){
       entries.forEach(en => reel.classList.toggle("offscreen", !en.isIntersecting));
     }, { threshold: 0 }).observe(hero);
   }
+})();
+
+
+/* ---------- v182 hero 转盘:每转满一圈,在**背面**悄悄换一张新照片 ----------
+   Ben 2026-09-03:「i want in every photos spin 1 round will auto change new photos」。
+
+   🔴 关键在**什么时候换**,不在换什么。
+   五张卡挂在同一个鼓上,它们是**同时**转满一圈的 —— 如果按「转满一圈就换」的字面
+   实现,五张会在同一刻一起变,客人看到的是整圈闪一下。
+   所以换的时机按**每张卡自己转到背面**算:卡片转到 180° 那一带时正背对观众,
+   在那一刻换 src,客人**一次都看不见**换的过程,只会觉得转回来的是新照片。
+   五个座位差 72°,于是平均每 6.8 秒有一张在背面悄悄换掉。
+
+   ⚠️ 头一圈不换 —— Pearly 在后台挑的那五张封面必须先完整露一圈,那是店里最好的照片。
+      判断用**动画自己的 currentTime**,不是 setTimeout:滚出视野时动画是暂停的,
+      用计时器会在客人根本没看的时候把第一圈「转」完。
+
+   ⛔ 别改成 requestAnimationFrame 每帧算:每 200ms 读一次就够了
+      (34 秒一圈 → 200ms 只走 2.1°,背面那一带有 80° 宽,漏不掉),
+      而 rAF 会在首屏一直空转烧电。
+   ⛔ 换上去之前**必须先把图片下载完**再赋值:直接改 src,慢网络上那一格会先空一下,
+      而它正好要转到正面来。下载失败就整个不换,那一格继续用原来那张。 */
+(function(){
+  const reel = document.querySelector(".reel");
+  const ring = document.getElementById("heroReel");
+  if (!reel || !ring || REDUCED) return;
+
+  const pics = [...ring.querySelectorAll("picture")];
+  if (pics.length < 2) return;
+
+  const SEAT    = 360 / pics.length;     // 每格之间的角度(五格 = 72°)
+  const BACK_HALF = 40;                  // 背面那一带:180° ± 40°
+
+  /* 照片池:目录里每个颜色的缩略图(667×1000)。卡片最宽 182px,缩略图绰绰有余,
+     而且它们是已经压过的那一版 —— 不要用 v.hi(整张大图),五格每 34 秒换一次,
+     那是白烧客人的流量。 */
+  let pool = [], pi = 0;
+  function buildPool(){
+    const out = [];
+    if (typeof CAT !== "undefined" && Array.isArray(CAT)){
+      CAT.forEach(st => (st.v || []).forEach(v => { if (v && v.img) out.push(v.img); }));
+    }
+    /* 洗牌。不洗的话每次刷新看到的下一批照片都一样,而且永远从最新上架那几件开始。 */
+    for (let i = out.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = out[i]; out[i] = out[j]; out[j] = t;
+    }
+    return out;
+  }
+  function nextUrl(){
+    if (pi >= pool.length){ pool = buildPool(); pi = 0; }   // 用完再洗一次,顺便吃到新上架的
+    if (!pool.length) return null;
+    const showing = pics.map(p => { const im = p.querySelector("img"); return im ? im.getAttribute("src") : ""; });
+    for (let k = 0; k < pool.length; k++){
+      const url = pool[pi++ % pool.length];
+      if (pi > pool.length * 2) break;                      // 池子太小,别死循环
+      if (!showing.includes(url)) return url;
+    }
+    return null;
+  }
+
+  function swap(pic){
+    const url = nextUrl(); if (!url) return;
+    const img = pic.querySelector("img"), src = pic.querySelector("source");
+    const probe = new Image();
+    probe.onload = () => { if (src) src.srcset = url; if (img) img.src = url; };
+    probe.src = url;                                        // 失败 → onload 不触发 → 这一格不动
+  }
+
+  /* 鼓当前转到几度:直接问动画自己,不要拿 Date.now() 推算 ——
+     推算会跟真实动画慢慢错开(暂停过就更错),错开之后就不是在背面换了。 */
+  function ringAngle(){
+    const anims = ring.getAnimations ? ring.getAnimations() : [];
+    const a = anims.find(x => x.animationName === "ringspin") || anims[0];
+    if (!a) return null;
+    let t = a.currentTime;
+    if (t && typeof t === "object" && t.to) t = t.to("ms").value;   // 新规范给的是 CSSNumericValue
+    if (typeof t !== "number") return null;
+    /* ⛔ 一圈多少毫秒**问动画自己要**,不要在这里写死 34000。
+       写死的话,以后有人在 CSS 里把 `ringspin 34s` 调快调慢,这里算出来的角度就全错了 ——
+       而错的表现是「换照片的时候没在背面」,看起来像随机闪一下,很难查到这一行。
+       (顺带:测试也才有办法把一圈缩短到两秒钟跑完。) */
+    const dur = a.effect && a.effect.getTiming ? a.effect.getTiming().duration : 0;
+    if (!dur || typeof dur !== "number") return null;
+    return { t, dur, deg: (t % dur) / dur * 360 };
+  }
+
+  const inBack = pics.map(() => false);
+  setInterval(() => {
+    const r = ringAngle(); if (!r) return;
+    if (r.t < r.dur) return;                                // 头一圈:先把后台那五张封面完整放一遍
+    pics.forEach((pic, i) => {
+      const deg = ((r.deg + i * SEAT) % 360 + 360) % 360;
+      const back = Math.abs(deg - 180) <= BACK_HALF;
+      if (back && !inBack[i]) swap(pic);                    // 刚转进背面 → 换
+      inBack[i] = back;
+    });
+  }, 200);
 })();
 
 /* ---------- hero: silk parallax + magnetic CTA ---------- */
