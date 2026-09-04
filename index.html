@@ -655,15 +655,14 @@
     box-shadow:0 8px 18px rgba(28,26,23,.14);
     transform-style:preserve-3d;
   }
-  /* 🔴 v188 —— 入场改回**纯 CSS、每 3 秒一张**(Ben 2026-09-03:
-     「the faded animation too slow, need to come out by 3sec after previous photos appear」)。
+  /* 🔴 v188 —— 入场改回**纯 CSS、每 1.7 秒一张**(Ben 2026-09-03:先要 3 秒,同一天又改成
+     「change the speed of beginning appear photos to 1.7 sec」)。
 
      v186 是把入场绑在转盘上的:每张卡快转到正面时才亮。那样很贴合他前一条的描述,
      但**节奏是转盘定的** —— 34 秒一圈、五个座位差 72°,于是每张之间天生隔 6.8 秒,
-     五张要 27 秒才亮完。他嫌太慢。3 秒和 6.8 秒不可能同时成立(除非把转盘调快),
-     他选了 3 秒。
+     五张要 27 秒才亮完。他嫌太慢。1.7 秒和 6.8 秒不可能同时成立(除非把转盘调快),他选了 1.7 秒。
 
-     ⚠️ 代价说清楚:3 秒一张比转盘快,所以从第三张起,它是**还没转到中间就先亮了**,
+     ⚠️ 代价说清楚:1.7 秒一张比转盘(6.8 秒一位)快得多,所以从第二张起,它就是**还没转到中间就先亮了**,
         然后一边亮着一边转过来。不再是「谁转到中间谁才出现」。
         想两样都要,只能把 `ringspin` 从 34s 调快到 ~15s。
 
@@ -683,10 +682,10 @@
   @keyframes reelin{from{opacity:0}to{opacity:1}}
   .reel picture{opacity:0;animation:reelin .9s ease forwards}
   .reel picture:nth-child(1){animation-delay:.55s}
-  .reel picture:nth-child(5){animation-delay:3.55s}
-  .reel picture:nth-child(4){animation-delay:6.55s}
-  .reel picture:nth-child(3){animation-delay:9.55s}
-  .reel picture:nth-child(2){animation-delay:12.55s}
+  .reel picture:nth-child(5){animation-delay:2.25s}
+  .reel picture:nth-child(4){animation-delay:3.95s}
+  .reel picture:nth-child(3){animation-delay:5.65s}
+  .reel picture:nth-child(2){animation-delay:7.35s}
   .reel picture:nth-child(1){transform:rotateY(0deg)   translateZ(var(--ring-r))}
   .reel picture:nth-child(2){transform:rotateY(72deg)  translateZ(var(--ring-r))}
   .reel picture:nth-child(3){transform:rotateY(144deg) translateZ(var(--ring-r))}
@@ -4377,11 +4376,35 @@ if(!REDUCED && moods.length){
   /* 照片池:目录里每个颜色的缩略图(667×1000)。卡片最宽 182px,缩略图绰绰有余,
      而且它们是已经压过的那一版 —— 不要用 v.hi(整张大图),五格每 34 秒换一次,
      那是白烧客人的流量。 */
+  /* 🔴 v189 —— 池子里存的是 `{url, sid}`,**不再只是一串网址**。
+     Ben 2026-09-03 报「看到两张一样的照片」。查下来 src 一次都没重复过
+     (真 Chromium 跑 753 次采样、相当于真站 25 分钟,0 次重复),
+     `catalogue.js` 里 264 个变体也是 264 张不同的图。
+
+     **真正的原因是「同一款的不同颜色」。**
+     池子是**按颜色**建的:`cd-belinda-black` 和 `cd-belinda-blue` 是两条不同的网址,
+     但那是同一件裙子、同一个模特、同一个背景,只有颜色不同 ——
+     并排挂在转盘上,在 182px 的小卡片里就是「两张一样的照片」。
+     只比网址的话,这种情况**永远查不出来**。
+
+     所以现在**按款式(style id)去重**:同一款的任何颜色,同一时间只能有一张在圈上。
+     ⚠️ 网址也照样比 —— 线上 Supabase 的数据里确实有过「同一张照片挂到多个颜色」
+        (vault 里那份 `查-同一张照片用在多个颜色.sql` 就是查这个的),
+        离线的 catalogue.js 现在是干净的,不代表线上永远干净。两层都要。
+
+     ⛔ 还要挡「正在路上」的那一张:选中一张图之后,要等它下载完 + 淡出 450ms
+        才真正贴上去。这段时间里它**还没出现在任何一张卡的 src 上**,
+        另一张卡这时来选,就会挑中同一款。`inflight` 就是为这个存在的。
+        (v185 的间隔是 6.8 秒,这个窗口撞不上;但一圈调快、或者以后改成多张同时换,
+         马上就会撞 —— 这种 bug 只在特定节奏下出现,查起来极难。) */
   let pool = [], pi = 0;
+  const inflight = new Map();                               // pic -> {url, sid} 已选中、还没贴上去
   function buildPool(){
     const out = [];
     if (typeof CAT !== "undefined" && Array.isArray(CAT)){
-      CAT.forEach(st => (st.v || []).forEach(v => { if (v && v.img) out.push(v.img); }));
+      CAT.forEach(st => (st.v || []).forEach(v => {
+        if (v && v.img) out.push({ url: v.img, sid: st.i || v.img });
+      }));
     }
     /* 洗牌。不洗的话每次刷新看到的下一批照片都一样,而且永远从最新上架那几件开始。 */
     for (let i = out.length - 1; i > 0; i--){
@@ -4390,14 +4413,26 @@ if(!REDUCED && moods.length){
     }
     return out;
   }
-  function nextUrl(){
+  /* 圈上现在「占着」的款和图 —— 包含已经贴上去的,和已选中还在路上的。 */
+  function taken(){
+    const urls = new Set(), sids = new Set();
+    pics.forEach(p => {
+      const im = p.querySelector("img");
+      if (im && im.getAttribute("src")) urls.add(im.getAttribute("src"));
+      if (p.dataset.sid) sids.add(p.dataset.sid);
+    });
+    inflight.forEach(v => { urls.add(v.url); sids.add(v.sid); });
+    return { urls, sids };
+  }
+  function nextPick(){
     if (pi >= pool.length){ pool = buildPool(); pi = 0; }   // 用完再洗一次,顺便吃到新上架的
     if (!pool.length) return null;
-    const showing = pics.map(p => { const im = p.querySelector("img"); return im ? im.getAttribute("src") : ""; });
+    const { urls, sids } = taken();
+    /* 最多把池子从头到尾看一遍;一整圈都没有能用的(池子太小)就这一轮不换。 */
     for (let k = 0; k < pool.length; k++){
-      const url = pool[pi++ % pool.length];
-      if (pi > pool.length * 2) break;                      // 池子太小,别死循环
-      if (!showing.includes(url)) return url;
+      const cand = pool[pi++ % pool.length];
+      if (pi >= pool.length * 2) pi = pi % pool.length;      // 别让游标无限涨
+      if (!urls.has(cand.url) && !sids.has(cand.sid)) return cand;
     }
     return null;
   }
@@ -4407,9 +4442,11 @@ if(!REDUCED && moods.length){
   function swap(pic, tries){
     tries = tries || 0;
     if (tries >= MAX_TRY) return;                           // 连着几张都下不来:这一轮算了,下一圈再说
-    const url = nextUrl(); if (!url) return;
+    const pick = nextPick(); if (!pick) return;
+    const url = pick.url;
     const img = pic.querySelector("img"), src = pic.querySelector("source");
     if (!img) return;
+    inflight.set(pic, pick);                                // 占位:别的卡这段时间不能挑同一款
     const probe = new Image();
     /* 淡出 → 换 → 淡回来。图片是**先下载完**才走到这里的,所以中间不会出现空框。
        ⛔ 顺序不能反:先换 src 再淡入,慢一点的机器上会先闪一下新图再淡 —— 就是 Ben
@@ -4421,6 +4458,8 @@ if(!REDUCED && moods.length){
       setTimeout(() => {
         if (src) src.srcset = url;
         img.src = url;
+        pic.dataset.sid = pick.sid;                         // 记下这一格现在是哪一款
+        inflight.delete(pic);                               // 贴上去了,占位交给 dataset.sid
         requestAnimationFrame(() => requestAnimationFrame(() => img.classList.remove("fading")));
       }, FADE_MS);
     };
@@ -4429,7 +4468,7 @@ if(!REDUCED && moods.length){
        CDN 抽风),抽到它的那一格就要**整整一圈**什么都不发生 ——
        在客人眼里就是「这个转盘根本不换照片」。
        ⛔ 别把重试写成死循环:MAX_TRY 到了就放弃,下一圈自然会再来。 */
-    probe.onerror = () => swap(pic, tries + 1);
+    probe.onerror = () => { inflight.delete(pic); swap(pic, tries + 1); };
     probe.src = url;
   }
 
