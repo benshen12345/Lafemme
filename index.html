@@ -1312,6 +1312,48 @@
     .lb-cta .btn{padding:12px 6px;font-size:9.5px;letter-spacing:.04em;
       white-space:normal;line-height:1.4}
   }
+  /* v193 —— 手机上「下面还有内容,往上滑」的提示条。
+     🔴 为什么要有它:实测(Chromium,六档真设备尺寸)弹窗在手机上打开时,
+        面板里有 226~498px 的内容在第一屏之下,而且**「加入试穿清单 / WhatsApp 询价」
+        两颗按钮在 320 / 375 / 390 / 414 / 430 每一档手机上都不在第一屏**。
+        客人看完照片就以为看完了 —— 主要的两个动作他根本没见过。
+
+     ⚠️ 做成**深色半透明药丸 + 模糊**,不是浅色渐变条:面板底部那一带在不同款、
+        不同屏高上,露出来的可能是礼服照片(什么颜色都有),也可能是白底的标题/表格。
+        浅色条压在白墙婚纱上会整个糊掉。这个药丸的写法跟窄屏的 .lb-share
+        和右上角的 #lbClose 是同一套,站里已经有先例。
+     ⚠️ pointer-events:none —— 它是**提示不是按钮**。客人真去戳它,穿过去点到底下的东西,
+        这是对的:提示不该抢走一次点击。
+     ⚠️ 位置由 JS 量出来钉在面板底边上方 14px(见 lbHintPlace)。
+        ⛔ 不要写死 `bottom:6svh` 之类的数 —— 那等于把它跟 .lb-panel 的
+           `max-height:88svh` 绑死,以后谁改那个数字,提示条就飘到面板外面去了,
+           而且不会有任何报错。
+     ⚠️ display 一直是 flex,靠 opacity + visibility 收 —— 用 display:none 收的话
+        淡出的 transition 根本不会跑,提示会「啪」一下消失。 */
+  #lbHint{
+    position:absolute;left:50%;transform:translateX(-50%);
+    z-index:5;pointer-events:none;
+    display:flex;align-items:center;gap:7px;
+    padding:8px 14px;border-radius:19px;
+    background:rgba(20,16,12,.5);color:#fff;
+    -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;
+    opacity:0;visibility:hidden;
+    transition:opacity .45s ease, visibility 0s linear .45s;
+  }
+  #lbHint svg{width:13px;height:13px;flex:none}
+  #lb.open #lbHint.on{
+    opacity:1;visibility:visible;
+    transition:opacity .45s ease, visibility 0s;
+    animation:hintrise 1.6s ease-in-out 3;
+  }
+  /* 往上飘 —— 「上面这块能推上去,下面还有」。
+     ⚠️ 关键帧里必须把 translateX(-50%) 一起写上:transform 是**整个属性**被覆盖的,
+        只写 translateY 的话药丸会当场往右跳半个身位。 */
+  @keyframes hintrise{
+    0%,100%{transform:translate(-50%,0)}
+    50%{transform:translate(-50%,-7px)}
+  }
   #lbClose{position:absolute;top:12px;right:12px;z-index:4;width:38px;height:38px;border-radius:50%;
     border:0;background:rgba(20,16,12,.5);color:#fff;font-size:22px;line-height:1;cursor:pointer;
     display:flex;align-items:center;justify-content:center;
@@ -2310,6 +2352,14 @@
       </div>
       <p id="lbNote" style="margin:14px 0 0;font-size:12px;color:var(--muted);line-height:1.5">Added pieces are saved to your list. To book, open <b style="color:var(--ink);font-weight:600">Booking</b> from the top menu (<b style="color:var(--ink);font-weight:600">☰</b> on mobile), or scroll down to the form.</p>
     </div>
+  </div>
+  <!-- v193 —— 手机上「下面还有内容」的提示条(见 #lbHint 那段 CSS)。
+       ⚠️ 它是 .lb-panel 的**兄弟**,不是子元素:面板自己会滚,放进去就会跟着content 滚走。
+       ⚠️ 文字那个 <span> 必须是**叶子元素**(里面不能再放东西)——
+          tagLeaves() 只给叶子挂 data-en,包起来就不翻译了。所以箭头是它的兄弟。 -->
+  <div id="lbHint" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 15l-6-6-6 6"/></svg>
+    <span>Swipe up for details</span>
   </div>
 </div>
 
@@ -4074,6 +4124,7 @@ function openLb(i, vi){
   fitTitle();
   document.body.style.overflow = "hidden";
   document.getElementById("lbClose").focus();
+  lbHintShow();   /* v193 —— 手机上提示「往上滑还有内容」;桌面和滚不动的时候自己不出现 */
   /* push a history entry so the phone's Back button closes this popup instead of leaving the site */
   if (!lbHistoryActive){
     /* v144 —— 关掉弹窗之后必须留在原地,不能被送回封面。
@@ -4092,8 +4143,54 @@ function openLb(i, vi){
 }
 let lbHistoryActive = false;
 let LB_PREV_SR = "auto";
+
+/* ===== v193 —— 手机上「往上滑还有内容」的提示条 ===== */
+const lbHint = document.getElementById("lbHint");
+const lbPanelEl = document.querySelector(".lb-panel");
+let lbHintTimer = 0;
+
+/* 钉在面板底边上方 14px。#lb 是 position:fixed;inset:0,所以绝对定位的
+   包含块就是整个视口 —— bottom 直接按视口底边算。 */
+function lbHintPlace(){
+  if (!lbHint || !lbPanelEl) return;
+  const r = lbPanelEl.getBoundingClientRect();
+  lbHint.style.bottom = Math.round(window.innerHeight - r.bottom + 14) + "px";
+}
+function lbHintHide(){
+  if (!lbHint) return;
+  clearTimeout(lbHintTimer); lbHintTimer = 0;
+  lbHint.classList.remove("on");
+}
+function lbHintShow(){
+  if (!lbHint || !lbPanelEl) return;
+  lbHintHide();
+  /* 🔴 用「主输入是不是触屏」来判断,**不要用屏幕宽度**。
+     第一版写的是 `innerWidth > 900 就不显示`,实测漏掉了**横屏手机**:
+     iPhone Pro Max 横过来是 932×430,宽度超过 900 所以被挡掉了,
+     可是它的面板真的还能滚 240px —— 而且横屏时面板最矮、最需要这个提示。
+     `(hover:none)` 问的是「主要输入设备能不能悬停」:手机平板 true,
+     鼠标笔电 false(带触摸屏的笔电只要主输入还是触控板,也是 false)。
+     实测:932×430 触屏 → true;1440×620 鼠标(面板也能滚 72px)→ false。
+     所以这一条同时解决了「横屏手机漏掉」和「窗口拉矮的桌面误报」。
+     顺带:文案是「上滑」,只在触屏上出现才说得通。 */
+  if (!window.matchMedia("(hover: none)").matches) return;
+  /* ⛔ 没东西可滚就不许出现 —— 提示一件不存在的事比不提示更糟 */
+  if (lbPanelEl.scrollHeight - lbPanelEl.clientHeight <= 40) return;
+  lbHintPlace();
+  /* 强制回流,让上一次的动画能重新起头(连开两件时 .on 是刚被摘掉的) */
+  void lbHint.offsetWidth;
+  lbHint.classList.add("on");
+  /* 3 轮 × 1.6s = 4.8s,留一点余量再收 */
+  lbHintTimer = setTimeout(lbHintHide, 5200);
+}
+/* 客人一动就收 —— 提示已经完成任务了,继续飘就只是噪音 */
+if (lbPanelEl) lbPanelEl.addEventListener("scroll", lbHintHide, { passive: true });
+/* 转屏/改窗口时重新量:面板高度变了,原来那个 bottom 就不对了 */
+window.addEventListener("resize", () => { if (lbHint && lbHint.classList.contains("on")) lbHintPlace(); });
+
 function closeLb(fromPop){
   lb.classList.remove("open");
+  lbHintHide();
   tapHintArm();   /* v170 —— 关掉大图之后重新起一轮(不记忆,所以还会继续教) */
   document.body.style.overflow = "";
   if (lastFocus) lastFocus.focus();
@@ -5115,6 +5212,7 @@ const I18N = {
   /* nav / buttons / CTA */
   "Collection":"礼服系列","About":"关于我们","FAQ":"常见问题","Visit":"到店","Booking":"预约","Book a Fitting":"预约试穿","Menu":"菜单",
   "View Collection":"浏览系列","Add to fitting list":"加入试穿清单","Ask price on WhatsApp":"在 WhatsApp 询价",
+  "Swipe up for details":"上滑看详情",
   "Send via WhatsApp":"通过 WhatsApp 发送","Chat on WhatsApp":"用 WhatsApp 联系",
   "Open in Waze":"用 Waze 打开","Google Maps":"Google 地图",
   /* hero */
