@@ -1285,7 +1285,33 @@
      其他行(编号、租期、适合场合)是多行文字,仍然要 top 对齐,不能一起改。 */
   .lb-tab tr.lb-colours td{vertical-align:top;padding-top:12px}
   .lb-tab tr.lb-colours .dots-row{margin-top:0;align-items:center;min-height:1.2em}
-  .lb-cta{display:flex;gap:12px;flex-wrap:wrap}
+  /* v192 —— 弹窗底下那两颗按钮改成首屏 .hero-ctas 那个样子:并排一行、中间留空。
+     以前是 `flex-wrap:wrap` + 12px 间距,看着像「本来就该并排,只是挤不下」——
+     其实是**任何宽度都挤不下**:两颗按钮按 .btn 原样(15px 34px 内边距 + .32em 字距)
+     要 195px + 207px = 402px,而 .lb-cta 最宽的时候(桌面两栏布局)只有 391.4px。
+     差 11px,所以桌面、平板、手机上它一直都是上下堆着的,只有 640~900px
+     那一档单栏又够宽的屏幕才偶然排成一行。
+     要一行就必须把字距和内边距一起收 —— 跟首屏 ≤430px 那一档是同一个做法。
+
+     ⚠️ 余量必须按**兜底字体**留,不能按 Jost 掐着算:Jost 是 Google Fonts 下载来的,
+        到货之前浏览器用 'Segoe UI'/Arial,实测宽约 6%(这个数字 v176 就量过一次)。
+        按 Jost 刚好放下的话,页面打开那一两秒按钮就是溢出的。
+     ⚠️ flex:1 1 0 让两颗**等宽** —— 这一点跟首屏不一样(首屏按文字宽、整体居中)。
+        面板只有首屏三分之一宽,按文字宽会一长一短、右边留个豁口,反而不齐。 */
+  .lb-cta{display:flex;gap:20px;flex-wrap:nowrap}
+  .lb-cta .btn{flex:1 1 0;min-width:0;min-height:44px;
+    display:inline-flex;align-items:center;justify-content:center;text-align:center;
+    padding:14px 10px;letter-spacing:.07em;white-space:nowrap}
+  /* ≤430px:字号和字距再收一档(数值跟首屏 ≤340px 那一档一样),并且**允许标签折行**。
+     ⛔ 这一档不要再用 white-space:nowrap 硬掐:实测兜底字体在 390px 上差 0.8px 就溢出,
+        为 0.8px 去抠内边距是掐着算的,换一台设备的兜底字体就又破了。
+        折行永远不会溢出;两颗等宽、字数又相近,会一起变成两行,高度仍然一致。
+        实测 320/360/375 是两行(高 53px),390~430 一行(高 44px)。 */
+  @media (max-width:430px){
+    .lb-cta{gap:12px}
+    .lb-cta .btn{padding:12px 6px;font-size:9.5px;letter-spacing:.04em;
+      white-space:normal;line-height:1.4}
+  }
   #lbClose{position:absolute;top:12px;right:12px;z-index:4;width:38px;height:38px;border-radius:50%;
     border:0;background:rgba(20,16,12,.5);color:#fff;font-size:22px;line-height:1;cursor:pointer;
     display:flex;align-items:center;justify-content:center;
