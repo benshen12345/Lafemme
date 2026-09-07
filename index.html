@@ -761,8 +761,28 @@
   .filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:0}
   .swatches{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:0}
   .facet{margin-bottom:20px}
+  /* v198 —— 收起来的组只是一行标题,不需要展开时那么大的下边距。
+     实测手机上四组收起时原本每组之间隔 140px,收紧后 ~70px,一屏能多看到东西。 */
+  details.facet:not([open]){margin-bottom:2px}
   .facet:last-of-type{margin-bottom:42px}
   .facet-h{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  /* v198 —— 折叠标题。
+     ⚠️ list-style:none + ::-webkit-details-marker 两条都要写:
+        Safari 到现在还认后面那条私有伪元素,只写 list-style 的话它仍然画那个小三角。 */
+  summary.facet-h{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;
+    padding:9px 0;margin-bottom:6px;min-height:40px;   /* 40px:折叠标题本身就是点触目标 */
+    border-bottom:1px solid var(--hairline);user-select:none}
+  summary.facet-h::-webkit-details-marker{display:none}
+  /* 自己画箭头,展开时转 90° —— 客人一眼知道这一组是可以点开的 */
+  summary.facet-h::after{content:"";margin-left:auto;width:7px;height:7px;flex:none;
+    border-right:1.4px solid var(--muted);border-bottom:1.4px solid var(--muted);
+    transform:rotate(-45deg);transition:transform .25s ease}
+  details.facet[open] > summary.facet-h::after{transform:rotate(45deg)}
+  summary.facet-h:hover{color:var(--ink)}
+  /* 收起来时,标题右边显示这一组选了什么 —— 不然客人不敢收,怕忘了自己选过 */
+  .facet-n{font-size:10px;letter-spacing:.06em;text-transform:none;color:var(--gold-deep);
+    background:rgba(198,161,91,.14);border-radius:999px;padding:2px 8px;margin-left:2px}
+  details.facet[open] > summary.facet-h .facet-n{display:none}
   /* mobile filter drawer chrome is hidden on desktop; facets flow inline as normal blocks */
   .filter-toggle,.filter-backdrop,.filter-panel-head,.filter-panel-foot{display:none}
   /* ...unless the nav "Filters" link floats the panel over the page. Used on laptops,
@@ -858,9 +878,22 @@
   .share-btn svg{width:14px;height:14px;flex:none}
   .share-btn:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
   #sortSel:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
-  .swatch-all{background:none;border:0;color:var(--muted);font-size:11px;letter-spacing:.2em;text-transform:uppercase;cursor:pointer;padding:6px 6px 6px 0;transition:color .3s ease}
-  .swatch-all:hover,.swatch-all.active{color:var(--ink)}
-  .swatch-all.active{text-decoration:underline;text-underline-offset:5px;text-decoration-color:var(--gold)}
+  /* v198 —— 「全部颜色」改成跟另外三组的 ALL **一样的药丸**。
+     🔴 这是桌面上「看起来乱」的主要来源之一:Style / Fabric / Brand 三组的第一颗
+        都是黑色实心药丸,只有颜色这一组是一段带下划线的文字 —— 四组的第一个控件
+        长了三种不同的样子,眼睛会一直被这个不一致绊住。
+     ⚠️ 只改**外观**,不改行为、不改类名、不改 DOM —— `.swatch-all.active` 这个
+        类名照旧,JS 和现有断言都不受影响。
+     ⚠️ 命中区那条 `.swatch-all::before{inset:-10px 0}` 是给原来 24px 高的文字撑的;
+        现在自己就有 40px 高,那条留着无害(命中区只会更大,不会更小)。 */
+  .swatch-all{
+    border:1px solid var(--hairline);background:transparent;color:var(--muted);
+    padding:10px 18px;font-size:10px;letter-spacing:.28em;text-transform:uppercase;
+    transition:all .3s ease;border-radius:999px;flex:0 0 auto;white-space:nowrap;
+    min-height:40px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  .swatch-all:hover{border-color:var(--gold);color:var(--ink)}
+  .swatch-all.active{background:var(--ink);border-color:var(--ink);color:var(--ivory)}
   .swatch-btn{width:26px;height:26px;border-radius:50%;border:1px solid var(--hairline);cursor:pointer;padding:0;transition:transform .2s ease}
   .swatch-btn:hover{transform:scale(1.14)}
   .swatch-btn.active{outline:2px solid var(--gold);outline-offset:2px;border-color:transparent}
@@ -2046,23 +2079,33 @@
         <span class="filter-panel-title">Filters</span>
         <button id="filterClose" class="filter-close" type="button" aria-label="Close filters">✕</button>
       </div>
+      <!-- v198 —— 四组改成可折叠。
+           🔴 手机上量出来:光 Style 一组就 467px 高、10 行,而面板可视高度只有 844px ——
+              客人要滑过 20 个 style + 15 个 fabric 共 35 个 chip 才看得到**颜色**,
+              而颜色恰恰是最多人想筛的。折叠之后四组的标题一屏内全看得到。
+           ⚠️ 用原生 <details>,不用自己写 JS 开合:键盘、读屏、无 JS 时全都自动正确。
+           ⚠️ **markup 里四个都写 open** —— 这样 JS 挂了或还没跑,表现就跟改之前一模一样
+              (全部展开),不会变成「四组全关、客人以为筛选坏了」。
+              收起来是 JS 在手机上**主动做的**(见 wireFacets),这是渐进增强的方向。
+           ⚠️ class="facet" 必须留在 <details> 上:renderBrands() 用
+              `brandChips.closest(".facet")` 找它来隐藏整组,换个标签名它就找不到了。 -->
       <div class="filter-panel-body">
-        <div class="facet">
-          <div class="facet-h">Style</div>
+        <details class="facet" open>
+          <summary class="facet-h">Style<span class="facet-n" hidden></span></summary>
           <div class="filters" id="chips" role="group" aria-label="Filter by style"></div>
-        </div>
-        <div class="facet">
-          <div class="facet-h">Fabric</div>
+        </details>
+        <details class="facet" open>
+          <summary class="facet-h">Fabric<span class="facet-n" hidden></span></summary>
           <div class="filters" id="materialChips" role="group" aria-label="Filter by fabric"></div>
-        </div>
-        <div class="facet">
-          <div class="facet-h">Colour</div>
+        </details>
+        <details class="facet" open>
+          <summary class="facet-h">Colour<span class="facet-n" hidden></span></summary>
           <div class="swatches" id="swatches" role="group" aria-label="Filter by colour"></div>
-        </div>
-        <div class="facet">
-          <div class="facet-h">Brand</div>
+        </details>
+        <details class="facet" open>
+          <summary class="facet-h">Brand<span class="facet-n" hidden></span></summary>
           <div class="filters" id="brandChips" role="group" aria-label="Filter by brand"></div>
-        </div>
+        </details>
       </div>
       <div class="filter-panel-foot">
         <button id="filterClear" class="filter-clear" type="button">Clear all</button>
@@ -3136,7 +3179,12 @@ function renderSwatches(){
   swatchBox.innerHTML = "";
   const all = document.createElement("button");
   all.className = "swatch-all" + (state.color === "all" ? " active" : "");
-  all.dataset.color = "all"; all.textContent = T("All colours", "全部颜色", "Semua warna");
+  /* v198 —— 文字从「All colours」缩成「All」,跟 Style / Fabric / Brand 三组的
+     第一颗完全一致。⚠️ 不只是为了统一:改成药丸之后「ALL COLOURS」有 220px 宽,
+     在 390px 的手机上把色点挤到了第二行 —— 缩成 All 之后色点回到一行。
+     ⚠️ 复用现成的 T("All","全部","Semua"),不新增词条(那三组本来就这么写)。
+     无障碍名字不受影响:它外面那层 role=group 已经带着 aria-label="Filter by colour"。 */
+  all.dataset.color = "all"; all.textContent = T("All", "全部", "Semua");
   swatchBox.appendChild(all);
   present.forEach(c => {
     const b = document.createElement("button");
@@ -4027,7 +4075,56 @@ function updateFilterMeta(){
   if (filterApplyBtn) filterApplyBtn.textContent = T("Show " + n, "显示 " + n + " 件", "Papar " + n);
   const rc = document.getElementById("resultCount");
   if (rc) rc.textContent = T("Showing " + n + (n === 1 ? " piece" : " pieces"), "显示 " + n + " 件", "Memaparkan " + n + " gaun");
+  syncFacetBadges();
 }
+
+/* ===== v198 —— 筛选面板四组的折叠 ===== */
+/* 每一组标题右边那个小徽章:收起来的时候告诉客人这一组选了什么。
+   ⚠️ 没有它的话客人不敢收 —— 收起来就等于「我不知道自己还选着什么」。
+   ⚠️ 显示的是**选中的值本身**(例如 MERMAID),不是「已选 1 项」——
+      一组最多只能选一个,直接把值写出来更有用。 */
+function syncFacetBadges(){
+  const map = [
+    ["chips",        state.category, v => CL(v)],
+    ["materialChips", state.material, v => ML(v)],
+    ["swatches",     state.color,    v => (COLOR_LABELS[v] || v)],
+    ["brandChips",   state.brand,    v => BL(v)],
+  ];
+  map.forEach(([id, val, label]) => {
+    const host = document.getElementById(id);
+    if (!host) return;
+    const det = host.closest(".facet");
+    const tag = det && det.querySelector(".facet-n");
+    if (!tag) return;
+    const on = val && val !== "all";
+    tag.hidden = !on;
+    tag.textContent = on ? label(val) : "";
+  });
+}
+
+/* 手机上默认只展开「颜色」,其余三组收起来。
+   🔴 为什么是颜色:量出来手机上 Style 一组就 467px 高,客人要滑过 35 个 chip
+      才看得到颜色 —— 而颜色是最多人想筛的那一项。
+   ⚠️ markup 里四个 <details> 都写着 open,所以**这段 JS 不跑的话就是全展开**,
+      跟改之前完全一样。收起来是这里主动做的,不是靠 JS 才能展开。
+   ⚠️ 只在**客人没自己动过**的时候才代他决定:他手动展开了 Style 之后
+      转个屏就被合上,会很烦人。用 dataset.touched 记住这件事。 */
+function wireFacets(){
+  const dets = [...document.querySelectorAll(".filter-panel-body > details.facet")];
+  if (!dets.length) return;
+  dets.forEach(d => d.addEventListener("toggle", () => { d.dataset.touched = "1"; }));
+  const apply = () => {
+    const narrow = window.matchMedia("(max-width:900px)").matches;
+    dets.forEach(d => {
+      if (d.dataset.touched) return;                  // 客人自己动过,不要抢
+      const isColour = !!d.querySelector("#swatches");
+      d.open = narrow ? isColour : true;
+    });
+  };
+  apply();
+  window.addEventListener("resize", apply);
+}
+wireFacets();
 let lastFocus = null, lbToken = 0, fittingList = [];
 let lbNav = null;   // set by openLb to the current piece's colour-stepper (or null if single colour)
 /* v147 —— 把款名缩到刚好一行。
@@ -4509,6 +4606,9 @@ themeBtn.addEventListener("click", ()=>{
   document.documentElement.dataset.theme = noir ? "noir" : "ivory";
   themeBtn.setAttribute("aria-pressed", noir);
   themeBtn.querySelector("span").textContent = noir ? T("Ivory mode", "日间模式", "Mod Ivory") : T("Noir mode", "夜间模式", "Mod Noir");
+  /* v197 —— 埋点:记的是**切到了哪一种**,不是「点了几下」。
+     ⚠️ noir 这个变量在上面已经被翻转过了,它代表的是**切换之后**的状态。 */
+  track("theme_toggle", { filter_key: "theme", filter_value: noir ? "noir" : "ivory" });
 });
 
 /* ---------- ambient aura ---------- */
@@ -5719,7 +5819,28 @@ function applyLang(lang){
       setPressed(true); fadeTo(VOL);
     }).catch(() => { btn.classList.remove("loading"); setPressed(false); });
   }
-  btn.addEventListener("click", () => { if (au.paused) start(); else stop(); });
+  /* 🔴 v198 —— 按钮状态**只跟着 <audio> 自己走**,不跟着「客人点了几下」走。
+     Ben 2026-09-07 报的 bug:拔掉耳机时音乐停了,按钮却还亮着「正在播放」。
+     原因是暂停这件事**不是客人按的** —— 是系统/浏览器在音频输出设备消失时替他按的,
+     而原来的代码只在自己的 click 处理器里改状态,外面发生的事一概不知道。
+
+     同一个洞还会在这些情况下露出来,全部一并修好:
+       · 蓝牙耳机断连 / 拔耳机线
+       · 手机通知中心、锁屏、耳机线控上的暂停键
+       · 另一个 App 抢走音频焦点(来电、语音消息)
+       · 系统在后台把这个标签页的音频停掉
+     只要听 audio 自己的 play / pause 事件,以上全都自动对上,不用一个个去处理。 */
+  au.addEventListener("play",  () => setPressed(true));
+  au.addEventListener("pause", () => setPressed(false));
+
+  btn.addEventListener("click", () => {
+    const turningOn = au.paused;
+    /* v197 —— 埋点。⚠️ 只能用 events 表**已有的列**:多一个键 → 400。
+       所以复用 filter_key / filter_value(跟 v187「得知渠道」同一套做法)。
+       ⚠️ 开和关**都记**:关掉的次数是「客人不喜欢」的信号,比只记打开有用得多。 */
+    track("music_toggle", { filter_key: "state", filter_value: turningOn ? "on" : "off" });
+    if (turningOn) start(); else stop();
+  });
 
   /* 切走标签页就停 —— 客人开了别的页面,音乐还在背后响是很讨厌的。
      ⚠️ 只停不自动续:回来之后要不要再放,由客人自己决定。 */

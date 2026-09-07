@@ -357,6 +357,16 @@
             of event, so a piece share never inflates the "shared views" numbers and the other way
             round.</span></dd>
 
+        <dt>Header toggles — music &amp; theme</dt>
+        <dd>How often the two buttons in the header were used. The music starts off on every
+          page load — it never plays by itself — so "Turned music ON" is someone choosing to
+          hear it, and "Turned music OFF" is someone who tried it and stopped it. Read those
+          two together: a lot of OFFs means the music is not welcome. "Visit(s)" counts page
+          loads, not people — a visit id is random each time the page opens and is never stored
+          on the device, so one person returning tomorrow counts as two. Started being recorded
+          the day it was published; earlier dates show nothing, which is not the same as nobody
+          clicking.</dd>
+
         <dt>How they heard about us</dt>
         <dd>What customers picked in the booking form's "How did you hear about us?" question.
           It only counts forms actually sent, and the question is optional — so this total is
@@ -488,6 +498,20 @@
         nobody answering. The question is optional, so the total here is normally smaller than
         "Booking forms sent".</span></p>
       <div id="heardAbout">No data yet.</div>
+    </div>
+
+    <!-- v197 —— 顶栏那两个开关到底有没有人用 -->
+    <div class="card2">
+      <h3>Header toggles — music &amp; theme</h3>
+      <p class="ph">How often the two header buttons were used. <b>Music</b> is off by default, so
+        every "ON" is someone deliberately choosing to hear it — and every "OFF" is someone who
+        turned it on and then decided they did not want it. Those two numbers next to each other
+        tell you whether the music is welcome.
+        <br><span style="color:var(--muted)">"Visit(s)" is not the same as people: a visit id is
+        random per page load and is never stored on the device, so the same person coming back
+        tomorrow counts twice. Recorded from the day this was published — earlier date ranges are
+        empty, which is not the same as nobody clicking.</span></p>
+      <div id="headerToggles">No data yet.</div>
     </div>
 
     <div class="card2">
@@ -705,6 +729,7 @@ async function loadDash() {
   renderFilterUse();
   renderFaqOpens();
   renderHeard();
+  renderToggles();
   renderSharedViews();
   renderSharedPieces();
   renderSessions();
@@ -867,18 +892,37 @@ async function loadBehavRows(type, cols, r, label){
 }
 async function loadSearchAndFilters(r){
   SEARCHES = []; FILTERS = {}; FAQS = []; SHARED = {}; SHARED_PIECE = {}; HEARD = {}; BEHAV_ERR = ""; BEHAV_TRUNC = {};
+  MUSIC = { on:0, off:0, visits:new Set() };
+  THEME = { noir:0, ivory:0, visits:new Set() };
   try {
     /* v131 —— share_view 多取 style_id / style_name / colour 三列,给「最常被分享的单品」用。 */
     /* v187 —— 多读一次 book_submit,只为了「他们从哪里得知我们」那一块。
        ⚠️ 预约那几个数字是**服务端 count** 出来的(loadBookingCounts,没有上限、永远准);
           这里拉行是另一件事,受 BEHAV_CAP 限制,所以下面会带截断提示。两者别混。 */
-    const [searchRows, filterRows, faqRows, shareRows, bookRows] = await Promise.all([
+    const [searchRows, filterRows, faqRows, shareRows, bookRows, musicRows, themeRows] = await Promise.all([
       loadBehavRows("search",      "q",                                           r, "Searches"),
       loadBehavRows("filter_use",  "filter_key, filter_value",                    r, "Filters"),
       loadBehavRows("faq_open",    "q",                                           r, "FAQ"),
       loadBehavRows("share_view",  "filter_key, filter_value, style_id, style_name, colour", r, "Shares"),
-      loadBehavRows("book_submit", "filter_key, filter_value",                    r, "Bookings")
+      loadBehavRows("book_submit", "filter_key, filter_value",                    r, "Bookings"),
+      /* v197 —— 顶栏两个开关。多取 visit_id 是为了算「多少人」而不是「多少下」。 */
+      loadBehavRows("music_toggle", "visit_id, filter_key, filter_value",          r, "Music"),
+      loadBehavRows("theme_toggle", "visit_id, filter_key, filter_value",          r, "Theme")
     ]);
+    /* v197 —— 顶栏开关。⚠️ 只认自己那个 filter_key,别的行一概不算 ——
+       这两个 event_type 将来要是被复用来记别的东西,不加这层判断就会串。 */
+    musicRows.forEach(e => {
+      if (e.filter_key !== "state") return;
+      if (e.filter_value === "on")  MUSIC.on++;
+      if (e.filter_value === "off") MUSIC.off++;
+      if (e.visit_id) MUSIC.visits.add(e.visit_id);
+    });
+    themeRows.forEach(e => {
+      if (e.filter_key !== "theme") return;
+      if (e.filter_value === "noir")  THEME.noir++;
+      if (e.filter_value === "ivory") THEME.ivory++;
+      if (e.visit_id) THEME.visits.add(e.visit_id);
+    });
     /* 只认 filter_key='heard' 的那些行 —— book_submit 里其余的行是没填这一题的。 */
     bookRows.forEach(e => {
       if (e.filter_key === "heard" && e.filter_value)
@@ -945,6 +989,10 @@ async function loadSearchAndFilters(r){
    an inference about old data, so the UI labels that part as estimated rather than passing
    it off as recorded. */
 let HEARD = {};
+/* v197 —— 顶栏两个开关的使用情况。visits 用 Set 存 visit_id,
+   因为 Ben 问的是「多少人」,不是「点了多少下」—— 同一次到访连点五下只算一个人。 */
+let MUSIC = { on:0, off:0, visits:new Set() };
+let THEME = { noir:0, ivory:0, visits:new Set() };
 let BOOK_ERR = "";
 /* 🔴 v133 —— 这块以前是「把行拉回来自己数」,`.limit(10000)` 而且没有 order。
    同一个坑:范围一宽,10000 条满了就只留最旧的一段,**KPI 上那个「预约表单已发」
@@ -1266,6 +1314,30 @@ function renderHeard(){
       </div>`).join("")
     + `<div class="ph" style="margin-top:10px">共 ${total} 份预约填了这一题。</div>`
     + truncNote("book_submit");
+}
+
+/* v197 —— 顶栏两个开关的使用情况 */
+function renderToggles(){
+  const box = $("headerToggles");
+  if (!box) return;
+  const none = MUSIC.on + MUSIC.off + THEME.noir + THEME.ivory === 0;
+  if (none){ box.innerHTML = behavEmpty(); return; }
+  const row = (label, n, max) => `
+      <div class="termrow">
+        <span class="termn">${esc(label)}</span>
+        <span class="termbar"><i style="width:${max ? (n / max * 100).toFixed(1) : 0}%"></i></span>
+        <span class="termc">${n}</span>
+      </div>`;
+  const mMax = Math.max(MUSIC.on, MUSIC.off, 1);
+  const tMax = Math.max(THEME.noir, THEME.ivory, 1);
+  box.innerHTML =
+      `<div class="ph" style="margin:0 0 6px"><b>Music</b> — ${MUSIC.visits.size} visit(s) touched it</div>`
+    + row("Turned music ON",  MUSIC.on,  mMax)
+    + row("Turned music OFF", MUSIC.off, mMax)
+    + `<div class="ph" style="margin:14px 0 6px"><b>Ivory / Noir mode</b> — ${THEME.visits.size} visit(s) touched it</div>`
+    + row("Switched to Noir (dark)",   THEME.noir,  tMax)
+    + row("Switched to Ivory (light)", THEME.ivory, tMax)
+    + truncNote("music_toggle") + truncNote("theme_toggle");
 }
 
 function pieceOf(s){
