@@ -597,9 +597,42 @@
         360×640 那种矮屏正好卡在边上。452 挡得住小的度量差,**挡不住整整多一行**;
         真要挡住得留到 468,那样矮屏上照片要再小 14%,不值。
         (加载中那一两秒页面上还盖着 loader,客人多半看不到。)
-     ⛔ 改标题字号 / 小字行数 / 按钮高度都要重量一次。 */
+     ⛔ 改标题字号 / 小字行数 / 按钮高度都要重量一次。
+
+     🔴 v199(2026-09-07)—— 452 → 524,并且**按宽度分成两档**。
+     Ben 实测报的:「底部那条会动的彩带出不来 —— 手机可以、iPad 不行、桌面可以」。
+     扫 189 档「宽×高」复现:**44 档溢出**,全部落在 **600–1024px 宽 × 700–900px 高**
+     这一带(横放的 iPad 最严重,1024×834 时彩带被顶到第一屏外 33px);
+     ≤430px(手机)和 ≥1112px(笔电/桌面)**一档都没有** —— 跟他的描述完全对上。
+
+     ⛔ 根因是**这个常数本身过期了**,不是哪一档屏幕特殊:
+        · v178 把 48px 高的彩带搬进首屏 —— 没回来加这 48;
+        · v179 又给 `.hero-left` 加了 `margin-top:clamp(4px,2.6svh,34px)` —— 也没回来加。
+        实测这一带真正需要 **493px**,而这里还写着 452。
+     ⛔ **通则:一个写死的常数只要代表「别的东西有多高」,以后每次往首屏加东西
+        都必须回来重算它。** 这是同一个常数第二次过期了。
+
+     🔴 **这一条只管到 1024px 宽为止** —— 下面 `@media (min-width:1025px)` 那一档
+        整条盖掉了 `--card-w`(用的是它自己的 492),而**桌面本来就没有这个 bug**。
+        所以这次只动这个基础值,桌面那 492 一个字都没改、照片一点没缩。
+        ⛔ 我第一次给方案时算错过:当时是在浏览器里**运行时注入**一段 CSS 来试数字的,
+           注入的 style 排在样式表最后、会赢过 1025px 那一档,于是我以为「桌面会跟着缩 13%」。
+           **写进文件里的规则排在 1025px 那一档前面,根本轮不到它** ——
+           那个「代价」是我的量法造出来的,不是真的。
+        ⛔ 通则:**试一个 CSS 改动,要试在它将来真正会待的位置上**;
+           运行时注入的 style 拿到的是不同的层叠顺序,量出来的是另一份代码的行为。
+     ⚠️ 524 = 493(实测最大需求)+ 31px 余量。31 是照着**多折一行小字(28px)**留的
+        —— 跟上面 452 那段说的「挡不住整整多一行」是同一个账,这次留够了。
+     ⚠️ 手机(390×844)和竖放 iPad(820×1180)**两档都不受影响**:
+        那两档是 `30vw` / 上限 `182px` 在封顶,轮不到这一项。
+     ⛔ 还剩一档修不掉:**≥768px 宽但只有 640px 高**的窗口仍溢出约 7px ——
+        `clamp()` 的下限 78px 卡住了(转盘最矮 184.7px)。那不是真机尺寸,
+        是被缩小的桌面窗口;要修得动下限 78,代价是矮屏上照片更小,不值。
+     ⛔ 以后再往首屏加任何东西(多一行字、按钮变高、彩带变厚),
+        **这里的 524 和下面 1025px 那一档的 492 两个数字都要重算**。
+        量法见 `tests/ribbon-fold-check.js`。 */
   .hero-right{
-    --card-w:clamp(78px,min(30vw,26svh,calc((100svh - 452px) / 2.37)),182px);
+    --card-w:clamp(78px,min(30vw,26svh,calc((100svh - 524px) / 2.37)),182px);
     --card-h:calc(var(--card-w) * 1.33);
     --ring-r:clamp(96px,min(31vw,33svh),268px);
     position:relative;
@@ -5778,17 +5811,47 @@ function applyLang(lang){
      客人不会看到一颗点了没反应的按钮。
      ⛔ 别改成「先显示,点了失败再隐藏」:那样第一个好奇的客人会点到一颗死按钮。 */
   let ready = false, probing = false;
+  function show(){ if (!ready) { ready = true; btn.hidden = false; } }
+
+  /* 🔴 v199 —— 探测改用 HEAD,并且**立刻探**,不再等空闲。
+     Ben 2026-09-07 实测:「音乐按钮要等第二张封面飞完才出现」。量出来是两件事叠加:
+       ① `preload="none"` 的 `<audio>` 上调 `au.load()`,浏览器发的是
+          `Range: bytes=0-` —— **实测把整整 1.7MB 全拉下来**,不是只取 metadata。
+          所以它真的在跟封面图抢带宽,v195 把它推到空闲时才跑是对的。
+       ② `requestIdleCallback` 要等主线程闲下来,而首屏正在跑转盘动画 + 五张封面解码,
+          最坏要等到 4000ms 的 timeout。按钮就卡在这两段的后面。
+     现在改成一个 **HEAD 请求**:只要几百字节、不下载音频本身,所以不用再等空闲,
+     首屏一就绪就能问,按钮几乎立刻出来。
+     ⛔ 不要为了「早一点」而回到 `au.load()` —— 那等于在手机流量上先塞 1.7MB。
+     ⚠️ HEAD 万一被主机挡掉(某些主机会 405),**不能就此把按钮删掉** ——
+        那样是「一个可用的功能因为探测方式被误判成不存在」。挡掉时退回原来的
+        `<audio>` metadata 探测,只是慢一点,功能不丢。 */
+  /* 🔴 探测**同步**发起(不再等空闲),所以它必须**绝对不会抛**:
+     这个 IIFE 后面紧跟着 `wireLang()` —— 这里抛一个异常,整段 <script> 就断在这儿,
+     **切语言功能会跟着一起没了**。
+     回归套件当场抓到过:改成同步调用之后,没有 `fetch` 的环境里 10 条语言断言全红,
+     而音乐相关的断言**一条都没红** —— 坏掉的是隔壁的功能。
+     ⛔ 所以:`window.fetch` 要 feature-detect,调用本身还要包 try/catch。 */
   function musicProbe(){
     if (probing || ready) return;
     probing = true;
-    au.addEventListener("loadedmetadata", () => { ready = true; btn.hidden = false; }, { once: true });
-    au.addEventListener("error", () => { btn.remove(); }, { once: true });
+    if (!window.fetch) { audioProbe(); return; }          // 老浏览器:直接走兜底
+    try {
+      fetch(au.getAttribute("src"), { method: "HEAD" })
+        .then(r => { if (r.ok) show(); else audioProbe(); })
+        .catch(audioProbe);
+    } catch (e) { audioProbe(); }
+  }
+  /* 兜底:HEAD 不可用时,还是让 <audio> 自己去取(慢,但只在兜底路径上付这个代价) */
+  function audioProbe(){
+    au.addEventListener("loadedmetadata", show, { once: true });
     au.load();
   }
-  /* 空闲时再去探,别跟首屏的礼服图抢带宽。
-     ⚠️ requestIdleCallback 在 Safari 上直到 2022 年前后都没有,所以要兜底。 */
-  if (window.requestIdleCallback) requestIdleCallback(musicProbe, { timeout: 4000 });
-  else setTimeout(musicProbe, 2500);
+  /* ⚠️ error 监听挂在**外面**、且不加 once:
+     文件后来坏了 / 解码失败 / 换曲子换错名字,任何时候都该把按钮收掉,
+     不只是探测那一瞬间。(原来它挂在 musicProbe 里面,走兜底路径之外就没人听。) */
+  au.addEventListener("error", () => { btn.remove(); });
+  musicProbe();
 
   /* 淡入淡出,不要硬切 —— 突然响起来和突然断掉都很吓人 */
   const FADE_MS = 700, VOL = 0.35;   /* 0.35:背景音乐,不该盖过任何东西 */
