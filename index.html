@@ -363,6 +363,27 @@
   }
   .tbtn:hover{border-color:var(--gold-deep);box-shadow:0 0 0 3px rgba(198,161,91,.16)}
   .tbtn i{width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,var(--gold) 50%,var(--ink) 50%)}
+  /* v195 —— 背景音乐开关。
+     形态跟 .tbtn 一致(圆角药丸 + 金色描边),但**只放一个图标**:
+     实测顶栏塞一颗带文字的药丸,320 / 360 / 375 三档都会把顶栏撑破
+     (分别溢出 62 / 22 / 7px);纯图标只有 320 放不下。
+     ⚠️ 320px 那一档靠 `.tbtn` 本来的收窄规则跟着一起收,见下面 @media。 */
+  /* ⚠️ 这颗按钮靠 markup 上的 `hidden` 属性藏着,而 `.tbtn` 自己写了
+     `display:inline-flex` —— 作者样式本来会把浏览器默认的 `[hidden]{display:none}` 压掉
+     (Chromium 和真 WebKit 都实测过,两边都变成 inline-flex)。
+     **这里不用再写一条 `#musicBtn[hidden]`** :第 140 行早就有一条
+     `[hidden]{display:none !important}` 全站兜底了,当年是为搜索框的 ✕ 和筛选徽章加的。
+     (先写了一条重复的,红证时才发现拿掉照样绿 —— 因为根本轮不到它生效。) */
+  #musicBtn{padding:8px 10px;position:relative;color:var(--ink)}
+  #musicBtn svg{width:15px;height:15px;display:block}
+  /* 关着的时候压一道斜杠上去,一眼看得出「现在没在放」;
+     开着的时候斜杠收掉、图标转金色。 */
+  #musicBtn .mb-off{position:absolute;inset:0;margin:auto;width:15px;height:15px;
+    opacity:.75;transition:opacity .25s ease}
+  #musicBtn[aria-pressed="true"]{color:var(--gold-deep);border-color:var(--gold-deep)}
+  #musicBtn[aria-pressed="true"] .mb-off{opacity:0}
+  /* 正在加载那一下给一点反馈 —— 不然客人点了以为没反应又点一次 */
+  #musicBtn.loading{opacity:.55}
   #menuBtn{display:none;position:relative;width:26px;height:16px;padding:0;background:none;border:0;flex:none}
   #menuBtn span{position:absolute;left:0;right:0;height:1.6px;background:var(--ink);border-radius:2px;transition:top .3s ease, transform .3s ease, opacity .2s ease}
   #menuBtn span:nth-child(1){top:0}
@@ -1776,6 +1797,12 @@
        bar is also in the menu, including Filters and the language switch. */
     .links{display:none}
     #menuBtn{display:block}
+    /* v195 —— 手机上 EN 从顶栏搬进 ☰ 菜单,腾出来的位置给音乐按钮。
+       ⚠️ 不需要「搬」什么东西:菜单里本来就有一份 #langBtnM,
+          以前是**两处同时显示**(顶栏一颗、菜单里一颗,重复了)。
+          这里只是把顶栏那一颗收掉,语言仍然在 ☰ 里,一次点击可达。
+       ⚠️ 桌面(>900px)不动:那边没有汉堡菜单,收掉 EN 就没地方换语言了。 */
+    #langBtn{display:none}
     /* the bar is a 3-column grid (logo · links · buttons); once the links are hidden the
        empty middle column still holds 'auto' width and spreads logo and buttons apart.
        Switch to flex so they sit at the two ends and the row reads straight. */
@@ -1899,6 +1926,15 @@
     </nav>
     <div style="display:flex;align-items:center;gap:14px">
       <button id="langBtn" class="tbtn" aria-label="Switch to Chinese / 切换为中文">EN</button>
+      <!-- v195 —— 背景音乐开关。
+           ⚠️ 默认 hidden:只有在音频文件**确实存在**(loadedmetadata 触发)之后才露出来。
+              文件没放进去 / 放错名字 / 404 的话,这颗按钮从头到尾不出现 ——
+              客人绝不会点到一颗没反应的按钮。
+           ⚠️ 纯图标,不带文字:实测顶栏塞一颗带文字的药丸,320/360/375 三档都会溢出。 -->
+      <button id="musicBtn" class="tbtn" aria-pressed="false" aria-label="Play music" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>
+        <svg class="mb-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 4l16 16"/></svg>
+      </button>
       <button id="themeBtn" class="tbtn" aria-pressed="false"><i aria-hidden="true"></i><span>Noir mode</span></button>
       <button id="menuBtn" aria-expanded="false" aria-controls="mobileMenu" aria-label="Menu"><span></span><span></span><span></span></button>
     </div>
@@ -1913,6 +1949,12 @@
     <button id="langBtnM" style="text-align:left;background:none;border:0;padding:12px 0;font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--hairline)">EN</button>
   </nav>
 </header>
+<!-- v195 —— preload="none":客人不点就**一个字节都不下载**,首屏成本是 0。
+     ⚠️ 但「文件在不在」也要靠加载才知道,所以脚本里在**空闲时**才去 load() 一次
+        (见 musicProbe),不跟首屏的图片抢带宽。
+     ⚠️ loop:一首两分钟的曲子放完就停会像坏了,循环才是背景音乐该有的样子。
+     ⛔ 不要加 autoplay —— 浏览器本来就禁,加了也没用,只会在控制台留一条报错。 -->
+<audio id="bgm" preload="none" loop src="audio/lafemme.mp3"></audio>
 
 <!-- ===================== HERO ===================== -->
 <section class="hero" id="top" data-aura="blush">
@@ -2317,6 +2359,15 @@
       <div class="brand"><img class="mono" src="data:image/webp;base64,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" alt=""><img class="wordmark" src="data:image/webp;base64,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" alt=""></div>
       <small>© <span id="yr"></span> LaFemme Gowns by Nee · SSM 202603042038 (IP0620457-T)</small>
       <small>Evening gowns &amp; men suits — rental studio · Bukit Jalil, Kuala Lumpur.</small>
+      <!-- v196 —— CC BY 4.0 的署名。这是**法律义务**,不是装饰。
+           FMA 下载时要求给四样:曲名、作者、出处、授权类型 —— 四样都在这一行里。
+           ⚠️ 这一行**三种语言都保持英文**,而且**故意不进 I18N 表**:
+              曲名和人名本来就是英文,翻译署名容易弄成不合规。
+              它自带子元素(两个 <a>),所以 tagLeaves() 天然跳过它,不会被 applyLang 改写。
+           ⛔ 不要把它挪进 aria-label 或 title 里 —— CC BY 要求「想找出处的人不难找到」,
+              藏起来的署名不算数。页脚是网站放版权信息的标准位置。
+           ⛔ 删掉这一行 = 违反授权。要换曲子的话,这一行跟着换,不是跟着删。 -->
+      <small id="musicCredit">Music: <i>Summer (Piano)</i> by Zight — <a href="https://freemusicarchive.org/music/zight/" target="_blank" rel="noopener">Free Music Archive</a>, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a></small>
     </div>
     <div class="socials">
       <a href="https://www.instagram.com/lafemme_gown/" target="_blank" rel="noopener">Instagram</a>
@@ -2393,7 +2444,21 @@ const STUDIO_NAME = "LaFemme Gowns by Nee";
 /* Supabase — live catalogue source (public anon key; read-only for anonymous visitors) */
 const SB_URL = "https://djrnozqgrkpbxoaebaeo.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqcm5venFncmtwYnhvYWViYWVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5MjI5ODcsImV4cCI6MjA5OTQ5ODk4N30.GRak9yFiaknsX5WVxQ_Zue70k5m-zOrpXcb2vBut5tA";
-let LANG = (localStorage.getItem("lafemme_lang") === "zh") ? "zh" : "en";   // default English
+let LANG = (function(){
+  /* v194 —— 三种语言:en / zh / ms(Bahasa Melayu)。默认英文。
+     ⚠️ 只认这三个值 —— localStorage 里存着别的东西(旧版本、别人手改)时
+        一律退回英文,不要让一个不认识的值把整站的文字变成空白。 */
+  try { var v = localStorage.getItem("lafemme_lang");
+        if (v === "zh" || v === "ms") return v; } catch (e) {}
+  return "en";
+})();
+/* v194 —— 三语选一。
+   加马来文之前,全站有 30 多处写死的 `LANG === "zh" ? 中文 : 英文` 两态三元。
+   与其在每一处各写一遍嵌套三元(读起来累,而且漏掉一处不会报错、只会
+   在马来文模式下悄悄显示英文),不如全部收进这一个函数。
+   ⚠️ 参数顺序固定 **en, zh, ms**,不要凭记忆调换 —— 调换了不会报错,
+      只会让中文站显示马来文。tests/malay-check.js 里有断言看着。 */
+function T(en, zh, ms){ return LANG === "zh" ? zh : (LANG === "ms" ? ms : en); }
 /* Catalogue rows are loaded live from Supabase by loadCatalogue() at the end of
    this script, with catalogue.js (STYLES) as a guaranteed offline fallback. */
 let CAT = [];
@@ -2485,7 +2550,14 @@ const CAT_LABELS_I18N = {
     tube:"抹胸", corset:"束腰", cape:"披肩", sleeves:"长袖", halter:"挂脖",
     offshoulder:"一字肩", oneshoulder:"单肩", vneck:"V 领", slit:"开衩",
     ruffle:"荷叶边", overskirt:"外层裙", short:"短款", midi:"中长",
-    twopiece:"两件式", threepiece:"三件式", doublebreasted:"双排扣", oriental:"中装"}
+    twopiece:"两件式", threepiece:"三件式", doublebreasted:"双排扣", oriental:"中装"},
+  /* v194 —— 剪裁名称大马这边本来就讲英文(Mermaid / A-Line / Ballgown 没人翻),
+     所以马来文这一栏**故意保留英文**,只翻真正有通用马来文说法的几个。 */
+  ms:{fitted:"Ketat", mermaid:"Mermaid", aline:"A-Line", ballgown:"Ballgown", flare:"Melebar",
+    tube:"Tube", corset:"Korset", cape:"Cape", sleeves:"Berlengan", halter:"Halter",
+    offshoulder:"Off-Shoulder", oneshoulder:"One-Shoulder", vneck:"Leher V", slit:"Belah",
+    ruffle:"Ruffle", overskirt:"Skirt Luar", short:"Pendek", midi:"Midi",
+    twopiece:"Dua Helai", threepiece:"Tiga Helai", doublebreasted:"Double-Breasted", oriental:"Oriental"}
 };
 const CAT_ORDER = ["fitted","mermaid","aline","ballgown","flare","tube","corset","cape","sleeves","halter","offshoulder","oneshoulder","vneck","slit","ruffle","overskirt","short","midi","twopiece","threepiece","doublebreasted","oriental"];
 function CL(c){ return (CAT_LABELS_I18N[LANG] && CAT_LABELS_I18N[LANG][c]) || CAT_LABELS_I18N.en[c] || c; }
@@ -2499,7 +2571,12 @@ const MAT_LABELS_I18N = {
   zh:{sequin:"亮片", satin:"缎面", chiffon:"雪纺", tulle:"网纱", lace:"蕾丝", velvet:"丝绒",
     organza:"欧根纱", silk:"真丝", crepe:"绉纱", mesh:"网眼", feather:"羽毛", glitter:"闪片",
     sparkle:"闪耀", shimmer:"微光", diamond:"钻饰", crystal:"水晶", beaded:"珠饰",
-    pearl:"珍珠", fringe:"流苏", embroidered:"刺绣", floral:"花卉"}
+    pearl:"珍珠", fringe:"流苏", embroidered:"刺绣", floral:"花卉"},
+  /* 布料名同理:Satin / Chiffon / Tulle / Lace 在大马就是这么叫的,不硬翻。 */
+  ms:{sequin:"Labuci", satin:"Satin", chiffon:"Chiffon", tulle:"Tulle", lace:"Lace", velvet:"Baldu",
+    organza:"Organza", silk:"Sutera", crepe:"Crepe", mesh:"Jaring", feather:"Bulu", glitter:"Glitter",
+    sparkle:"Berkilau", shimmer:"Berkilat", diamond:"Berlian", crystal:"Kristal", beaded:"Manik",
+    pearl:"Mutiara", fringe:"Rumbai", embroidered:"Sulaman", floral:"Bunga"}
 };
 const MAT_ORDER = ["sequin","satin","chiffon","tulle","lace","velvet","organza","silk","crepe","mesh","feather","glitter","sparkle","shimmer","diamond","crystal","beaded","pearl","fringe","embroidered","floral"];
 function ML(m){ return (MAT_LABELS_I18N[LANG] && MAT_LABELS_I18N[LANG][m]) || MAT_LABELS_I18N.en[m] || m; }
@@ -2527,53 +2604,71 @@ const CUT_ORDER = {
 const BLURB = {
   f: {
     oriental:  {en:"Tea ceremonies, engagements, Lunar New Year. Mandarin collar.",
-                zh:"过大礼、订婚、农历新年。立领设计。"},
+                zh:"过大礼、订婚、农历新年。立领设计。",
+                ms:"Majlis merisik, pertunangan, Tahun Baru Cina. Berkolar Mandarin."},
     overskirt: {en:"Weddings and receptions. The overskirt lifts off for a second look.",
-                zh:"婚礼与婚宴。外裙可拆，一衣两穿。"},
+                zh:"婚礼与婚宴。外裙可拆，一衣两穿。",
+                ms:"Majlis kahwin dan resepsi. Skirt luar boleh ditanggalkan untuk dua gaya."},
     cape:      {en:"Evening dinners, bridal portraits, stage. Draped cape overlay.",
-                zh:"晚宴、婚纱照、舞台。披肩式罩纱。"},
+                zh:"晚宴、婚纱照、舞台。披肩式罩纱。",
+                ms:"Makan malam, sesi gambar pengantin, pentas. Lapisan cape berlipat."},
     ballgown:  {en:"Weddings, formal balls, anniversary dinners. Full skirt, defined waist.",
-                zh:"婚礼、正式舞会、周年晚宴。收腰大裙摆。"},
+                zh:"婚礼、正式舞会、周年晚宴。收腰大裙摆。",
+                ms:"Majlis kahwin, tarian formal, makan malam ulang tahun. Skirt penuh, pinggang jelas."},
     mermaid:   {en:"Evening dinners, wedding receptions, award nights. Fitted hip, flared hem.",
-                zh:"晚宴、婚宴、颁奖礼。臀部修身，裙摆展开。"},
+                zh:"晚宴、婚宴、颁奖礼。臀部修身，裙摆展开。",
+                ms:"Makan malam, resepsi kahwin, malam anugerah. Ketat di pinggul, melebar di hujung."},
     flare:     {en:"Wedding receptions, balls, evening dinners. Fitted top, sweeping hem.",
-                zh:"婚宴、舞会、晚宴。上身修身，裙摆开阔。"},
+                zh:"婚宴、舞会、晚宴。上身修身，裙摆开阔。",
+                ms:"Resepsi kahwin, tarian, makan malam. Atasan ketat, hujung melebar."},
     aline:     {en:"Wedding receptions, bridesmaids, family celebrations. Widens from the waist.",
-                zh:"婚宴、姐妹团、家庭喜宴。自腰线柔和展开。"},
+                zh:"婚宴、姐妹团、家庭喜宴。自腰线柔和展开。",
+                ms:"Resepsi kahwin, pengapit, sambutan keluarga. Melebar dari pinggang."},
     corset:    {en:"Evening dinners and photo shoots. Structured, laced bodice.",
-                zh:"晚宴与拍摄。束腰式上身，版型立体。"},
+                zh:"晚宴与拍摄。束腰式上身，版型立体。",
+                ms:"Makan malam dan sesi gambar. Bahagian atas berstruktur bertali."},
     midi:      {en:"Registrations, tea receptions, semi-formal parties. Below the knee.",
-                zh:"注册结婚、茶会、半正式聚会。及小腿长度。"},
+                zh:"注册结婚、茶会、半正式聚会。及小腿长度。",
+                ms:"Pendaftaran nikah, jamuan teh, majlis separa formal. Bawah lutut."},
     short:     {en:"Birthday parties, afternoon tea, graduation dinners. Above the knee.",
-                zh:"生日派对、下午茶、谢师宴。及膝以上。"},
+                zh:"生日派对、下午茶、谢师宴。及膝以上。",
+                ms:"Majlis hari jadi, minum petang, makan malam graduasi. Atas lutut."},
     tube:      {en:"Evening dinners and parties. Strapless — bring a shawl for cold venues.",
-                zh:"晚宴与派对。无肩带，场地冷可配披肩。"},
+                zh:"晚宴与派对。无肩带，场地冷可配披肩。",
+                ms:"Makan malam dan majlis. Tanpa tali bahu — bawa selendang jika tempat sejuk."},
     fitted:    {en:"Evening dinners, engagement parties, portrait shoots. Close-cut, floor-length.",
-                zh:"晚宴、订婚宴、影楼拍摄。贴身剪裁，落地长度。"},
+                zh:"晚宴、订婚宴、影楼拍摄。贴身剪裁，落地长度。",
+                ms:"Makan malam, majlis pertunangan, sesi studio. Potongan ketat, panjang ke lantai."},
     _:         {en:"Evening dinners, wedding receptions and formal occasions.",
-                zh:"晚宴、婚宴与正式场合。"}
+                zh:"晚宴、婚宴与正式场合。",
+                ms:"Makan malam, resepsi kahwin dan majlis formal."}
   },
   m: {
     oriental:       {en:"Tea ceremonies, engagements, Lunar New Year. Mandarin-collar suit.",
-                     zh:"过大礼、订婚、农历新年。立领中式西装。"},
+                     zh:"过大礼、订婚、农历新年。立领中式西装。",
+                ms:"Majlis merisik, pertunangan, Tahun Baru Cina. Sut berkolar Mandarin."},
     threepiece:     {en:"Weddings, formal dinners, award nights. Jacket, waistcoat and trousers.",
-                     zh:"婚礼、正式晚宴、颁奖礼。外套、马甲与西裤。"},
+                     zh:"婚礼、正式晚宴、颁奖礼。外套、马甲与西裤。",
+                ms:"Majlis kahwin, makan malam formal, malam anugerah. Jaket, ves dan seluar."},
     doublebreasted: {en:"Weddings, business dinners, formal occasions. Double-breasted jacket.",
-                     zh:"婚礼、商务晚宴、正式场合。双排扣设计。"},
+                     zh:"婚礼、商务晚宴、正式场合。双排扣设计。",
+                ms:"Majlis kahwin, makan malam perniagaan, majlis formal. Jaket double-breasted."},
     twopiece:       {en:"Weddings, registrations, business occasions. Jacket and trousers.",
-                     zh:"婚礼、注册结婚、商务场合。外套与西裤。"},
+                     zh:"婚礼、注册结婚、商务场合。外套与西裤。",
+                ms:"Majlis kahwin, pendaftaran nikah, majlis perniagaan. Jaket dan seluar."},
     _:              {en:"Weddings, formal dinners and business occasions.",
-                     zh:"婚礼、正式晚宴与商务场合。"}
+                     zh:"婚礼、正式晚宴与商务场合。",
+                ms:"Majlis kahwin, makan malam formal dan majlis perniagaan."}
   }
 };
 function pieceBlurb(st){
-  const typed = (LANG === "zh" ? st.dz : st.de);
+  const typed = T(st.de, st.dz, st.dm);   /* dm 目录里还没有,取到 undefined 就走下面的通用描述 */
   if (typed && typed.trim()) return typed.trim();
   const g = (st.g === "m") ? "m" : "f";
   const cats = st.cat || [];
   const key = CUT_ORDER[g].find(k => cats.includes(k)) || "_";
   const row = BLURB[g][key] || BLURB[g]._;
-  return (LANG === "zh") ? row.zh : row.en;
+  return T(row.en, row.zh, row.ms);
 }
 
 /* ---------- what a piece is called on screen ----------
@@ -2587,18 +2682,21 @@ function suitDesc(st){
   const parts = [];
   if (st.cat && st.cat.length) parts.push(CL(st.cat[0]));
   if (st.mat && st.mat.length) parts.push(ML(st.mat[0]));
-  return parts.join(" · ") || (LANG === "zh" ? "男装" : "Men suit");
+  return parts.join(" · ") || T("Men suit", "男装", "Sut lelaki");
 }
 function pieceName(st){ return isSuit(st) ? suitDesc(st) : st.n; }
 
-function catLabel(g){ return LANG === "zh" ? (g === "m" ? "男士西装" : "晚礼服") : (g === "m" ? "Men Suit" : "Evening Gown"); }
+function catLabel(g){ return (g === "m") ? T("Men Suit", "男士西装", "Sut Lelaki") : T("Evening Gown", "晚礼服", "Gaun Malam"); }
 /* small label above a card: the active category when one is filtered, else the piece's first category */
 function catLabelFor(st, card){
   if (state.category !== "all" && card && !card.classList.contains("hide")) return CL(state.category);
   if (isSuit(st)) return suitDesc(st);            // suits show "style · fabric", never a name
-  return (st.cat && st.cat.length) ? CL(st.cat[0]) : (LANG === "zh" ? "晚装" : "Evening");
+  return (st.cat && st.cat.length) ? CL(st.cat[0]) : T("Evening", "晚装", "Malam");
 }
 
+/* v194 —— 搜索用的马来文颜色词。跟 COLOR_ZH 一样,只进搜索索引,不显示在界面上
+   (界面上的颜色名 COLOR_LABELS 三种语言都是英文,本来就没翻译过)。 */
+const COLOR_MS = { black:"hitam", blue:"biru", pink:"merah jambu", gold:"emas", navy:"biru gelap", red:"merah", green:"hijau", purple:"ungu", white:"putih", silver:"perak", yellow:"kuning", grey:"kelabu", beige:"krim" };
 const COLOR_ZH = { black:"黑 黑色", blue:"蓝 蓝色", pink:"粉 粉色 粉红", gold:"金 金色", navy:"藏青 深蓝 藏蓝", red:"红 红色", green:"绿 绿色", purple:"紫 紫色", white:"白 白色", silver:"银 银色", yellow:"黄 黄色", grey:"灰 灰色", beige:"米 米色 米白" };
 const escapeHTML = s => (s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 let state = { gender:"f", category:"all", material:"all", color:"all", brand:"all", q:"", qTokens:[], sort:"new" };
@@ -2644,6 +2742,15 @@ const MSG = {
     ref:"编号", photo:"照片", pieces:n=>`我想试穿的款式（${n}）：`,
     name:"姓名", wa:"WhatsApp", pax:"人数", dressing:"试穿对象",
     visit:"到店日期", event:"活动", size:"尺码", notes:"备注", heard:"得知渠道",
+  },
+  ms:{
+    askPrice:`Hai ${STUDIO_NAME}! Boleh saya tahu harga sewa untuk gaun ini?`,
+    waDirect:`Hai ${STUDIO_NAME}! Saya nak tanya pasal sesi cubaan.`,
+    waFab:`Hai ${STUDIO_NAME}! Saya lihat laman web anda dan nak tanya pasal satu gaun.`,
+    bookGreet:`Hai ${STUDIO_NAME}! Saya nak tempah sesi cubaan.`,
+    ref:"Rujukan", photo:"Gambar", pieces:n=>`Gaun yang saya nak cuba (${n}):`,
+    name:"Nama", wa:"WhatsApp", pax:"Bilangan", dressing:"Untuk",
+    visit:"Tarikh lawatan", event:"Majlis", size:"Saiz", notes:"Nota", heard:"Tahu tentang kami melalui",
   }
 };
 function msg(k){ return (MSG[LANG] && MSG[LANG][k] !== undefined) ? MSG[LANG][k] : MSG.en[k]; }
@@ -2662,7 +2769,7 @@ function buildSearchStr(st, vv){
   /* 一卡一色之后搜索也要按颜色算:搜 "pink" 只该命中粉色那一张,
      不是同款的九张全亮。传了 vv 就只索引这一个颜色;不传维持旧行为。 */
   const vs = vv ? [vv] : st.v;
-  const colStr  = vs.map(v => `${v.c} ${v.d || ""} ${v.f} ${COLOR_ZH[v.f] || ""} ${v.ref}`).join(" ");
+  const colStr  = vs.map(v => `${v.c} ${v.d || ""} ${v.f} ${COLOR_ZH[v.f] || ""} ${COLOR_MS[v.f] || ""} ${v.ref}`).join(" ");
   const imgWords = vs.map(v => (v.img || "").split("/").pop().replace(/-t\.webp$|\.webp$/, "").replace(/-/g, " ")).join(" ");
   return `${st.n} ${st.p || ""} ${catStr} ${matStr} ${colStr} ${imgWords} ${catEN} ${catZH}`.toLowerCase();
 }
@@ -2729,7 +2836,7 @@ function renderCatalogue(styles){
   card.dataset.shown  = it.vi;
   card.dataset.search = SEARCH_IDX[i];
 
-  const typeLabel = (st.cat && st.cat.length) ? CL(st.cat[0]) : (LANG === "zh" ? "晚装" : "Evening");
+  const typeLabel = (st.cat && st.cat.length) ? CL(st.cat[0]) : T("Evening", "晚装", "Malam");
   const kicker = isSuit(st) ? suitDesc(st) : typeLabel;      // suits: style · fabric
   const altName = pieceName(st);
   /* 色点那一排没有了 —— 这张卡本身就是一个颜色。款名(h3)保持原样,
@@ -2877,7 +2984,7 @@ function renderSortOptions(){
   sel.innerHTML = SORT_KEYS.map(k =>
     `<option value="${k}"${state.sort === k ? " selected" : ""}>${L[k]}</option>`).join("");
   const lbl = document.getElementById("sortLbl");
-  if (lbl) lbl.textContent = (LANG === "zh") ? "\u6392\u5e8f" : "Sort";
+  if (lbl) lbl.textContent = T("Sort", "\u6392\u5e8f", "Susun");
 }
 /* 排序只改 CSS order,不动 DOM 顺序,也就不会重新下载任何图片。
    .card.hide 是 display:none,被隐藏的卡不参与排版,所以 order 只作用在可见的那些上。 */
@@ -2977,7 +3084,7 @@ function renderCategoryChips(){
     b.dataset.category = val; b.textContent = label;
     chipsBox.appendChild(b);
   };
-  mk("all", LANG === "zh" ? "全部" : "All");
+  mk("all", T("All", "全部", "Semua"));
   present.forEach(c => mk(c, CL(c)));
 }
 function renderMaterialChips(){
@@ -2994,7 +3101,7 @@ function renderMaterialChips(){
     b.dataset.material = val; b.textContent = label;
     materialChips.appendChild(b);
   };
-  mk("all", LANG === "zh" ? "全部" : "All");
+  mk("all", T("All", "全部", "Semua"));
   present.forEach(m => mk(m, ML(m)));
 }
 function renderBrandChips(){
@@ -3012,7 +3119,7 @@ function renderBrandChips(){
     b.dataset.brand = val; b.textContent = label;
     brandChips.appendChild(b);
   };
-  mk("all", LANG === "zh" ? "全部" : "All");
+  mk("all", T("All", "全部", "Semua"));
   present.forEach(p => mk(p, BL(p)));
 }
 function stylesInScope(){
@@ -3029,7 +3136,7 @@ function renderSwatches(){
   swatchBox.innerHTML = "";
   const all = document.createElement("button");
   all.className = "swatch-all" + (state.color === "all" ? " active" : "");
-  all.dataset.color = "all"; all.textContent = LANG === "zh" ? "全部颜色" : "All colours";
+  all.dataset.color = "all"; all.textContent = T("All colours", "全部颜色", "Semua warna");
   swatchBox.appendChild(all);
   present.forEach(c => {
     const b = document.createElement("button");
@@ -3253,15 +3360,17 @@ function checkEmpty(){
   const si = document.getElementById("searchInput");
   const q = si ? si.value.trim() : "";
   if (q) {
-    if (h) h.textContent = LANG === "zh" ? "没有匹配结果" : "No matches";
-    if (pEl) pEl.innerHTML = LANG === "zh"
-      ? `没有找到与「${escapeHTML(q)}」相关的款式，换个关键词或清除搜索试试。`
-      : `Nothing matches \u201c${escapeHTML(q)}\u201d. Try another word, or clear the search.`;
+    if (h) h.textContent = T("No matches", "没有匹配结果", "Tiada padanan");
+    if (pEl) pEl.innerHTML = T(
+      `Nothing matches \u201c${escapeHTML(q)}\u201d. Try another word, or clear the search.`,
+      `没有找到与「${escapeHTML(q)}」相关的款式，换个关键词或清除搜索试试。`,
+      `Tiada gaun yang sepadan dengan \u201c${escapeHTML(q)}\u201d. Cuba perkataan lain, atau kosongkan carian.`);
   } else {
-    if (h) h.textContent = LANG === "zh" ? "该组合暂无款式" : "Nothing in that combination";
-    if (pEl) pEl.innerHTML = LANG === "zh"
-      ? `换个颜色，或点「<b>全部</b>」查看整个系列。`
-      : `Try another colour, or reset to <b>All</b> to see the full collection.`;
+    if (h) h.textContent = T("Nothing in that combination", "该组合暂无款式", "Tiada gaun untuk kombinasi itu");
+    if (pEl) pEl.innerHTML = T(
+      `Try another colour, or reset to <b>All</b> to see the full collection.`,
+      `换个颜色，或点「<b>全部</b>」查看整个系列。`,
+      `Cuba warna lain, atau tetapkan semula ke <b>Semua</b> untuk lihat koleksi penuh.`);
   }
 }
 
@@ -3376,7 +3485,7 @@ function renderDrop(q){
   const { list, total } = dropMatches(toks);
   let html = "";
   if (sugg.length){
-    html += `<div class="sd-sec"><div class="sd-label">${LANG === "zh" ? "建议" : "Suggestions"}</div>`;
+    html += `<div class="sd-sec"><div class="sd-label">${T("Suggestions", "建议", "Cadangan")}</div>`;
     html += sugg.map(term => {
       const at = term.toLowerCase().indexOf(q);
       const disp = at < 0 ? escapeHTML(term)
@@ -3386,7 +3495,7 @@ function renderDrop(q){
     html += `</div>`;
   }
   if (list.length){
-    html += `<div class="sd-sec"><div class="sd-label">${LANG === "zh" ? "款式" : "Products"}</div>`;
+    html += `<div class="sd-sec"><div class="sd-label">${T("Products", "款式", "Gaun")}</div>`;
     html += list.map(k => {
       const it = ITEMS[k], st = CAT[it.si], v = st.v[it.vi];
       /* 副标题从「N colours」改成这一张卡自己的颜色名 —— 一行一个颜色,
@@ -3394,10 +3503,10 @@ function renderDrop(q){
       return `<button class="sd-prod" type="button" data-idx="${it.si}" data-col="${it.vi}"><img src="${v.img}" alt="" loading="lazy"><span class="sd-pname">${escapeHTML(pieceName(st))}</span><span class="sd-psub">${escapeHTML(v.c || "")}</span></button>`;
     }).join("");
     html += `</div>`;
-    if (total > list.length) html += `<button class="sd-all" type="button">${LANG === "zh" ? `查看全部 ${total} 件` : `See all ${total} results`}</button>`;
+    if (total > list.length) html += `<button class="sd-all" type="button">${T(`See all ${total} results`, `查看全部 ${total} 件`, `Lihat semua ${total} hasil`)}</button>`;
   }
   if (!sugg.length && !list.length){
-    html = `<div class="sd-empty">${LANG === "zh" ? `没有与「${escapeHTML(q)}」匹配的款式` : `No matches for \u201c${escapeHTML(q)}\u201d`}</div>`;
+    html = `<div class="sd-empty">${T(`No matches for \u201c${escapeHTML(q)}\u201d`, `没有与「${escapeHTML(q)}」匹配的款式`, `Tiada padanan untuk \u201c${escapeHTML(q)}\u201d`)}</div>`;
   }
   searchDrop.innerHTML = html;
   searchDrop.hidden = false;
@@ -3405,16 +3514,18 @@ function renderDrop(q){
 /* ---------- 分享当前这个筛选视图 (v128) ---------- */
 const SHARE_LABELS = {
   en: { idle:"Share", done:"Link copied", manual:"Press Ctrl/Cmd + C" },
-  zh: { idle:"\u5206\u4eab", done:"\u94fe\u63a5\u5df2\u590d\u5236", manual:"\u6309 Ctrl/Cmd + C \u590d\u5236" }
+  zh: { idle:"\u5206\u4eab", done:"\u94fe\u63a5\u5df2\u590d\u5236", manual:"\u6309 Ctrl/Cmd + C \u590d\u5236" },
+  ms: { idle:"Kongsi", done:"Pautan disalin", manual:"Tekan Ctrl/Cmd + C" }
 };
 function SHL(){ return SHARE_LABELS[LANG] || SHARE_LABELS.en; }
 function renderShareLabel(){
   const s = document.getElementById("shareLbl");
   if (s && !s.dataset.busy) s.textContent = SHL().idle;
   const b = document.getElementById("shareBtn");
-  if (b) b.setAttribute("aria-label", LANG === "zh"
-    ? "\u590d\u5236\u5f53\u524d\u7b5b\u9009\u7ed3\u679c\u7684\u94fe\u63a5"
-    : "Copy a link to this filtered view");
+  if (b) b.setAttribute("aria-label", T(
+    "Copy a link to this filtered view",
+    "\u590d\u5236\u5f53\u524d\u7b5b\u9009\u7ed3\u679c\u7684\u94fe\u63a5",
+    "Salin pautan ke paparan yang ditapis ini"));
 }
 /* 分享面板上显示的标题 —— 把当前筛选拼成一句人话,
    免得对方收到的只是一条光秃秃的网址 */
@@ -3534,7 +3645,8 @@ if (shareBtn) shareBtn.addEventListener("click", async () => {
    旁边就是这件衣服本身,不用再解释分享的是什么。 */
 const PIECE_SHARE_LABELS = {
   en: { idle:"Share", done:"Link copied", manual:"Press Ctrl/Cmd + C" },
-  zh: { idle:"分享", done:"链接已复制", manual:"按 Ctrl/Cmd + C 复制" }
+  zh: { idle:"分享", done:"链接已复制", manual:"按 Ctrl/Cmd + C 复制" },
+  ms: { idle:"Kongsi", done:"Pautan disalin", manual:"Tekan Ctrl/Cmd + C" }
 };
 function PSHL(){ return PIECE_SHARE_LABELS[LANG] || PIECE_SHARE_LABELS.en; }
 function pieceShareFlash(key){
@@ -3632,21 +3744,23 @@ if (brandChips) brandChips.addEventListener("click", e => {
 function updateMenNotice(){
   const el = document.getElementById("menNotice"); if (!el) return;
   el.style.display = "";   // shown for both gowns and suits
-  const zh = LANG === "zh", men = state.gender === "m";
+  const men = state.gender === "m";
   const h = document.getElementById("menNoticeH"), p = document.getElementById("menNoticeP"), btn = document.getElementById("menNoticeBtn");
   if (h) h.textContent = men
-    ? (zh ? "店内还有更多西装" : "Many more suits in-store")
-    : (zh ? "店内还有更多礼服" : "Many more gowns in-store");
+    ? T("Many more suits in-store", "店内还有更多西装", "Lagi banyak sut di kedai")
+    : T("Many more gowns in-store", "店内还有更多礼服", "Lagi banyak gaun di kedai");
   if (p) p.textContent = men
-    ? (zh ? "线上仅展示部分款式。Bukit Jalil 门店备有更多剪裁、面料与颜色 —— 欢迎私信预约到店试身。"
-          : "Only a selection is shown online. Our Bukit Jalil showroom carries many more cuts, fabrics and colours — message us to arrange a fitting.")
-    : (zh ? "线上仅展示部分款式。Bukit Jalil 门店还有更多礼服、尺码与颜色 —— 欢迎私信预约到店试穿。"
-          : "Only a selection is shown online. Our Bukit Jalil showroom carries many more gowns, sizes and colours — message us to arrange a fitting.");
+    ? T("Only a selection is shown online. Our Bukit Jalil showroom carries many more cuts, fabrics and colours — message us to arrange a fitting.",
+        "线上仅展示部分款式。Bukit Jalil 门店备有更多剪裁、面料与颜色 —— 欢迎私信预约到店试身。",
+        "Hanya sebahagian dipaparkan di laman ini. Butik kami di Bukit Jalil ada lebih banyak potongan, kain dan warna — mesej kami untuk tempah sesi cubaan.")
+    : T("Only a selection is shown online. Our Bukit Jalil showroom carries many more gowns, sizes and colours — message us to arrange a fitting.",
+        "线上仅展示部分款式。Bukit Jalil 门店还有更多礼服、尺码与颜色 —— 欢迎私信预约到店试穿。",
+        "Hanya sebahagian dipaparkan di laman ini. Butik kami di Bukit Jalil ada lebih banyak gaun, saiz dan warna — mesej kami untuk tempah sesi cubaan.");
   if (btn){
-    btn.textContent = zh ? "私信预约" : "Message us";
+    btn.textContent = T("Message us", "私信预约", "Mesej kami");
     btn.href = waLink(men
-      ? (zh ? "你好!我想看更多男士西装款式,想预约到店试身。" : "Hi! I'd love to see more of your men's suits — could I arrange a visit?")
-      : (zh ? "你好!我想看更多礼服款式,想预约到店试穿。" : "Hi! I'd love to see more of your gowns — could I arrange a visit?"));
+      ? T("Hi! I'd love to see more of your men's suits — could I arrange a visit?", "你好!我想看更多男士西装款式,想预约到店试身。", "Hai! Saya nak lihat lebih banyak sut lelaki — boleh saya tempah lawatan?")
+      : T("Hi! I'd love to see more of your gowns — could I arrange a visit?", "你好!我想看更多礼服款式,想预约到店试穿。", "Hai! Saya nak lihat lebih banyak gaun — boleh saya tempah lawatan?"));
   }
 }
 document.querySelectorAll(".tab").forEach(tab => {
@@ -3910,9 +4024,9 @@ function updateFilterMeta(){
   const badge = document.getElementById("filterCount");
   if (badge){ badge.hidden = active === 0; badge.textContent = active; }
   const n = document.querySelectorAll(".card:not(.hide)").length;
-  if (filterApplyBtn) filterApplyBtn.textContent = (LANG === "zh") ? ("显示 " + n + " 件") : ("Show " + n);
+  if (filterApplyBtn) filterApplyBtn.textContent = T("Show " + n, "显示 " + n + " 件", "Papar " + n);
   const rc = document.getElementById("resultCount");
-  if (rc) rc.textContent = (LANG === "zh") ? ("显示 " + n + " 件") : ("Showing " + n + (n === 1 ? " piece" : " pieces"));
+  if (rc) rc.textContent = T("Showing " + n + (n === 1 ? " piece" : " pieces"), "显示 " + n + " 件", "Memaparkan " + n + " gaun");
 }
 let lastFocus = null, lbToken = 0, fittingList = [];
 let lbNav = null;   // set by openLb to the current piece's colour-stepper (or null if single colour)
@@ -4055,9 +4169,9 @@ function openLb(i, vi){
       const btn = document.getElementById("lbBook"), prev = btn.dataset.label || btn.textContent;
       btn.dataset.label = prev;
       const res = addFitting({ name: pieceName(st), colour: v.c, desc: v.d, ref: v.ref, photo: `${location.origin}/${v.hi || v.img}` });
-      btn.textContent = res === "ok" ? (LANG === "zh" ? "\u5df2\u52a0\u5165 \u2713" : "Added \u2713")
-                      : res === "dup" ? (LANG === "zh" ? "\u5df2\u5728\u6e05\u5355\u4e2d" : "Already in list")
-                      : (LANG === "zh" ? `\u6e05\u5355\u5df2\u6ee1\uff08\u6700\u591a ${FIT_MAX} \u4ef6\uff09` : `List full (max ${FIT_MAX})`);
+      btn.textContent = res === "ok"  ? T("Added \u2713", "\u5df2\u52a0\u5165 \u2713", "Ditambah \u2713")
+                      : res === "dup" ? T("Already in list", "\u5df2\u5728\u6e05\u5355\u4e2d", "Sudah dalam senarai")
+                      : T(`List full (max ${FIT_MAX})`, `\u6e05\u5355\u5df2\u6ee1\uff08\u6700\u591a ${FIT_MAX} \u4ef6\uff09`, `Senarai penuh (maks ${FIT_MAX})`);
       btn.disabled = true;
       setTimeout(() => { btn.textContent = btn.dataset.label; btn.disabled = false; }, 1200);
     };
@@ -4293,8 +4407,8 @@ document.getElementById("bookForm").addEventListener("submit", e=>{
     if(bad) ok = false;
   });
   if(!ok) return;
-  const dateLine  = v("fDate")  ? `${msg("visit")}: ${v("fDate")}${v("fSlot") ? (LANG === "zh" ? " " : " at ") + v("fSlot") : ""}` : "";
-  const eventLine = v("fEvent") ? `${msg("event")}: ${v("fEvent")}${v("fEventDate") ? (LANG === "zh" ? " " : " on ") + v("fEventDate") : ""}` : "";
+  const dateLine  = v("fDate")  ? `${msg("visit")}: ${v("fDate")}${v("fSlot") ? T(" at ", " ", " jam ") + v("fSlot") : ""}` : "";
+  const eventLine = v("fEvent") ? `${msg("event")}: ${v("fEvent")}${v("fEventDate") ? T(" on ", " ", " pada ") + v("fEventDate") : ""}` : "";
   const lines = [
     msg("bookGreet"),
     ...(fittingList.length ? [
@@ -4394,7 +4508,7 @@ themeBtn.addEventListener("click", ()=>{
   const noir = document.documentElement.dataset.theme !== "noir";
   document.documentElement.dataset.theme = noir ? "noir" : "ivory";
   themeBtn.setAttribute("aria-pressed", noir);
-  themeBtn.querySelector("span").textContent = LANG === "zh" ? (noir ? "日间模式" : "夜间模式") : (noir ? "Ivory mode" : "Noir mode");
+  themeBtn.querySelector("span").textContent = noir ? T("Ivory mode", "日间模式", "Mod Ivory") : T("Noir mode", "夜间模式", "Mod Noir");
 });
 
 /* ---------- ambient aura ---------- */
@@ -4708,7 +4822,8 @@ if(FINE_POINTER && !REDUCED){
 /* ---------- hero: rotating word ---------- */
 const ROT_I18N = {
   en:["annual dinner","gala night","convocation","ROM day","photoshoot","grand entrance"],
-  zh:["年会","盛大晚宴","毕业典礼","注册结婚","写真拍摄","高光时刻"]
+  zh:["年会","盛大晚宴","毕业典礼","注册结婚","写真拍摄","高光时刻"],
+  ms:["makan malam tahunan","malam gala","konvokesyen","hari ROM","sesi bergambar","detik istimewa"]
 };
 let ROT_WORDS = ROT_I18N[LANG] || ROT_I18N.en;
 const rot = document.getElementById("rot");
@@ -5288,38 +5403,162 @@ const I18N = {
   "Evening gowns & men suits — rental studio · Bukit Jalil, Kuala Lumpur.":"晚礼服 & 男士西装 — 租赁工作室 · 吉隆坡 Bukit Jalil。",
   "Catalogue could not load. Unzip the whole folder first, then open index.html from inside it — catalogue.js and the images folder must sit next to it.":"系列无法加载。请先解压整个文件夹，再从中打开 index.html——catalogue.js 与 images 文件夹须与它在同一目录。"
 };
+
+/* v194 —— Bahasa Melayu。
+   ⚠️ 这是**另一张表**,不是把 I18N 改成三语对象 —— 纯新增的 diff 好审得多。
+      代价:两张表可能漂移(一边加了词另一边忘了),漂移之后马来文站会**静默**
+      显示英文,不会报错。tests/malay-check.js 里有一条断言比对两张表的键集,
+      少一条多一条都会红。**加新词条时两张表一起加。**
+   ⚠️ 键必须跟 I18N 一模一样(那是 tagLeaves() 用英文原文当键去查的)。
+      「4-\u2060day」那一条里的 U+2060 是 word joiner,不是普通连字符 —— 别手打。 */
+const I18N_MS = {
+  "Collection":"Koleksi",
+  "About":"Tentang",
+  "FAQ":"FAQ",
+  "Visit":"Lawati",
+  "Booking":"Tempahan",
+  "Book a Fitting":"Tempah Cubaan",
+  "Menu":"Menu",
+  "View Collection":"Lihat Koleksi",
+  "Add to fitting list":"Tambah ke senarai",
+  "Ask price on WhatsApp":"Harga di WhatsApp",
+  "Swipe up for details":"Leret ke atas",
+  "Send via WhatsApp":"Hantar via WhatsApp",
+  "Chat on WhatsApp":"Chat di WhatsApp",
+  "Open in Waze":"Buka dalam Waze",
+  "Google Maps":"Google Maps",
+  "Evening Gowns & Men Suits · Bukit Jalil, KL":"Gaun Malam & Sut Lelaki · Bukit Jalil, KL",
+  "Gowns and suits for the nights that matter — 4-⁠day rentals, fitted to you in-studio.":"Gaun dan sut untuk malam yang bermakna — sewa 4\u00a0hari, dicuba dan dipadankan di studio.",
+  "The Collection":"Koleksi Kami",
+  "Tap any piece for details — rental prices are shared on WhatsApp.":"Ketik mana-mana gaun untuk butiran — harga sewa dimaklumkan melalui WhatsApp.",
+  "Evening Gowns":"Gaun Malam",
+  "Men Suits":"Sut Lelaki",
+  "Nothing in that combination":"Tiada gaun untuk kombinasi itu",
+  "Style":"Gaya",
+  "Fabric":"Kain",
+  "Colour":"Warna",
+  "Filters":"Tapisan",
+  "Clear all":"Kosongkan",
+  "About the Studio":"Tentang Studio",
+  "LaFemme Gowns by Nee is a gown and suit rental studio in Pusat Bandar Bukit Jalil, Kuala Lumpur. We keep a curated wardrobe of evening gowns and men's suits for the occasions that matter — annual dinners, galas, convocations and ROM ceremonies.":"LaFemme Gowns by Nee ialah studio sewaan gaun dan sut di Pusat Bandar Bukit Jalil, Kuala Lumpur. Kami menyimpan koleksi terpilih gaun malam dan sut lelaki untuk majlis yang bermakna — makan malam tahunan, gala, konvokesyen dan majlis ROM.",
+  "Rather than buying a gown you'll wear once, rent one that fits you properly. Visits are by appointment, so the fitting room is yours alone.":"Daripada membeli gaun yang hanya dipakai sekali, sewa satu yang benar-benar muat. Lawatan adalah dengan temujanji, jadi bilik cubaan milik anda sepenuhnya.",
+  "gown styles in studio":"gaya gaun di studio",
+  "colour options across the range":"pilihan warna keseluruhan",
+  "rentals · dry-cleaning included":"sewa · termasuk dobi",
+  "Reserve your studio session":"Tempah sesi studio anda",
+  "Fill this in and it opens WhatsApp with your details ready to send — no account, no payment needed to book.":"Isi borang ini dan WhatsApp akan terbuka dengan maklumat anda sedia dihantar — tiada akaun, tiada bayaran diperlukan untuk menempah.",
+  "Fitting for":"Cubaan untuk",
+  "Name *":"Nama *",
+  "WhatsApp number *":"Nombor WhatsApp *",
+  "Preferred visit date":"Tarikh lawatan pilihan",
+  "Time slot":"Slot masa",
+  "How many pax":"Berapa orang",
+  "How did you hear about us?":"Bagaimana anda tahu tentang kami?",
+  "Dressing for":"Untuk siapa",
+  "Event type":"Jenis majlis",
+  "Event date":"Tarikh majlis",
+  "(optional)":"(pilihan)",
+  "Submitting opens WhatsApp with your booking details prefilled. We'll confirm your slot in the chat.":"Menghantar borang akan membuka WhatsApp dengan maklumat tempahan anda sedia diisi. Kami akan sahkan slot anda dalam chat.",
+  "Any time":"Bila-bila masa",
+  "Select…":"Pilih…",
+  "1 person":"1 orang",
+  "2 people":"2 orang",
+  "3 people":"3 orang",
+  "4 people":"4 orang",
+  "5 or more":"5 atau lebih",
+  "XiaoHongShu (RED)":"XiaoHongShu (RED)",
+  "Google Search":"Carian Google",
+  "Friend / Family":"Kawan / Keluarga",
+  "Photographer / Make-up artist / Planner":"Jurugambar / Mekap / Perancang",
+  "Walk in / Passed by":"Datang terus / Lalu",
+  "Others":"Lain-lain",
+  "Ladies":"Wanita",
+  "Men":"Lelaki",
+  "Both / couple":"Kedua-duanya",
+  "Annual dinner":"Makan malam tahunan",
+  "Gala / awards night":"Gala / malam anugerah",
+  "Graduation / convocation":"Konvokesyen",
+  "ROM ceremony":"Majlis ROM",
+  "Photoshoot":"Sesi bergambar",
+  "Other":"Lain-lain",
+  "Prefer to just chat?":"Lebih suka berbual dulu?",
+  "Message us directly and we'll help you pick a date — or send a photo of the style you're looking for.":"Mesej kami terus dan kami bantu anda pilih tarikh — atau hantar gambar gaya yang anda cari.",
+  "Good to Know":"Perlu Tahu",
+  "Fitting fee: RM10 per person, per hour.":"Yuran cubaan: RM10 seorang, sejam.",
+  "Walk-ins welcome, but booked sessions get the fitting room to themselves. Rentals are 4 days with a refundable deposit — dry-cleaning is on us. Fittings are RM10 per person, per hour.":"Datang terus dialu-alukan, tetapi sesi yang ditempah mendapat bilik cubaan sendiri. Sewa adalah 4 hari dengan deposit boleh dikembalikan — dobi atas kami. Cubaan RM10 seorang, sejam.",
+  "Fittings are by appointment — WhatsApp us before dropping by. Parking available around Pusat Bandar Bukit Jalil.":"Sesi cubaan adalah dengan temujanji — WhatsApp kami sebelum datang. Tempat letak kereta ada di sekitar Pusat Bandar Bukit Jalil.",
+  "Appointment terms & conditions":"Terma & syarat temujanji",
+  "Please WhatsApp us to book your fitting appointment. We will confirm your date and time via WhatsApp.":"Sila WhatsApp kami untuk menempah sesi cubaan anda. Kami akan sahkan tarikh dan masa anda melalui WhatsApp.",
+  "Fittings are by appointment only.":"Sesi cubaan adalah dengan temujanji sahaja.",
+  "A fitting runs approximately 45–60 minutes.":"Satu sesi cubaan mengambil masa lebih kurang 45–60 minit.",
+  "Please arrive on time. A 15-minute grace period is allowed — late arrivals may mean a shorter session, or rescheduling subject to availability.":"Sila datang tepat pada masanya. Tempoh bertimbang rasa 15 minit diberikan — kelewatan mungkin bermakna sesi yang lebih singkat, atau penjadualan semula tertakluk kepada kekosongan.",
+  "During peak seasons the showroom may be busy with customer pickups and returns. We appreciate your patience and understanding.":"Pada musim puncak, butik mungkin sibuk dengan pelanggan mengambil dan memulangkan gaun. Kami hargai kesabaran dan pengertian anda.",
+  "Thank you for your cooperation — we look forward to welcoming you to LaFemme.":"Terima kasih atas kerjasama anda — kami menantikan kehadiran anda di LaFemme.",
+  "Rental questions, answered":"Soalan sewa, dijawab",
+  "How long is the rental period?":"Berapa lama tempoh sewa?",
+  "The standard rental period is 4 days. If you need an extended period, an extension surcharge applies — message us on WhatsApp for the extension rates and details.":"Tempoh sewa standard ialah 4 hari. Jika anda perlukan tempoh lebih panjang, caj tambahan dikenakan — mesej kami di WhatsApp untuk kadar dan butiran lanjutan.",
+  "How much does it cost to rent?":"Berapa kos untuk menyewa?",
+  "Rental prices start from RM300+ — each piece is priced by its design and detailing. Send us a piece code on WhatsApp for its exact rental price, or visit our showroom and we'll help you find your dream outfit.":"Harga sewa bermula dari RM300+ — setiap gaun dihargakan mengikut reka bentuk dan perincian. Hantar kod gaun kepada kami di WhatsApp untuk harga sewa tepatnya, atau kunjungi butik kami dan kami bantu anda cari pakaian idaman anda.",
+  "Is there a fitting fee?":"Ada yuran cubaan?",
+  "Yes — RM10 per person, per hour. If you rent an outfit during your fitting appointment, the fitting fee is fully waived. Need extra fitting time? Just message us for the applicable charges.":"Ada — RM10 seorang, sejam. Jika anda menyewa pakaian semasa sesi cubaan anda, yuran cubaan dikecualikan sepenuhnya. Perlukan masa cubaan tambahan? Mesej kami untuk caj yang berkenaan.",
+  "Is there a deposit?":"Ada deposit?",
+  "Yes — a security deposit is collected when you pick up your outfit, and fully refunded once it's returned in good condition with no damage, permanent stains, or missing items. It secures your piece throughout the rental period.":"Ada — deposit keselamatan dikutip semasa anda mengambil pakaian, dan dikembalikan sepenuhnya setelah dipulangkan dalam keadaan baik tanpa kerosakan, kotoran kekal, atau item yang hilang. Ia melindungi gaun anda sepanjang tempoh sewa.",
+  "What about cleaning and alterations?":"Bagaimana dengan cucian dan ubah suai?",
+  "Dry-cleaning is included — return the piece as-is and we handle the rest. Basic fit-pinning is done free in-studio; more complex alterations are quoted individually.":"Dobi termasuk — pulangkan gaun seadanya dan kami uruskan selebihnya. Pin padanan asas dibuat percuma di studio; ubah suai yang lebih rumit dihargakan secara berasingan.",
+  "How early should I book?":"Berapa awal patut saya tempah?",
+  "As early as possible — our gowns are first come, first served. Most clients book around 3 months before their event to secure their preferred gown. Once you've found the one, we recommend confirming early to ensure it's available for your special day.":"Seawal mungkin — gaun kami adalah siapa cepat dia dapat. Kebanyakan pelanggan menempah kira-kira 3 bulan sebelum majlis untuk memastikan gaun pilihan mereka. Setelah anda jumpa yang sesuai, kami sarankan sahkan awal supaya ia tersedia untuk hari istimewa anda.",
+  "Level 2 — directly above HALO&YOU (unit H-12). Take the lift beside their entrance.":"Aras 2 — tepat di atas HALO&YOU (unit H-12). Naik lif di sebelah pintu masuk mereka.",
+  "Tap to see the shopfront":"Ketik untuk lihat kedai",
+  "Level 2, above HALO&YOU":"Aras 2, atas HALO&YOU",
+  "Visit the Studio":"Lawati Studio",
+  "Monday – Saturday":"Isnin – Sabtu",
+  "Sunday":"Ahad",
+  "By appointment":"Dengan temujanji",
+  "Fittings":"Cubaan",
+  "Colours":"Warna",
+  "Suitable for":"Sesuai untuk",
+  "Reference":"Rujukan",
+  "Rental":"Sewa",
+  "4 days · dry-cleaning included · refundable deposit":"4 hari · termasuk dobi · deposit boleh dikembalikan",
+  "Evening gowns & men suits — rental studio · Bukit Jalil, Kuala Lumpur.":"Gaun malam & sut lelaki — studio sewaan · Bukit Jalil, Kuala Lumpur.",
+  "Catalogue could not load. Unzip the whole folder first, then open index.html from inside it — catalogue.js and the images folder must sit next to it.":"Katalog tidak dapat dimuatkan. Nyahzip keseluruhan folder dahulu, kemudian buka index.html dari dalamnya — catalogue.js dan folder images mesti berada di sebelahnya."
+};
 const ATTR_I18N = [
-  {sel:'#fName',  attr:'placeholder', en:'e.g. Amelia Tan', zh:'例如 Amelia Tan'},
-  {sel:'#fSize',  attr:'placeholder', en:'e.g. UK 10, or M — unsure is fine', zh:'例如 UK 10 或 M——不确定也没关系'},
-  {sel:'#fNotes', attr:'placeholder', en:'Colour preference, questions, anything else…', zh:'颜色偏好、问题或其他…'},
-  {sel:'#waFab',  attr:'aria-label',  en:'Chat with us on WhatsApp', zh:'用 WhatsApp 联系我们'},
-  {sel:'#lbClose',attr:'aria-label',  en:'Close piece details', zh:'关闭款式详情'},
-  {sel:'#menuBtn', attr:'aria-label',  en:'Menu', zh:'菜单'},
-  {sel:'#searchInput', attr:'placeholder', en:'Search by name, colour or style…', zh:'搜索名称、颜色或款式…'},
-  {sel:'#searchInput', attr:'aria-label',   en:'Search the collection', zh:'搜索系列'},
-  {sel:'#searchClear', attr:'aria-label',   en:'Clear search', zh:'清除搜索'},
-  {sel:'#lbPrev', attr:'aria-label',  en:'Previous colour', zh:'上一个颜色'},
-  {sel:'#lbNext', attr:'aria-label',  en:'Next colour', zh:'下一个颜色'},
-  {sel:'[aria-label="Filter by colour"]',   attr:'aria-label', en:'Filter by colour', zh:'按颜色筛选'},
-  {sel:'[aria-label="Filter by occasion"]', attr:'aria-label', en:'Filter by occasion', zh:'按场合筛选'}
+  {sel:'#fName',  attr:'placeholder', en:'e.g. Amelia Tan', zh:'例如 Amelia Tan', ms:'cth. Amelia Tan'},
+  {sel:'#fSize',  attr:'placeholder', en:'e.g. UK 10, or M — unsure is fine', zh:'例如 UK 10 或 M——不确定也没关系', ms:'cth. UK 10, atau M — tak pasti pun tak apa'},
+  {sel:'#fNotes', attr:'placeholder', en:'Colour preference, questions, anything else…', zh:'颜色偏好、问题或其他…', ms:'Pilihan warna, soalan, apa-apa lagi…'},
+  {sel:'#waFab',  attr:'aria-label',  en:'Chat with us on WhatsApp', zh:'用 WhatsApp 联系我们', ms:'Chat dengan kami di WhatsApp'},
+  {sel:'#lbClose',attr:'aria-label',  en:'Close piece details', zh:'关闭款式详情', ms:'Tutup butiran gaun'},
+  {sel:'#menuBtn', attr:'aria-label',  en:'Menu', zh:'菜单', ms:'Menu'},
+  {sel:'#searchInput', attr:'placeholder', en:'Search by name, colour or style…', zh:'搜索名称、颜色或款式…', ms:'Cari ikut nama, warna atau gaya…'},
+  {sel:'#searchInput', attr:'aria-label',   en:'Search the collection', zh:'搜索系列', ms:'Cari dalam koleksi'},
+  {sel:'#searchClear', attr:'aria-label',   en:'Clear search', zh:'清除搜索', ms:'Kosongkan carian'},
+  {sel:'#lbPrev', attr:'aria-label',  en:'Previous colour', zh:'上一个颜色', ms:'Warna sebelumnya'},
+  {sel:'#lbNext', attr:'aria-label',  en:'Next colour', zh:'下一个颜色', ms:'Warna seterusnya'},
+  {sel:'[aria-label="Filter by colour"]',   attr:'aria-label', en:'Filter by colour', zh:'按颜色筛选', ms:'Tapis ikut warna'},
+  {sel:'[aria-label="Filter by occasion"]', attr:'aria-label', en:'Filter by occasion', zh:'按场合筛选', ms:'Tapis ikut majlis'}
 ];
 const MIXED = {
   fitNote:{
     en:'Saved to your list — this doesn\u2019t book them yet. Fill in the form below and tap <b style="color:var(--ink);font-weight:600">Send via WhatsApp</b>; your selected pieces are included automatically.',
-    zh:'已保存到你的清单——这还未完成预约。填写下方表单并点「<b style="color:var(--ink);font-weight:600">通过 WhatsApp 发送</b>」即可；你选择的款式会自动附上。'
+    zh:'已保存到你的清单——这还未完成预约。填写下方表单并点「<b style="color:var(--ink);font-weight:600">通过 WhatsApp 发送</b>」即可；你选择的款式会自动附上。',
+    ms:'Disimpan ke senarai anda — ini belum menempah lagi. Isi borang di bawah dan ketik <b style="color:var(--ink);font-weight:600">Hantar via WhatsApp</b>; gaun pilihan anda disertakan secara automatik.'
   },
   lbNote:{
     en:'Added pieces are saved to your list. To book, open <b style="color:var(--ink);font-weight:600">Booking</b> from the top menu (<b style="color:var(--ink);font-weight:600">☰</b> on mobile), or scroll down to the form.',
-    zh:'已加入的款式会保存到清单。预约时从顶部菜单打开「<b style="color:var(--ink);font-weight:600">预约</b>」（手机上是 <b style="color:var(--ink);font-weight:600">☰</b>），或向下滚动到表单。'
+    zh:'已加入的款式会保存到清单。预约时从顶部菜单打开「<b style="color:var(--ink);font-weight:600">预约</b>」（手机上是 <b style="color:var(--ink);font-weight:600">☰</b>），或向下滚动到表单。',
+    ms:'Gaun yang ditambah disimpan ke senarai anda. Untuk menempah, buka <b style="color:var(--ink);font-weight:600">Tempahan</b> dari menu atas (<b style="color:var(--ink);font-weight:600">☰</b> di telefon), atau tatal ke bawah ke borang.'
   },
   noResP:{
     en:'Try another colour, or reset to <b>All</b> to see the full collection.',
-    zh:'换个颜色，或点「<b>全部</b>」查看整个系列。'
+    zh:'换个颜色，或点「<b>全部</b>」查看整个系列。',
+    ms:'Cuba warna lain, atau tetapkan semula ke <b>Semua</b> untuk lihat koleksi penuh.'
   }
 };
 const RIBBON = {
   en:'Evening Gowns <b>\u2726</b> ROM <b>\u2726</b> Sleeves <b>\u2726</b> Midi <b>\u2726</b> Ballgown <b>\u2726</b> Men Suits <b>\u2726</b> 4-Day Rentals <b>\u2726</b> By Appointment <b>\u2726</b>&nbsp;',
-  zh:'晚礼服 <b>\u2726</b> ROM <b>\u2726</b> 长袖系列 <b>\u2726</b> Midi <b>\u2726</b> 大摆礼服 <b>\u2726</b> 男士西装 <b>\u2726</b> 4 天租期 <b>\u2726</b> 预约到店 <b>\u2726</b>&nbsp;'
+  zh:'晚礼服 <b>\u2726</b> ROM <b>\u2726</b> 长袖系列 <b>\u2726</b> Midi <b>\u2726</b> 大摆礼服 <b>\u2726</b> 男士西装 <b>\u2726</b> 4 天租期 <b>\u2726</b> 预约到店 <b>\u2726</b>&nbsp;',
+  ms:'Gaun Malam <b>\u2726</b> ROM <b>\u2726</b> Berlengan <b>\u2726</b> Midi <b>\u2726</b> Ballgown <b>\u2726</b> Sut Lelaki <b>\u2726</b> Sewa 4 Hari <b>\u2726</b> Dengan Temujanji <b>\u2726</b>&nbsp;'
 };
 
 let I18N_TAGGED = false;
@@ -5334,46 +5573,67 @@ function tagLeaves(){
   I18N_TAGGED = true;
 }
 function applyLang(lang){
-  LANG = (lang === 'zh') ? 'zh' : 'en';
+  /* v194 —— 只认 en / zh / ms,别的一律退回英文。
+     🔴 加马来文时踩的第一个坑就是这一行:上面所有表都加好了、T() 也全改好了,
+        但这里还写着 `(lang === 'zh') ? 'zh' : 'en'` —— applyLang('ms') 一进来
+        就被改写成 'en',整站**静默**退回英文,一条报错都没有。
+        (跟 v194 记的那条通则一样:环境/参数不认识时最危险的不是报错,是静默替代。) */
+  LANG = (lang === 'zh' || lang === 'ms') ? lang : 'en';
   try { localStorage.setItem('lafemme_lang', LANG); } catch (e) {}
-  document.documentElement.lang = (LANG === 'zh') ? 'zh-Hans' : 'en';
+  document.documentElement.lang = T('en', 'zh-Hans', 'ms');
   if (!I18N_TAGGED) tagLeaves();
   /* simple leaf text */
+  /* v194 —— 按当前语言挑字典。英文没有字典(键本身就是英文),所以是 null。
+     ⚠️ 查不到就退回英文原文,不是留空 —— 漏翻一条只会显示英文,不会出现空白页。 */
+  const DICT = (LANG === 'zh') ? I18N : (LANG === 'ms') ? I18N_MS : null;
   document.querySelectorAll('[data-en]').forEach(el => {
     const en = el.dataset.en;
-    el.textContent = (LANG === 'zh' && I18N[en] !== undefined) ? I18N[en] : en;
+    el.textContent = (DICT && DICT[en] !== undefined) ? DICT[en] : en;
   });
   /* Size / Notes labels keep their (optional) span — swap only the leading text node */
-  [['fSize', 'Size ', '尺码 '], ['fNotes', 'Notes ', '备注 ']].forEach(([id, en, zh]) => {
+  [['fSize', 'Size ', '尺码 ', 'Saiz '], ['fNotes', 'Notes ', '备注 ', 'Nota ']].forEach(([id, en, zh, ms]) => {
     const lbl = document.querySelector('label[for="' + id + '"]');
-    if (lbl && lbl.firstChild && lbl.firstChild.nodeType === 3) lbl.firstChild.textContent = (LANG === 'zh' ? zh : en);
+    if (lbl && lbl.firstChild && lbl.firstChild.nodeType === 3) lbl.firstChild.textContent = T(en, zh, ms);
   });
   /* attributes */
-  ATTR_I18N.forEach(a => { const el = document.querySelector(a.sel); if (el) el.setAttribute(a.attr, LANG === 'zh' ? a.zh : a.en); });
+  ATTR_I18N.forEach(a => { const el = document.querySelector(a.sel); if (el) el.setAttribute(a.attr, T(a.en, a.zh, a.ms)); });
   /* mixed-content elements */
-  Object.keys(MIXED).forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = (LANG === 'zh' ? MIXED[id].zh : MIXED[id].en); });
-  document.querySelectorAll('.ribbon .track span').forEach(sp => { sp.innerHTML = (LANG === 'zh' ? RIBBON.zh : RIBBON.en); });
+  Object.keys(MIXED).forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = T(MIXED[id].en, MIXED[id].zh, MIXED[id].ms); });
+  document.querySelectorAll('.ribbon .track span').forEach(sp => { sp.innerHTML = T(RIBBON.en, RIBBON.zh, RIBBON.ms); });
   if (typeof updateMenNotice === 'function') updateMenNotice();
   /* hero rotator */
   const rotPre = document.getElementById('rotPre'), rotPost = document.getElementById('rotPost');
-  if (rotPre)  rotPre.textContent  = (LANG === 'zh') ? '为你的' : 'Made for your ';
-  if (rotPost) rotPost.textContent = (LANG === 'zh') ? '而准备' : '';
+  /* 马来文的句式是「Untuk <场合> anda」—— 词在中间,所以前后两截都有字。
+     英文是「Made for your <场合>」(后半空),中文是「为你的<场合>而准备」。 */
+  if (rotPre)  rotPre.textContent  = T('Made for your ', '为你的', 'Untuk ');
+  if (rotPost) rotPost.textContent = T('', '而准备', ' anda');
   ROT_WORDS = ROT_I18N[LANG] || ROT_I18N.en;
   if (typeof rot !== 'undefined' && rot) {
     rot.textContent = ROT_WORDS[rotI % ROT_WORDS.length];
     /* English reserves 200px for long phrases; CJK words are short and sit mid-sentence,
        so any reserve leaves a gap before 而准备 — hug the word instead (min-width 0). */
-    rot.style.minWidth = (LANG === 'zh') ? '0' : '';
+    /* 中文场合词短,留 200px 反而会在词和「而准备」之间留一条缝;
+       英文和马来文的词都长,保留预留宽度免得整句在换词时抖动。 */
+    rot.style.minWidth = T('', '0', '');
   }
   /* theme button label depends on current theme */
   const tspan = document.querySelector('#themeBtn span');
   if (tspan) { const noir = document.documentElement.dataset.theme === 'noir';
-    tspan.textContent = (LANG === 'zh') ? (noir ? '日间模式' : '夜间模式') : (noir ? 'Ivory mode' : 'Noir mode'); }
+    tspan.textContent = noir ? T('Ivory mode', '日间模式', 'Mod Ivory') : T('Noir mode', '夜间模式', 'Mod Noir'); }
   /* The toggle reads as a status light, not an instruction: it shows the language the
      page is in right now. Tapping it still switches. The aria-label carries the action
      so screen readers aren't left guessing what the button does. */
-  const current = (LANG === 'zh') ? '中文' : 'EN';
-  const action  = (LANG === 'zh') ? 'Switch to English / 切换为英文' : 'Switch to Chinese / 切换为中文';
+  /* v194 —— 三向循环 EN → 中文 → BM → EN。按钮显示的是**你现在在哪一种**
+     (v80 定的,不要改成显示「下一种」);aria-label 说的是**点下去会去哪一种**,
+     否则读屏的人只听到一个语言名,不知道这颗按钮是干什么的。 */
+  const current = T('EN', '中文', 'BM');
+  const action  = T('Switch to Chinese / 切换为中文',
+                    'Switch to Malay / 切换为马来文',
+                    'Tukar ke Bahasa Inggeris / Switch to English');
+  /* v195 —— 音乐按钮只有图标,说明文字全在 aria-label 上,所以换语言时要跟着换。
+     ⚠️ applyLang() 在 wireMusic() 之前就会跑一次(页面加载时),那时钩子还不存在,
+        所以要判断存在与否 —— 不判断的话首屏直接抛错,整个 applyLang 断在这里。 */
+  if (typeof window.__musicRefreshLabel === 'function') window.__musicRefreshLabel();
   const lb1 = document.getElementById('langBtn'), lb2 = document.getElementById('langBtnM');
   [lb1, lb2].forEach(b => { if (b) { b.textContent = current; b.setAttribute('aria-label', action); } });
   /* 卡片上的分类文字。「N 色」那个后缀在 v126 一卡一色之后没有了,
@@ -5407,9 +5667,84 @@ function applyLang(lang){
   const lb = document.getElementById('lb');
   if (lb && lb.classList.contains('open') && typeof closeLb === 'function') closeLb();
 }
+/* ==================== v195 —— 背景音乐开关 ==================== */
+(function wireMusic(){
+  const btn = document.getElementById("musicBtn");
+  const au  = document.getElementById("bgm");
+  if (!btn || !au) return;
+
+  /* 🔴 按钮**默认藏着**,只有确认音频文件真的存在才露出来。
+     文件没放、名字写错、404 —— 一律当作「这个站没有音乐功能」,
+     客人不会看到一颗点了没反应的按钮。
+     ⛔ 别改成「先显示,点了失败再隐藏」:那样第一个好奇的客人会点到一颗死按钮。 */
+  let ready = false, probing = false;
+  function musicProbe(){
+    if (probing || ready) return;
+    probing = true;
+    au.addEventListener("loadedmetadata", () => { ready = true; btn.hidden = false; }, { once: true });
+    au.addEventListener("error", () => { btn.remove(); }, { once: true });
+    au.load();
+  }
+  /* 空闲时再去探,别跟首屏的礼服图抢带宽。
+     ⚠️ requestIdleCallback 在 Safari 上直到 2022 年前后都没有,所以要兜底。 */
+  if (window.requestIdleCallback) requestIdleCallback(musicProbe, { timeout: 4000 });
+  else setTimeout(musicProbe, 2500);
+
+  /* 淡入淡出,不要硬切 —— 突然响起来和突然断掉都很吓人 */
+  const FADE_MS = 700, VOL = 0.35;   /* 0.35:背景音乐,不该盖过任何东西 */
+  let fadeTimer = 0;
+  function fadeTo(target, done){
+    clearInterval(fadeTimer);
+    const from = au.volume, steps = 14, dt = FADE_MS / steps;
+    let i = 0;
+    fadeTimer = setInterval(() => {
+      i++;
+      au.volume = Math.max(0, Math.min(1, from + (target - from) * (i / steps)));
+      if (i >= steps){ clearInterval(fadeTimer); fadeTimer = 0; if (done) done(); }
+    }, dt);
+  }
+  function setPressed(on){
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.setAttribute("aria-label", on ? MUSIC_LBL().stop : MUSIC_LBL().play);
+  }
+  function stop(){ fadeTo(0, () => au.pause()); setPressed(false); }
+  function start(){
+    au.volume = 0;
+    btn.classList.add("loading");
+    const p = au.play();
+    /* play() 返回 Promise —— 被浏览器挡掉时会 reject。挡掉了就老实回到「关」的状态,
+       不要假装在放。 */
+    Promise.resolve(p).then(() => {
+      btn.classList.remove("loading");
+      setPressed(true); fadeTo(VOL);
+    }).catch(() => { btn.classList.remove("loading"); setPressed(false); });
+  }
+  btn.addEventListener("click", () => { if (au.paused) start(); else stop(); });
+
+  /* 切走标签页就停 —— 客人开了别的页面,音乐还在背后响是很讨厌的。
+     ⚠️ 只停不自动续:回来之后要不要再放,由客人自己决定。 */
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && !au.paused) stop();
+  });
+
+  /* ⛔ 故意**不记住**「开着」这个状态。
+     浏览器本来就禁止无手势的自动播放,所以记住了下次也放不出来;
+     而且一进站就自动响本来就很失礼。每次都从「关」开始。 */
+
+  window.__musicRefreshLabel = () => setPressed(au.paused === false);
+})();
+/* 三种语言的按钮说明 —— 这颗按钮只有图标,读屏的人全靠 aria-label */
+function MUSIC_LBL(){
+  return {
+    play: T("Play music", "播放音乐", "Main muzik"),
+    stop: T("Stop music", "停止音乐", "Henti muzik"),
+  };
+}
 (function wireLang(){
   const b1 = document.getElementById('langBtn'), b2 = document.getElementById('langBtnM');
-  const toggle = () => applyLang(LANG === 'zh' ? 'en' : 'zh');
+  /* ⚠️ 循环顺序跟上面 aria-label 里写的「点下去会去哪」是**绑死的** —— 改一个要改两个。 */
+  const NEXT = { en: 'zh', zh: 'ms', ms: 'en' };
+  const toggle = () => applyLang(NEXT[LANG] || 'en');
   if (b1) b1.addEventListener('click', toggle);
   if (b2) b2.addEventListener('click', toggle);
   applyLang(LANG);   // apply saved / default language on load
