@@ -90,8 +90,10 @@
     --glass:rgba(250,247,242,.72);
     --ivory-0:rgba(250,247,242,0);
     --toggle:#DFC894;
-    --ribbon-bg:linear-gradient(90deg,#EFE8DB 0%,#E8DBD1 50%,#EFE8DB 100%);
-    --ribbon-fg:#5A5045;
+    /* v201 —— 首屏底部那条「三件事」的底色。原来是给会动的彩带用的横向渐变;
+       改成静止条之后用**平色**,跟稿子一致,也不会在长条上出现左右深浅不匀。 */
+    --band-bg:#F2ECE1;
+    --band-fg:#5A5045;
     /* v182 —— 转盘相框(Ben 2026-09-03:「ivory mode 相框浅金一点,noir mode 浅一点的深色」)。
        ⛔ 不要直接用 --ivory 或 --gold-hi:那两个在两套主题里各有各的用途,
           相框跟着它们走,改主题色的时候相框会被顺手改坏。相框自己一个变量。 */
@@ -123,8 +125,8 @@
     --glass:rgba(38,33,26,.74);
     --ivory-0:rgba(38,33,26,0);
     --toggle:#EBD9B0;
-    --ribbon-bg:linear-gradient(90deg,#2C261E 0%,#352E25 50%,#2C261E 100%);
-    --ribbon-fg:#E7DECF;
+    --band-bg:#231E17;
+    --band-fg:#E7DECF;
     /* 夜间的相框是**比背景浅**的深色(背景 #26211A → 相框 #3B342B),
        不是金色 —— 深底上一圈亮金会把照片框成「奖状」,喧宾夺主。 */
     --frame:#3B342B;
@@ -408,7 +410,8 @@
         因为 `loadHeroCovers()` 靠 `#heroReel` + `querySelectorAll("picture")` 把
         店主在 admin 换的封面替换进来(不用 push 就生效),loader 也靠
         `.reel picture img` 判断首图加载完没有。改这块之前先看那两处。 */
-  /* 🔴 v178 —— 彩带(marquee ribbon)搬进首屏,钉在第一屏的**底边**。
+  /* 🔴 v178 —— 首屏底部那一条(v178 是会动的彩带,v201 换成三件事)搬进首屏,
+     钉在第一屏的**底边**。
      以前它是 hero 后面的兄弟元素,只有在「hero 正好一屏高」的桌面上才碰巧落在
      第一屏底部;手机上 hero 是按内容长的,它就跟在内容后面,位置全看内容多高。
      现在 `.hero` 自己变成竖向 flex 容器:`.hero-split` 占满剩下的空间并把内容居中,
@@ -417,7 +420,7 @@
         `flex:1`,否则「一屏 + 彩带」= 比一屏高,按钮又会被挤到折线以下。 */
   .hero{position:relative;min-height:100svh;overflow:hidden;z-index:1;
     display:flex;flex-direction:column}
-  .hero .ribbon{flex:none}
+  .hero .hero-facts{flex:none}
   .hero-split{
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     flex:1 1 auto;position:relative;z-index:1;
@@ -621,6 +624,10 @@
            那个「代价」是我的量法造出来的,不是真的。
         ⛔ 通则:**试一个 CSS 改动,要试在它将来真正会待的位置上**;
            运行时注入的 style 拿到的是不同的层叠顺序,量出来的是另一份代码的行为。
+     ⚠️ v201 复核过:首屏底部那条从「48px 的彩带」换成「46px 的三条事实」,
+        **矮了 2px**,所以这两个常数不用动 —— 207 档重扫 0 溢出,反而多出 2px 余量。
+        ⛔ 但以后再动那条的 padding / 字号 / 行数,**必须回来重跑 `tests/hero-strip-check.js`**:
+           它的高度就是这个常数里的一部分。
      ⚠️ 524 = 493(实测最大需求)+ 31px 余量。31 是照着**多折一行小字(28px)**留的
         —— 跟上面 452 那段说的「挡不住整整多一行」是同一个账,这次留够了。
      ⚠️ 手机(390×844)和竖放 iPad(820×1180)**两档都不受影响**:
@@ -630,7 +637,7 @@
         是被缩小的桌面窗口;要修得动下限 78,代价是矮屏上照片更小,不值。
      ⛔ 以后再往首屏加任何东西(多一行字、按钮变高、彩带变厚),
         **这里的 524 和下面 1025px 那一档的 492 两个数字都要重算**。
-        量法见 `tests/ribbon-fold-check.js`。 */
+        量法见 `tests/hero-strip-check.js`。 */
   .hero-right{
     --card-w:clamp(78px,min(30vw,26svh,calc((100svh - 524px) / 2.37)),182px);
     --card-h:calc(var(--card-w) * 1.33);
@@ -774,12 +781,106 @@
 
 
 
-  /* ---------- marquee ribbon ---------- */
-  .ribbon{overflow:hidden;background:var(--ribbon-bg);color:var(--ribbon-fg);position:relative;z-index:1;padding:15px 0;transition:color .8s ease}
-  .ribbon .track{display:flex;width:max-content;animation:mq 28s linear infinite}
-  .ribbon span{display:flex;align-items:center;gap:40px;padding-right:40px;font-size:11px;letter-spacing:.34em;text-transform:uppercase;white-space:nowrap}
-  .ribbon b{color:var(--gold-deep);font-weight:400}
-  @keyframes mq{to{transform:translateX(-50%)}}
+  /* ---------- 🔴 v201 首屏底部的三条事实(取代原来那条会动的彩带)----------
+     Ben 2026-09-09:先要「干净但高级,只讲几件重要的事」,看过第一版(三格 + 图标 + 竖分隔线)
+     之后改成 **一行、用 ✦ 隔开**:`4-day rentals ✦ In-studio fitting ✦ Dry-cleaning included`。
+
+     为什么一行更「高级」:三格带框带图标读起来像**功能表**(feature grid);
+     一行居中、字距拉开、只用一个金色小菱形分隔,读起来像**成衣标签**上的那行小字。
+     信息一模一样,语气完全不同。
+
+     ⛔ 刻意**没有动画**:首屏已经有一个 3D 转盘在转,两个动的东西抢注意力。
+        这一行是给人**读**的,不是给人看的。
+     ⛔ 图标全部去掉 —— Ben 新的这版规格里没有图标,而且一行排版里图标会打断字距的节奏。
+     ⚠️ 三段文字必须各自是**叶子元素**(`.fact-t` 里面不能再套东西)——
+        tagLeaves() 只给叶子挂 data-en,包起来就不翻译了。✦ 是它们的兄弟,不是父级。
+     ⚠️ ✦ 一律 aria-hidden:读屏的人听到「黑色四角星」没有意义。 */
+  .hero-facts{
+    background:var(--band-bg);color:var(--band-fg);
+    border-top:1px solid var(--hairline);
+    position:relative;z-index:1;transition:color .8s ease;
+    padding:15px max(18px,env(safe-area-inset-right,0px)) 15px max(18px,env(safe-area-inset-left,0px));
+  }
+  .facts-line{
+    /* 🔴 v201d —— Ben 2026-09-09:「**所有的都必须在一行**」。
+       所以是 `nowrap`,不是 wrap。字号用 vw 跟着缩,窄屏上自己变小而不是折行。 */
+    margin:0;display:flex;flex-wrap:nowrap;
+    align-items:baseline;justify-content:center;
+    /* 🔴 `column-gap` 比在 ✦ 上写 margin 好:换行时行首不会多出一块空白,
+       而且两侧留白天然对称。`row-gap` 单独给,控制折行后的行距。
+
+       ⚠️ v201c —— 间距**放大了一档**(原来 clamp(10,1.6vw,22))。
+       Ben 2026-09-09:「字都黏在一起了」。量出来他是对的:
+       这一行字距拉得很开(1440 上 3.36px),而一段话**内部**的词距因此有 7px;
+       原来到 ✦ 的空隙只有 22px —— **只有词距的 3.1 倍**(1024 上 2.5×、768 上 2.2×)。
+       ⛔ 字距一拉开,**组间空隙必须跟着按比例放大**,否则三段会糊成一段:
+          眼睛靠「空隙比词距大多少」来分组,不是靠绝对像素。
+       现在的比值约 **4–5.4×**,三段一眼就分得开。
+       ⛔ 以后改字号或字距,这个 clamp 要跟着重算 —— 它们是绑在一起的。 */
+    column-gap:clamp(16px,2.9vw,38px);row-gap:6px;
+  }
+  /* ✦ 和它后面那一段是一个整体,一起换行 */
+  /* ⚠️ 这里的 gap 必须跟 `.facts-line` 的**一模一样** —— 它是 ✦ 右边那半个空隙,
+     两边不一样的话 ✦ 会看起来偏向某一段。 */
+  .facts-line .grp{display:inline-flex;align-items:baseline;
+    column-gap:clamp(16px,2.9vw,38px);white-space:nowrap}
+  .facts-line .fact-t{
+    /* ⛔ 每一段自己不许断行 —— 允许断的话「IN-STUDIO」会从中间劈开,
+       那正是这一行最难看的失败样子。要断只能断在 ✦ 那里。 */
+    white-space:nowrap;
+    /* 🔴 一行装得下靠这两条一起缩。曲线是量出来的:
+       实测「不换行时这一行天然要多宽」/「可用宽度」这个比值,
+       在 320px 上最紧 —— 所以下限压到 8px,再靠字距一起收。 */
+    font-size:clamp(8px,2.3vw,12px);
+    /* 🔴 窄屏上腾宽度靠**收字距**,不靠继续压字号。
+       算过账:整行 51 个大写字母,字距每收 0.7px 就省下 36px ——
+       比把字号从 8px 再往下压划算得多,而且**字距是装饰,字号是可读性**。
+       320px 上字距收到约 0.6px、字号保住 8px;1024 以上回到 .28em 的宽松感。 */
+    letter-spacing:clamp(.2px,calc(.62vw - 1.35px),.28em);
+    text-transform:uppercase;line-height:1.5;
+  }
+  /* 金色小菱形。比正文再小一档、透明度压到 .75 —— 它是**节拍**,不是内容,
+     跟正文一样重的话整行会变成「六个东西」而不是「三件事」。 */
+  .facts-line .sep{
+    color:var(--gold-deep);opacity:.75;
+    font-size:clamp(7px,.75vw,9px);
+    transform:translateY(-.1em);            /* 视觉上对齐大写字母的中线,不是基线 */
+  }
+  /* 🔴 v201 —— 给右下角让出 WhatsApp 悬浮按钮的位置。
+     实测:那颗按钮 `position:fixed` 钉在视口右下角,56px 宽、右边距 22px,
+     会正好压在这一行的右端。
+     ⚠️ 这不是新问题,是这个项目的老坑(v137 的注释里就写着:那颗按钮
+        「**必然盖住此刻在那个角上的东西**」)。以前那里是滚动的彩带,盖住一两个词看不出来;
+        现在那里是一行客人要读的字,盖住就是信息丢了。
+     ⛔ 修法不是把按钮藏起来 —— 它是客人联系店里的主要入口。
+        是让这一行**自己空出那个角**。
+     ⚠️ 只在 ≤1023px 需要:1024 及以上这一行本来就到不了那么右边。 */
+  /* 🔴 v201d —— 不再靠「这一行让出右下角」来避开 WhatsApp 悬浮按钮。
+     量出来的账:390px 上让掉 78px 之后只剩 286px,而这一行整整要 344px ——
+     要塞进一行,英文得缩到 **7.9px**;320px 上更是 **6.8px**,那已经不是小字是装饰。
+     ⛔ 所以换个方向:**把挤它的那个东西挪开** —— 手机上让悬浮按钮坐到这一行**上面**。
+     这一行只占第一屏底部约 49px,按钮抬高一档就完全让开,而这一行拿回整个宽度。
+     ⚠️ 代价:按钮在**整页**都高了一点(它是 fixed 的,不只第一屏)。
+        实测跟预约表单的送出键、弹窗两颗按钮、筛选按钮都不重叠 —— 见 hero-strip-check.js 里那条。 */
+
+  /* 🔴 手机上这一行装不下,会折成两行 —— 折了就比原来的彩带高 14px,
+     首屏底部那 12px 余量当场吃光(实测 320×568 溢出 2px、360×640 马来文溢出 8px)。
+     ⛔ 不能靠调 `--card-w` 那个常数救:320×568 上转盘已经卡在 `clamp()` 的下限 78px,
+        常数再大也不会让它更矮 —— **唯一的杠杆是把这一行本身做矮**。
+     三处一起收,每一处都量过:上下内边距 −6、行距 −3、行高 1.5→1.4,合计约 −13px。 */
+  @media (max-width:560px){
+    .hero-facts{padding-top:9px;padding-bottom:9px}
+    /* ⚠️ 窄屏上间距也得让 —— 一行装得下是硬要求(Ben 2026-09-09:「都必须在一行」)。
+       代价写在下面「三者不可兼得」那一段。 */
+    .facts-line,.facts-line .grp{column-gap:clamp(5px,2.2vw,16px)}
+  }
+  /* 最窄那一档(iPhone SE 一代)再把左右内边距让出来 —— 320px 上英文还差 3px。
+     ⛔ 先让**内边距**,不要再压字号:内边距是空白,字号是可读性。 */
+  @media (max-width:360px){
+    .hero-facts{padding-left:max(10px,env(safe-area-inset-left,0px));
+                padding-right:max(10px,env(safe-area-inset-right,0px))}
+    .facts-line .fact-t{line-height:1.4}
+  }
 
   /* ---------- collection ---------- */
   .tabs{display:flex;gap:34px;margin-bottom:30px;border-bottom:1px solid var(--hairline)}
@@ -1735,6 +1836,25 @@
   #waFab::before{content:"";position:absolute;inset:-1px;border-radius:50%;border:1px solid var(--gold);animation:pulse 2.4s ease-out infinite}
   @keyframes pulse{0%{transform:scale(1);opacity:.7}80%,100%{transform:scale(1.7);opacity:0}}
   #waFab svg{width:26px;height:26px;fill:var(--gold-deep)}
+  /* 🔴 v201d —— 手机上把这颗按钮抬到首屏底部那一行**上面**。
+     Ben 要求那三条永远在一行;而 390px 上给按钮让掉 78px 之后只剩 286px、
+     那一行整整要 344px —— 英文得缩到 7.9px 才塞得下,那已经不是小字是装饰。
+     ⛔ 所以换方向:**把挤它的那个东西挪开**,不是把字压小。
+     🔴 这条必须写在 `#waFab` 那条**后面** —— 两者特异度一样(都是 #id),
+        靠先后决定胜负。我第一次写在 `.hero-facts` 那一区(文件更靠前),
+        结果被下面的 `bottom:22px` 盖掉,量出来「按钮照样盖住 56px」。
+        **这正是 v199 记过的那条坑:改 CSS 要改在它真正会生效的位置上。** */
+  /* ⚠️ 只在**首屏那一行还在视野里**的时候抬(靠 JS 加 `.lifted`,见 liftFab())。
+     🔴 不能无条件抬:实测无条件抬到 76px 之后,在 320/360 上它会压住页脚里
+        **CC BY 的署名链接**(「Free Music Archive」)——
+        那是授权义务,`_licences\Summer-Piano-Zight\授权凭证.md` 里写着
+        「不能删,也不能藏起来」。为了让开一条装饰性的字带而盖住署名,是把小问题换成大问题。
+     ⚠️ `#waFab.lifted` 比 `#waFab` 特异度高(id + class),所以不依赖书写顺序。
+     ⛔ JS 挂掉时按钮留在原位 —— 那时首屏那一行右端会被盖住一点,
+        但**页脚署名是干净的**。两害相权,这是对的那一边。 */
+  @media (max-width:1023px){
+    #waFab.lifted{bottom:76px}
+  }
 
   /* ---------- footer ---------- */
   footer{border-top:1px solid var(--hairline);padding:54px 0 44px;position:relative;z-index:1}
@@ -1957,7 +2077,6 @@
     .hero h1 .w span{transform:none}
     .hero .kicker,.hero p.sub,.hero-ctas{opacity:1}
     .hero-rule{width:120px}
-    .ribbon .track{animation:none}
     #cur,#waFab::before{display:none}
   }
 </style>
@@ -2068,13 +2187,21 @@
     </div>
 
   </div>
-  <!-- v178 —— 彩带搬进首屏,钉在第一屏底部(理由见 CSS 里 .hero 那段) -->
-  <div class="ribbon" aria-hidden="true">
-  <div class="track">
-    <span>Evening Gowns <b>✦</b> ROM <b>✦</b> Sleeves <b>✦</b> Midi <b>✦</b> Ballgown <b>✦</b> Men Suits <b>✦</b> 4-Day Rentals <b>✦</b> By Appointment <b>✦</b>&nbsp;</span>
-    <span>Evening Gowns <b>✦</b> ROM <b>✦</b> Sleeves <b>✦</b> Midi <b>✦</b> Ballgown <b>✦</b> Men Suits <b>✦</b> 4-Day Rentals <b>✦</b> By Appointment <b>✦</b>&nbsp;</span>
+  <!-- 🔴 v201 —— 首屏底部从「会动的彩带」换成**三条事实**(Ben 2026-09-09)。
+       彩带滚的是关键词(Evening Gowns ✦ ROM ✦ …);这里改成客人决定要不要租时
+       真正会问的三件事,静止、不抢注意力。
+       ⚠️ 三个 <span class="fact-t"> 必须是**叶子元素**(里面不能再套东西)——
+          tagLeaves() 只给叶子挂 data-en,包起来就不翻译了。图标是它的兄弟,不是父级。
+       ⚠️ 图标一律 aria-hidden:读屏的人听到文字就够了,听「日历」没有意义。 -->
+  <div class="hero-facts">
+    <p class="facts-line">
+      <span class="fact-t">4-day rentals</span>
+      <!-- ⚠️ ✦ 跟它**后面**那一段绑成一组:换行时两个一起走,
+           不会在上一行的行尾留下一个孤零零的 ✦(实测手机上就是这样)。 -->
+      <span class="grp"><span class="sep" aria-hidden="true">&#10022;</span><span class="fact-t">In-studio fitting</span></span>
+      <span class="grp"><span class="sep" aria-hidden="true">&#10022;</span><span class="fact-t">Dry-⁠cleaning included</span></span>
+    </p>
   </div>
-</div>
 </section>
 
 <!-- ===================== COLLECTION ===================== -->
@@ -3645,6 +3772,32 @@ function siteBase(){
   if (!/\/$/.test(base)) base += "/";
   return base;
 }
+/* 🔴 v200 —— 把一张照片的地址变成「发给客人也点得开」的绝对网址。
+   Ben 2026-09-09 报:「弹窗里 Ask price on WhatsApp 的链接**全都是错的**」。
+
+   原因:照片地址有**两种形态**,而原来的代码只认得其中一种。
+     · `catalogue.js`(离线兜底)里是**相对**路径:`images/xxx.webp`
+     · `admin.html` 上传照片时,写进数据库的是 **Supabase 的绝对 URL**:
+       `https://<project>.supabase.co/storage/v1/object/public/gowns/xxx.webp`
+   原来两处都写死成 `` `${location.origin}/${v.hi || v.img}` ``,
+   于是线上拼出来是 `https://lafemmegown.com/https://xxx.supabase.co/...` ——
+   **每一件的照片链接都是死的**,客人在 WhatsApp 里点开只会 404。
+
+   ⛔ **为什么本地怎么测都测不出来**:沙箱和本地预览连不上 Supabase,
+      页面永远回落到 `catalogue.js` 的相对路径 —— 那一条恰好是对的。
+      **一个只在「线上那份数据」下才会坏的 bug,用「本地那份数据」测一万遍也照不出来。**
+      `tests/links-check.js` 因此**两种数据各跑一遍**。
+
+   ⚠️ 基准用 `siteBase()`(canonical)而不是 `location.origin`,跟分享链接同一套:
+      Ben 用 `file:///C:/Lafemme/deploy/index.html` 打开预览时,
+      `location.origin` 是 `null` / `file://`,拼出来的链接发给客人同样是废的。
+   ⛔ 以后再有「把数据库里的路径拼成网址」的地方,一律走这个函数,别再手写模板字符串。 */
+function photoURL(p){
+  if (!p) return "";
+  if (/^https?:\/\//i.test(p)) return p;                 // 已经是绝对网址(admin 上传的)
+  if (/^\/\//.test(p)) return "https:" + p;              // 协议相对 //host/path
+  return siteBase() + String(p).replace(/^\/+/, "");     // 相对路径(catalogue.js 那种)
+}
 /* 顶部那颗分享的是「当前这一屏筛选」。p / pc 是单件链接才有的,
    要剔掉 —— 否则客人从单件链接进来、关掉弹窗、再按顶部分享,
    对方收到的还是那一件的弹窗,不是这一屏。
@@ -4261,7 +4414,7 @@ function openLb(i, vi){
     const ask = document.getElementById("lbAsk");
     /* prefill WhatsApp with the exact piece + colour + a link to the photo. location.origin
        makes the link auto-match whatever domain the site runs on. */
-    const imgURL = `${location.origin}/${v.hi || v.img}`;
+    const imgURL = photoURL(v.hi || v.img);      // 🔴 v200 —— 见 photoURL() 那段注释
     ask.href = waLink(
       `${msg("askPrice")}\n\n` +
       `${pieceLabel(pieceName(st), v.c, v.d)}\n` +
@@ -4298,7 +4451,9 @@ function openLb(i, vi){
          the popup stays open so the customer can keep adding other colours. */
       const btn = document.getElementById("lbBook"), prev = btn.dataset.label || btn.textContent;
       btn.dataset.label = prev;
-      const res = addFitting({ name: pieceName(st), colour: v.c, desc: v.d, ref: v.ref, photo: `${location.origin}/${v.hi || v.img}` });
+      /* 🔴 v200 —— 这条 photo 会**原样出现在预约表单送出的 WhatsApp 讯息里**
+         (每件一行),所以它跟上面那条 Ask price 是同一个 bug、必须一起修。 */
+      const res = addFitting({ name: pieceName(st), colour: v.c, desc: v.d, ref: v.ref, photo: photoURL(v.hi || v.img) });
       btn.textContent = res === "ok"  ? T("Added \u2713", "\u5df2\u52a0\u5165 \u2713", "Ditambah \u2713")
                       : res === "dup" ? T("Already in list", "\u5df2\u5728\u6e05\u5355\u4e2d", "Sudah dalam senarai")
                       : T(`List full (max ${FIT_MAX})`, `\u6e05\u5355\u5df2\u6ee1\uff08\u6700\u591a ${FIT_MAX} \u4ef6\uff09`, `Senarai penuh (maks ${FIT_MAX})`);
@@ -5482,6 +5637,8 @@ const I18N = {
   "LaFemme Gowns by Nee is a gown and suit rental studio in Pusat Bandar Bukit Jalil, Kuala Lumpur. We keep a curated wardrobe of evening gowns and men's suits for the occasions that matter — annual dinners, galas, convocations and ROM ceremonies.":"LaFemme Gowns by Nee 是一家位于吉隆坡 Pusat Bandar Bukit Jalil 的礼服与西装租赁工作室。我们为重要场合——年会、晚宴、毕业典礼与注册结婚——精选晚礼服与男士西装。",
   "Rather than buying a gown you'll wear once, rent one that fits you properly. Visits are by appointment, so the fitting room is yours alone.":"与其买一件只穿一次的礼服，不如租一件真正合身的。到访采预约制，试穿室为你独享。",
   "gown styles in studio":"款礼服在店","colour options across the range":"种颜色可选","rentals · dry-cleaning included":"租期 · 含干洗",
+  /* v201 —— 首屏底部三件事 */
+  "4-day rentals":"4 天租期","In-studio fitting":"到店试穿","Dry-⁠cleaning included":"含干洗",
   /* booking */
   "Reserve your studio session":"预约你的到店时段",
   "Fill this in and it opens WhatsApp with your details ready to send — no account, no payment needed to book.":"填写后将打开 WhatsApp，信息已为你准备好——无需账号，预约免付款。",
@@ -5578,6 +5735,11 @@ const I18N_MS = {
   "gown styles in studio":"gaya gaun di studio",
   "colour options across the range":"pilihan warna keseluruhan",
   "rentals · dry-cleaning included":"sewa · termasuk dobi",
+  /* v201 —— 首屏底部三件事。
+     ⚠️ 「4 hari」中间用的是 U+00A0 不断行空格 —— v194 踩过:
+        马来文的「4 hari」在 430px 上会从中间断开,跟英文那个 4-day 是同一个坑。
+        这里安全,因为它是**值**不是键,normText() 的规范化管不到它。 */
+  "4-day rentals":"Sewa 4 hari","In-studio fitting":"Cubaan di studio","Dry-⁠cleaning included":"Termasuk dobi",
   "Reserve your studio session":"Tempah sesi studio anda",
   "Fill this in and it opens WhatsApp with your details ready to send — no account, no payment needed to book.":"Isi borang ini dan WhatsApp akan terbuka dengan maklumat anda sedia dihantar — tiada akaun, tiada bayaran diperlukan untuk menempah.",
   "Fitting for":"Cubaan untuk",
@@ -5688,11 +5850,6 @@ const MIXED = {
     ms:'Cuba warna lain, atau tetapkan semula ke <b>Semua</b> untuk lihat koleksi penuh.'
   }
 };
-const RIBBON = {
-  en:'Evening Gowns <b>\u2726</b> ROM <b>\u2726</b> Sleeves <b>\u2726</b> Midi <b>\u2726</b> Ballgown <b>\u2726</b> Men Suits <b>\u2726</b> 4-Day Rentals <b>\u2726</b> By Appointment <b>\u2726</b>&nbsp;',
-  zh:'晚礼服 <b>\u2726</b> ROM <b>\u2726</b> 长袖系列 <b>\u2726</b> Midi <b>\u2726</b> 大摆礼服 <b>\u2726</b> 男士西装 <b>\u2726</b> 4 天租期 <b>\u2726</b> 预约到店 <b>\u2726</b>&nbsp;',
-  ms:'Gaun Malam <b>\u2726</b> ROM <b>\u2726</b> Berlengan <b>\u2726</b> Midi <b>\u2726</b> Ballgown <b>\u2726</b> Sut Lelaki <b>\u2726</b> Sewa 4 Hari <b>\u2726</b> Dengan Temujanji <b>\u2726</b>&nbsp;'
-};
 
 let I18N_TAGGED = false;
 function normText(s){ return (s || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim(); }
@@ -5732,7 +5889,6 @@ function applyLang(lang){
   ATTR_I18N.forEach(a => { const el = document.querySelector(a.sel); if (el) el.setAttribute(a.attr, T(a.en, a.zh, a.ms)); });
   /* mixed-content elements */
   Object.keys(MIXED).forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = T(MIXED[id].en, MIXED[id].zh, MIXED[id].ms); });
-  document.querySelectorAll('.ribbon .track span').forEach(sp => { sp.innerHTML = T(RIBBON.en, RIBBON.zh, RIBBON.ms); });
   if (typeof updateMenNotice === 'function') updateMenNotice();
   /* hero rotator */
   const rotPre = document.getElementById('rotPre'), rotPost = document.getElementById('rotPost');
@@ -5800,6 +5956,19 @@ function applyLang(lang){
   const lb = document.getElementById('lb');
   if (lb && lb.classList.contains('open') && typeof closeLb === 'function') closeLb();
 }
+/* 🔴 v201d —— 首屏底部那一行在视野里时,把 WhatsApp 悬浮按钮抬起来让开它。
+   Ben 要求那三条永远在一行;而给按钮让出 78px 之后 390px 上英文得缩到 7.9px 才塞得下。
+   与其把字压小,不如**让按钮暂时挪开**。
+   ⚠️ 只在那一行可见时抬 —— 无条件抬会在 320/360 上压住页脚的 CC BY 署名链接。
+   ⚠️ 没有 IntersectionObserver 的老浏览器直接不抬,按钮留在原位(功能不受影响)。 */
+(function liftFab(){
+  const fab = document.getElementById("waFab");
+  const strip = document.querySelector(".hero .hero-facts");
+  if (!fab || !strip || !("IntersectionObserver" in window)) return;
+  new IntersectionObserver(function(es){
+    fab.classList.toggle("lifted", es[0].isIntersecting);
+  }, { threshold: 0 }).observe(strip);
+})();
 /* ==================== v195 —— 背景音乐开关 ==================== */
 (function wireMusic(){
   const btn = document.getElementById("musicBtn");
