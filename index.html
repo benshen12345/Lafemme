@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="ivory">
+<html lang="en" data-theme="noir">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -28,9 +28,9 @@
 <link rel="manifest" href="site.webmanifest" />
 <meta name="apple-mobile-web-app-title" content="LaFemme" />
 <meta name="application-name" content="LaFemme" />
-<!-- address-bar tint: follows whichever theme the phone is in -->
-<meta name="theme-color" content="#FAF7F2" media="(prefers-color-scheme: light)" />
-<meta name="theme-color" content="#26211A" media="(prefers-color-scheme: dark)" />
+<!-- address-bar tint —— 🔴 v202:官网默认改成 Noir(Ben 2026-09-29),不再跟手机的系统设置走,
+     所以地址栏一律用 Noir 的底色。⚠️ 客人手动切到 Ivory 时地址栏不会跟着变(v201 以前也不会)。 -->
+<meta name="theme-color" content="#26211A" />
 
 <!-- ===================== LINK PREVIEW =====================
      Almost every enquiry arrives through a shared WhatsApp link, so the preview card
@@ -59,6 +59,12 @@
 <!-- hero LCP image preloaded at high priority so it paints fast and wins bandwidth over the grid -->
 <link rel="preload" as="image" href="images/hero-1-sm.webp" media="(max-width:1024px)" fetchpriority="high" />
 <link rel="preload" as="image" href="images/hero-1.webp" media="(min-width:1025px)" fetchpriority="high" />
+<script>
+/* 🔴 v202 —— 首屏全息投影入场的闸门。有这个 class,CSS 才会把转盘换成「仪器 + 光线」的开场;
+   没有它(没跑 JS、系统开了减少动画、或 <body> 开头的 failsafe 把它拿掉),首屏就是 v201 的样子。
+   ⛔ 必须在 <head> 里加:等到主脚本才加,照片会先按旧的方式淡入、再被藏起来,闪一下。 */
+try { if (!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) document.documentElement.classList.add("intro"); } catch (e) {}
+</script>
 <script>
 /* warm the remaining hero frames early (correct set for viewport) so the
    crossfade never has to download mid-transition — this removes the switch lag */
@@ -105,6 +111,10 @@
           同样的浓度铺满一屏会吵。他要的就是「very very thin」。
        ⛔ 想让两处完全一致的话直接用 --frame-line 就行,但先在目录整屏上看一眼再决定。 */
     --card-line:rgba(169,131,63,.30);
+    /* v202 首屏全息投影:光晕、光线三段、仪器的金属明暗 */
+    --holo-glow:rgba(198,161,91,.55);
+    --holo-ray-1:rgba(198,161,91,.05);--holo-ray-2:rgba(198,161,91,.07);--holo-ray-3:rgba(214,178,106,.10);--holo-ray-4:rgba(214,178,106,.16);
+    --holo-dark:#7d5f2c;--holo-light:#efdcb0;
     --serif:'Cormorant Garamond', Georgia, 'Times New Roman', serif;
     --script:'Cormorant Garamond', Georgia, serif;
     --sans:'Jost', 'Segoe UI', Arial, sans-serif;
@@ -132,6 +142,9 @@
     --frame:#3B342B;
     --frame-line:rgba(212,175,106,.32);
     --card-line:rgba(212,175,106,.24);
+    --holo-glow:rgba(223,190,126,.55);
+    --holo-ray-1:rgba(223,190,126,.05);--holo-ray-2:rgba(223,190,126,.06);--holo-ray-3:rgba(246,230,197,.09);--holo-ray-4:rgba(246,230,197,.15);
+    --holo-dark:#2a2118;--holo-light:#c9a66a;
     color-scheme:dark;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -554,6 +567,13 @@
   @keyframes draw{to{stroke-dashoffset:0}}
 
   .hero-right{position:relative;overflow:hidden;background:transparent}
+  /* 🔴 v202b —— 上下不再裁切,只裁左右。
+     全息投影的底座挂在转盘最下缘,原来的 overflow:hidden 把它的下半截切掉了
+     (Ben 2026-09-29 截图:「底座看起来被挡住」—— 其实不是被光挡住,是被这个容器切掉)。
+     `overflow-x:clip` 不会像 hidden 那样把另一轴强制变成 auto,所以上下能真的露出来;
+     左右照旧裁掉,转盘不可能把页面撑宽。
+     ⚠️ 不支持 clip 的旧浏览器(iOS 15 及更早)留在上面那条 hidden:底座下半截仍被切,和修之前一样,不会更糟。 */
+  @supports (overflow:clip){ .hero-right{overflow:visible;overflow-x:clip} }
   .hero-bg{position:absolute;inset:0;z-index:0;pointer-events:none;transition:opacity .8s ease}
   [data-theme="noir"] .hero-bg{opacity:.85}
   .mood{position:absolute;inset:0;opacity:0;transition:opacity 2.4s ease}
@@ -2065,6 +2085,184 @@
     .tab{font-size:22px}
   }
 
+  /* ---------- 🔴 v202 —— 首屏「全息投影」入场(Ben 2026-09-29 选定:B / 悬浮光环 v3)----------
+     客人看到的顺序(以 loader 消失那一刻为 0 秒):
+       0.00  转盘正下方出现一个**暗着的**黑色小底座(还没亮)
+       0.10  一颗金色光点从上方落下,0.75 秒落**进底座**
+       0.75  底座亮起、地面泛两圈涟漪
+       0.85  金环从底座里升起(0.55 秒),浮在半空;光柱与 5 颗光点跟着出现
+       1.35  转盘开始转(光线那一层同时开始转)
+       1.50  第一道光射向 1 号照片 → 照片像全息投影一样闪现;之后 5 → 4 → 3 → 2 号每 0.25 秒一张
+       3.95  最后一张照片出齐 → 这时才给 .hero 加 .text-on,标题、按钮、三条事实才出现
+       4.10  五道光调暗到 45%,之后**一直跟着照片转**(Ben:「一直跟着转」)
+     设计与取舍的完整记录:vault `_decisions/LaFemme-v202-首屏全息投影入场与默认Noir.md`
+
+     ⛔ 整段只在 `html.intro` 下生效。这个 class 由 <head> 里的一小段脚本加上,
+        而且**系统开了「减少动画」就不加**。所以:
+          · 浏览器没跑 JS → 没有 .intro → 首屏和 v201 一模一样(纯 CSS 入场,照片照样出来)
+          · 主脚本中途出错 → <body> 开头的 failsafe 在 2.8 秒把 .intro 拿掉 → 同上
+          · 减少动画 → 没有 .intro → 静止转盘 + 文字直接显示
+        v188 刻意做到「JS 死了首屏也不会空」,这里用 .intro 这道闸门把那个保证留住。
+     ⛔ 仪器和光线都挂在 `.reel-tilt` 里、`#heroReel` **外面** —— `#heroReel` 和它里面五个
+        <picture> 一个节点都没动(loadHeroCovers() 和 loader 靠它认路,见 v176 的记录)。
+     ⛔ 光线那一层(.holo-beams)是**另一个元素**,用和 `.reel-in` 同一条 ringspin、同一个延迟,
+        所以两者一起开始、一起转;滚出屏幕时下面那条规则让两者一起暂停。
+        改其中一个的时长或延迟,另一个必须一起改,否则光线会慢慢对不上照片。 */
+  .holo-dev,.holo-beams,.holo-pad,.holo-ripple{display:none}
+  .holo-probe{position:absolute;left:0;top:0;width:var(--ring-r);height:0;visibility:hidden;pointer-events:none}
+  html.intro .holo-dev,html.intro .holo-beams,html.intro .holo-pad,html.intro .holo-ripple{display:block}
+
+  /* 仪器:底座 + 浮起来的金环。所有尺寸跟 --card-w 走,手机上自己缩小。
+     --ya 是金环中心在转盘里的高度(卡片高 × 0.77);JS 算光线起点用的是同一个 0.77,
+     ⛔ 改这里必须同时改脚本里的 HOLO_YA,否则光线会从金环旁边射出来。 */
+  .holo-dev{position:absolute;left:0;top:0;width:0;height:0;opacity:0;pointer-events:none;
+    --d:calc(var(--card-w) * .5);--g:calc(var(--d) * .24);--hd-lift:0px;
+    transform:translate3d(0,calc(var(--card-h) * .77 - var(--hd-lift)),0)}
+  .holo-dev i{position:absolute;display:block}
+  .holo-dev .hd-shadow{left:calc(var(--d) * -.45);top:calc(var(--g) + var(--d) * .02);width:calc(var(--d) * .9);height:calc(var(--d) * .26);border-radius:50%;
+    background:radial-gradient(ellipse at center,rgba(0,0,0,.45),transparent 70%)}
+  .holo-dev .hd-bband{left:calc(var(--d) * -.27);top:var(--g);width:calc(var(--d) * .54);height:calc(var(--d) * .1);
+    background:linear-gradient(90deg,var(--holo-dark) 0%,var(--holo-light) 30%,#FFF4DA 38%,var(--holo-light) 48%,var(--holo-dark) 100%);
+    border-radius:0 0 50% 50% / 0 0 calc(var(--d) * .07) calc(var(--d) * .07)}
+  .holo-dev .hd-bface{left:calc(var(--d) * -.27);top:calc(var(--g) - var(--d) * .07);width:calc(var(--d) * .54);height:calc(var(--d) * .14);border-radius:50%;
+    background:radial-gradient(ellipse at center,#3a2f22,#120e0a 75%);box-shadow:0 0 0 1px var(--holo-light)}
+  .holo-dev .hd-lit,.holo-dev .hd-glow,.holo-dev .hd-rise{left:0;top:0;width:0;height:0;opacity:0}
+  .holo-dev .hd-float{left:0;top:0;width:0;height:0;animation:holoBob 3.6s ease-in-out infinite}
+  /* v202b —— 底座上的光只剩镜头中间一个小亮点(Ben 2026-09-29:原来那片椭圆光盖住了黑色底座,看起来底座被挡住) */
+  .holo-dev .hd-pool{left:calc(var(--d) * -.07);top:calc(var(--g) - var(--d) * .025);width:calc(var(--d) * .14);height:calc(var(--d) * .05);border-radius:50%;
+    background:radial-gradient(ellipse at center,#FFF8EA 0 30%,var(--gold-hi) 55%,transparent 75%);box-shadow:0 0 6px 2px var(--holo-glow);animation:holoPool 3.6s ease-in-out infinite}
+  .holo-dev .hd-col{left:calc(var(--d) * -.2);top:0;width:calc(var(--d) * .4);height:calc(var(--g) - var(--d) * .07);
+    background:linear-gradient(to top,rgba(246,222,170,.55),rgba(246,222,170,.08) 85%,transparent);
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 35%,#000 65%,transparent);mask-image:linear-gradient(90deg,transparent,#000 35%,#000 65%,transparent);
+    animation:holoCol 2.8s ease-in-out infinite}
+  .holo-dev .hd-mote{width:3px;height:3px;border-radius:50%;background:#FFF4DA;box-shadow:0 0 4px 1px var(--holo-glow);top:var(--g);opacity:0;animation:holoMote 2.6s linear infinite}
+  .holo-dev .hd-mote:nth-child(2){left:calc(var(--d) * -.1)}
+  .holo-dev .hd-mote:nth-child(3){left:calc(var(--d) * .06);animation-delay:-.5s}
+  .holo-dev .hd-mote:nth-child(4){left:calc(var(--d) * -.02);animation-delay:-1.1s}
+  .holo-dev .hd-mote:nth-child(5){left:calc(var(--d) * .13);animation-delay:-1.6s}
+  .holo-dev .hd-mote:nth-child(6){left:calc(var(--d) * -.15);animation-delay:-2.1s}
+  .holo-dev .hd-ring{left:calc(var(--d) / -2);top:calc(var(--d) * -.14);width:var(--d);height:calc(var(--d) * .28);border-radius:50%;box-sizing:border-box;
+    border:2px solid var(--gold-hi);box-shadow:0 0 10px 1px var(--holo-glow),inset 0 0 10px 1px var(--holo-glow)}
+  .holo-dev .hd-ring2{left:calc(var(--d) * -.34);top:calc(var(--d) * -.095);width:calc(var(--d) * .68);height:calc(var(--d) * .19);border-radius:50%;box-sizing:border-box;
+    border:1px solid rgba(246,230,197,.6)}
+  .holo-dev .hd-ripple{left:calc(var(--d) * -.27);top:calc(var(--g) - var(--d) * .07);width:calc(var(--d) * .54);height:calc(var(--d) * .14);border-radius:50%;border:1px solid var(--gold-hi);opacity:0}
+  .holo-dev .hd-dot{left:-6px;top:calc(var(--g) - 6px);width:12px;height:12px;border-radius:50%;opacity:0;
+    background:radial-gradient(circle,#fff 0 25%,var(--gold-hi) 45%,var(--gold) 75%);box-shadow:0 0 14px 5px var(--holo-glow)}
+  .reel-floor .holo-pad{position:absolute;inset:-30% -8%;border-radius:50%;opacity:0;background:radial-gradient(ellipse at center,var(--holo-glow),transparent 68%)}
+  html.intro .hero.intro-go .reel-floor .holo-pad{--holo-glow:rgba(223,190,126,.28)}
+  .reel-floor .holo-ripple{position:absolute;inset:0;border-radius:50%;border:1.5px solid var(--gold);opacity:0}
+
+  /* 光线:每张照片一个四面的光锥,从金环中心射到照片的四条边。
+     面是脚本用 matrix3d 摆好的(见 buildHoloBeams),这里只管颜色和出现时机。
+     ⚠️ opacity 只能加在最里面的 <i> 上:加在 .hb 那层会让它变成平面,光锥就塌了。 */
+  .holo-beams,.holo-beams .hb{position:absolute;left:0;top:0;width:0;height:0;transform-style:preserve-3d}
+  /* 🔴 v202g —— 三角形改用「边框三角」画,不再用 clip-path。
+     实测(沙箱 Chromium,软件渲染):20 片 clip-path 三角形放在 3D 里,首屏掉到 2 fps;拿掉 clip-path 回到 18 fps。
+     clip-path 套在 3D 变换的元素上,每一帧都要重新算遮罩;边框三角只是普通的填色,几乎不花钱。
+     亮度渐变(靠近金环亮、靠近照片淡)用 4 个一个比一个小、都贴着光源那个角的三角叠出来 ——
+     越靠近光源叠得越多,就越亮。代价:渐变是 4 段而不是连续的,近看能看出很淡的分段。 */
+  .holo-beams i{position:absolute;left:0;top:0;width:100px;height:100px;transform-origin:0 0;opacity:0;pointer-events:none}
+  .holo-beams b{position:absolute;left:0;width:0;height:0;border-style:solid;border-color:var(--holo-ray-1) transparent transparent transparent}
+  .holo-beams b:nth-child(1){top:0;border-width:100px 100px 0 0}
+  .holo-beams b:nth-child(2){top:30px;border-width:70px 70px 0 0;border-top-color:var(--holo-ray-2)}
+  .holo-beams b:nth-child(3){top:55px;border-width:45px 45px 0 0;border-top-color:var(--holo-ray-3)}
+  .holo-beams b:nth-child(4){top:80px;border-width:20px 20px 0 0;border-top-color:var(--holo-ray-4)}
+  /* 照片闪现时盖在上面的一层金色扫描线,闪完就退掉 */
+  html.intro .reel picture::after{content:"";position:absolute;inset:0;opacity:0;pointer-events:none;
+    background:repeating-linear-gradient(to bottom,rgba(255,246,225,.35) 0 1px,transparent 1px 3px),linear-gradient(var(--holo-glow),var(--holo-glow))}
+
+  /* ----- 闸门:.intro 下,转盘和照片在 .intro-go 之前都不动 ----- */
+  html.intro .reel-in{animation:none}
+  html.intro .reel picture{animation:none;opacity:0}
+  html.intro .hero.intro-go .reel-in,
+  html.intro .hero.intro-go .holo-beams{animation:ringspin 34s linear 1.35s infinite}
+  /* ⛔ 上面那条简写会把 play-state 重设成 running,盖掉原来的 `.reel.offscreen .reel-in{paused}`。
+     所以这里要用**更高的权重**再写一次暂停,而且光线层、仪器里的小动画一起停。 */
+  html.intro .hero .reel.offscreen .reel-in,
+  html.intro .hero .reel.offscreen .holo-beams,
+  html.intro .hero .reel.offscreen .holo-dev i{animation-play-state:paused}
+
+  html.intro .hero.intro-go .holo-dev{animation:holoDevIn .45s ease-out forwards}
+  html.intro .hero.intro-go .holo-dev .hd-dot{animation:holoDrop 1.05s linear .1s forwards}
+  html.intro .hero.intro-go .holo-dev .hd-lit{animation:holoIgnite .45s ease-out .75s forwards}
+  html.intro .hero.intro-go .holo-dev .hd-ripple{animation:holoRipple .9s ease-out .75s forwards}
+  html.intro .hero.intro-go .holo-dev .hd-rise{animation:holoRise .55s cubic-bezier(.2,.8,.25,1) .85s forwards}
+  html.intro .hero.intro-go .holo-dev .hd-glow{animation:holoOn .5s ease 1.05s forwards}
+  html.intro .hero.intro-go .reel-floor .holo-pad{animation:holoOn .3s ease .75s forwards}
+  html.intro .hero.intro-go .reel-floor .holo-ripple.r1{animation:holoRipple 1s ease-out .78s forwards}
+  html.intro .hero.intro-go .reel-floor .holo-ripple.r2{animation:holoRipple 1s ease-out 1.02s forwards}
+  html.intro .hero.intro-go .holo-beams i{animation:holoOn .35s ease-out forwards, holoRayDim 1.2s ease 4.1s forwards}
+  html.intro .hero.intro-go .holo-beams.hb-static i{animation:none;opacity:.45}
+  /* 顺序 1 → 5 → 4 → 3 → 2:⛔ 必须和换图脚本里的 ORDER = [0, 4, 3, 2, 1] 同一份(v191「谁先出场谁先换」) */
+  html.intro .hero.intro-go .holo-beams .c1 i{animation-delay:1.5s,4.1s}
+  html.intro .hero.intro-go .holo-beams .c5 i{animation-delay:1.75s,4.1s}
+  html.intro .hero.intro-go .holo-beams .c4 i{animation-delay:2s,4.1s}
+  html.intro .hero.intro-go .holo-beams .c3 i{animation-delay:2.25s,4.1s}
+  html.intro .hero.intro-go .holo-beams .c2 i{animation-delay:2.5s,4.1s}
+  html.intro .hero.intro-go .reel picture{animation:holoFlicker 1.3s linear forwards}
+  html.intro .hero.intro-go .reel picture::after{animation:holoTint 1.9s ease-out forwards}
+  html.intro .hero.intro-go .reel picture:nth-child(1),html.intro .hero.intro-go .reel picture:nth-child(1)::after{animation-delay:1.65s}
+  html.intro .hero.intro-go .reel picture:nth-child(5),html.intro .hero.intro-go .reel picture:nth-child(5)::after{animation-delay:1.9s}
+  html.intro .hero.intro-go .reel picture:nth-child(4),html.intro .hero.intro-go .reel picture:nth-child(4)::after{animation-delay:2.15s}
+  html.intro .hero.intro-go .reel picture:nth-child(3),html.intro .hero.intro-go .reel picture:nth-child(3)::after{animation-delay:2.4s}
+  html.intro .hero.intro-go .reel picture:nth-child(2),html.intro .hero.intro-go .reel picture:nth-child(2)::after{animation-delay:2.65s}
+
+  /* ----- 文字:照片全部出齐(.text-on)之前一律不出现(Ben:「the word will appear only after the photo animation all finish」)-----
+     .text-on 一加上,原本的淡入/升字动画才开始跑;延迟压缩成 0–0.5 秒,让标题和按钮几乎一起出来。
+     (顺带修了一个旧毛病:原来第二行标题 `.w:nth-child(2)` 没有延迟规则 —— 那条写的是 nth-child(3),
+      从 v176 改成两行之后就对不上了。这里两行都明确写。) */
+  html.intro .hero:not(.text-on) .hero-copy .kicker,
+  html.intro .hero:not(.text-on) .hero-copy p.sub,
+  html.intro .hero:not(.text-on) .hero-ctas{animation:none;opacity:0}
+  html.intro .hero:not(.text-on) .hero-copy h1 .w span{animation:none}
+  html.intro .hero:not(.text-on) .hero-rule{animation:none}
+  html.intro .hero .hero-facts{transition:color .8s ease,opacity .9s ease .5s}
+  /* v202b —— 仪器和下面那行小字之间多留一点(Ben 2026-09-29:「a little bit more space between the item and the word」)。
+     🔴 v202h —— 做法从「把小字往下推 10px」改成「把仪器往上抬 10px」(--hd-lift):
+     推小字会连带把按钮往下推 5px,全尺寸扫描抓到 450–460×932、560–570×1024 这几档按钮因此钻进右下角 WhatsApp 按钮底下;
+     抬仪器不动任何排版。只在高度 ≥ 800 的屏幕抬 —— 那些屏上金环离照片本来就有 24–44px,抬 10px 之后还剩 14px 以上。 */
+  /* ⚠️ 只在高度 ≥ 800px 的屏幕上加:矮的手机(360×740、320×568 这一类)首屏没有余量,
+     这 10px 会把「View Collection」往下推到右下角 WhatsApp 悬浮按钮底下(ios-wall-taps 在 360×740 抓到 6/8 命中)。 */
+  /* ⚠️ 窄于 380px 的手机不抬:那里转盘很小,金环离照片本来只有 9px 左右,抬 10px 会贴上去(全尺寸扫描抓到 320–340 宽 × 844 以上高 = -1~0px)。 */
+  @media (min-height:800px) and (min-width:380px){ html.intro .holo-dev{--hd-lift:10px} }
+  /* v202d —— 顶栏(Logo + 菜单)也等照片动画全部结束才出现(Ben 2026-09-29:「the title also appear only when the animation finish running」)。
+     html.intro-done 由脚本在照片出齐那一刻加上(和 .text-on 同一刻);客人提早往下滑、或用键盘 Tab 进顶栏,都会立刻显示,
+     不会让人在前 5 秒里找不到菜单。⚠️ 没有 .intro(没 JS / 减少动画 / failsafe 拿掉了)时下面 v202f 那几条都不生效,顶栏照常一开始就在。 */
+  /* v202f —— 顶栏里的东西**从左到右一个一个出来**(Ben 2026-09-29:「i want the header title section come out 1 by 1」):
+     Logo → Collection → Filters → About → FAQ → Booking → Visit → EN → 音乐 → 主题 →(手机上的)菜单。
+     哪些算「一个」、谁先谁后,由脚本按**当下看得见的**元素排(手机上中间那排链接是隐藏的,不能让按钮空等它们)。
+     ⚠️ fill-mode 用 backwards 不用 both:动画结束后要把 transform 还给按钮自己(hover 效果靠它),both 会一直钉住。 */
+  html.intro:not(.intro-done) #hdr .hdr-item{opacity:0}
+  html.intro:not(.intro-done) #hdr:focus-within .hdr-item{opacity:1}
+  html.intro.intro-done #hdr .hdr-item{animation:holoHdr .45s cubic-bezier(.2,.8,.2,1) backwards}
+  @keyframes holoHdr{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+  html.intro .hero:not(.text-on) .hero-facts{opacity:0}
+  html.intro .hero.text-on .hero-copy .kicker{animation-delay:0s}
+  html.intro .hero.text-on .hero-copy h1 .w:nth-child(1) span{animation-delay:.1s}
+  html.intro .hero.text-on .hero-copy h1 .w:nth-child(2) span{animation-delay:.22s}
+  html.intro .hero.text-on .hero-rule{animation-delay:.3s}
+  html.intro .hero.text-on .hero-copy p.sub{animation-delay:.35s}
+  html.intro .hero.text-on .hero-ctas{animation-delay:.45s}
+
+  @keyframes holoOn{from{opacity:0}to{opacity:1}}
+  @keyframes holoDevIn{from{opacity:0}to{opacity:1}}
+  @keyframes holoDrop{
+    0%  {opacity:0;transform:translateY(calc(var(--card-h) * -2.4));animation-timing-function:cubic-bezier(.55,0,1,.45)}
+    6%  {opacity:1}
+    62% {opacity:1;transform:translateY(0);animation-timing-function:ease-out}
+    100%{opacity:0;transform:translateY(0) scale(3,.5)}
+  }
+  @keyframes holoIgnite{0%{opacity:0}35%{opacity:1;filter:brightness(1.8)}100%{opacity:1;filter:none}}
+  @keyframes holoRipple{0%{opacity:1;transform:scale(.15)}100%{opacity:0;transform:scale(1.4)}}
+  @keyframes holoRise{0%{opacity:0;transform:translateY(var(--g)) scale(.35)}35%{opacity:1}100%{opacity:1;transform:translateY(0) scale(1)}}
+  @keyframes holoBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  @keyframes holoPool{0%,100%{transform:scale(1);opacity:.95}50%{transform:scale(.78);opacity:.55}}
+  @keyframes holoCol{0%,100%{opacity:.85}40%{opacity:.55}55%{opacity:.9}}
+  @keyframes holoMote{0%{opacity:0;transform:translateY(0)}20%{opacity:1}80%{opacity:.8}100%{opacity:0;transform:translateY(calc(var(--g) * -1))}}
+  @keyframes holoRayDim{from{opacity:1}to{opacity:.45}}
+  @keyframes holoFlicker{0%{opacity:0}14%{opacity:.75}21%{opacity:.12}34%{opacity:.9}42%{opacity:.35}60%,100%{opacity:1}}
+  @keyframes holoTint{0%{opacity:.95}55%{opacity:.7}100%{opacity:0}}
+
   /* ---------- reduced motion ---------- */
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after{animation-duration:.01ms !important;animation-delay:0s !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;transition-delay:0s !important}
@@ -2120,7 +2318,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>
         <svg class="mb-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 4l16 16"/></svg>
       </button>
-      <button id="themeBtn" class="tbtn" aria-pressed="false"><i aria-hidden="true"></i><span>Noir mode</span></button>
+      <button id="themeBtn" class="tbtn" aria-pressed="true"><i aria-hidden="true"></i><span>Noir mode</span></button>
       <button id="menuBtn" aria-expanded="false" aria-controls="mobileMenu" aria-label="Menu"><span></span><span></span><span></span></button>
     </div>
   </div>
@@ -2173,8 +2371,13 @@
 
     <div class="hero-right">
       <div class="reel" aria-hidden="true">
-        <div class="reel-floor"></div>
+        <div class="reel-floor"><i class="holo-pad"></i><i class="holo-ripple r1"></i><i class="holo-ripple r2"></i></div>
+        <!-- 🔴 v202 —— 全息投影的仪器和光线。⛔ 都在 #heroReel 外面:#heroReel 和里面五个 <picture> 一个节点都不能动。
+             .holo-probe 只用来量 var(--ring-r) 的实际像素(脚本摆光线要用)。 -->
+        <i class="holo-probe"></i>
         <div class="reel-tilt">
+        <div class="holo-dev"><i class="hd-shadow"></i><i class="hd-glow"><i class="hd-col"></i><i class="hd-mote"></i><i class="hd-mote"></i><i class="hd-mote"></i><i class="hd-mote"></i><i class="hd-mote"></i></i><i class="hd-bband"></i><i class="hd-bface"></i><i class="hd-lit"><i class="hd-pool"></i></i><i class="hd-ripple"></i><i class="hd-rise"><i class="hd-float"><i class="hd-ring"></i><i class="hd-ring2"></i></i></i><i class="hd-dot"></i></div>
+        <div class="holo-beams"></div>
         <div class="reel-in" id="heroReel">
           <picture><source media="(max-width:1024px)" srcset="images/hero-1-sm.webp"><img src="images/hero-1.webp" alt="" style="--i:0" fetchpriority="high" decoding="async"></picture>
           <picture><source media="(max-width:1024px)" srcset="images/hero-2-sm.webp"><img src="images/hero-2.webp" alt="" style="--i:1" loading="lazy" decoding="async"></picture>
@@ -2624,6 +2827,11 @@ setTimeout(function(){
   var l = document.getElementById("loader");
   if (l) l.classList.add("done");
   if (!window.__appReady) {
+    /* 🔴 v202 —— 主脚本在开场**还没开始**之前就死了 → 没人会加 .intro-go / .text-on,照片和文字会一直透明。
+       这时拿掉 .intro,首屏退回 v201 的纯 CSS 入场。
+       ⚠️ 开场已经开始(.hero 有 .intro-go)就不要动它:开场自己的计时器会把文字放出来,
+          这时拿掉 .intro 反而会让照片全部消失、再按 v201 的节奏重播一遍。 */
+    if (!document.querySelector(".hero.intro-go")) document.documentElement.classList.remove("intro");
     /* the main script died — reveal everything rather than leaving blank sections */
     document.querySelectorAll(".reveal").forEach(function(e){ e.classList.add("in"); });
     document.querySelectorAll(".card-reveal").forEach(function(e){ e.classList.add("card-show"); });
@@ -4793,7 +5001,9 @@ themeBtn.addEventListener("click", ()=>{
   const noir = document.documentElement.dataset.theme !== "noir";
   document.documentElement.dataset.theme = noir ? "noir" : "ivory";
   themeBtn.setAttribute("aria-pressed", noir);
-  themeBtn.querySelector("span").textContent = noir ? T("Ivory mode", "日间模式", "Mod Ivory") : T("Noir mode", "夜间模式", "Mod Noir");
+  /* 🔴 v202e —— 按钮显示「现在是哪个模式」,不再显示「点了会变成哪个」(Ben 2026-09-29:默认 Noir 时按钮应该写 Noir mode)。
+     和旁边 EN / 中文 那颗一样是「状态灯」;点它照样切换。 */
+  themeBtn.querySelector("span").textContent = noir ? T("Noir mode", "夜间模式", "Mod Noir") : T("Ivory mode", "日间模式", "Mod Ivory");
   /* v197 —— 埋点:记的是**切到了哪一种**,不是「点了几下」。
      ⚠️ noir 这个变量在上面已经被翻转过了,它代表的是**切换之后**的状态。 */
   track("theme_toggle", { filter_key: "theme", filter_value: noir ? "noir" : "ivory" });
@@ -5081,6 +5291,97 @@ if(!REDUCED && moods.length){
     doneStep = k;
     swap(pics[ORDER[((k % ORDER.length) + ORDER.length) % ORDER.length]]);
   }, 200);
+})();
+
+/* ---------- 🔴 v202 —— 首屏全息投影入场:光线的摆放 + 什么时候开始 ----------
+   CSS 那段(搜「v202 —— 首屏「全息投影」入场」)管外观和时间表;这里只做两件 CSS 做不到的事:
+     ① 把 20 片三角形(5 张照片 × 4 面)摆成从金环中心射到每张照片四条边的光锥
+     ② 在 loader 消失的那一刻给 .hero 加 .intro-go,照片出齐时再加 .text-on
+   ⛔ 整段包在 try 里:这里任何一处出错,就把 html.intro 拿掉 —— 首屏退回 v201 的样子,
+      而不是停在「照片全是透明、文字也不出来」的半路上。 */
+(function(){
+  const root = document.documentElement;
+  if (!root.classList.contains("intro")) return;
+  try {
+    const hero  = document.querySelector(".hero");
+    const ring  = document.getElementById("heroReel");
+    const host  = document.querySelector(".holo-beams");
+    const probe = document.querySelector(".holo-probe");
+    if (!hero || !ring || !host || !probe) { root.classList.remove("intro"); return; }
+
+    const HOLO_YA = 0.77;      // ⛔ 金环中心 = 卡片高 × 0.77,必须和 CSS `.holo-dev` 的 translate3d 同一个数
+    const TEXT_AT = 3950;      // 最后一张(2 号)1.3 秒的闪现从 2.65 秒开始 → 3.95 秒出齐,文字这时才出来
+
+    /* 每一面是一个 100×100 的方块,clip-path 剪成 (0,0)(100,0)(0,100) 三角形,
+       再用 matrix3d 把这三个角分别送到 P1、P2(照片的一条边)和光源 A。
+       尺寸全部现量:卡片宽高用 offsetWidth/Height(不受 transform 影响),
+       转盘半径用 .holo-probe(它的宽度就是 var(--ring-r)),所以断点改了尺寸这里自动跟着变。 */
+    function buildHoloBeams(){
+      const pic = ring.querySelector("picture");
+      const w = pic ? pic.offsetWidth : 0, h = pic ? pic.offsetHeight : 0, R = probe.offsetWidth;
+      if (!w || !h || !R) return;
+      const lift = parseFloat(getComputedStyle(document.querySelector(".holo-dev")).getPropertyValue("--hd-lift")) || 0;
+      const A = [0, h * HOLO_YA - lift, 0], x = w / 2, y = h / 2;   // 光源 = 金环中心(含 --hd-lift)
+      const edges = [[[-x,-y,R],[x,-y,R]], [[x,-y,R],[x,y,R]], [[x,y,R],[-x,y,R]], [[-x,y,R],[-x,-y,R]]];
+      const sub = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+      const cross = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+      const frag = document.createDocumentFragment();
+      for (let c = 0; c < 5; c++){
+        const g = document.createElement("div");
+        g.className = "hb c" + (c + 1);                       // c1 = 1 号照片(0°),c2 = 2 号(72°)……和 <picture> 的顺序一致
+        g.style.transform = "rotateY(" + (c * 72) + "deg)";
+        edges.forEach(([P1, P2]) => {
+          const X = sub(P2, P1), Y = sub(A, P1), N = cross(X, Y), L = Math.hypot(N[0], N[1], N[2]) || 1;
+          const m = [X[0]/100, X[1]/100, X[2]/100, 0,  Y[0]/100, Y[1]/100, Y[2]/100, 0,  N[0]/L, N[1]/L, N[2]/L, 0,  P1[0], P1[1], P1[2], 1];
+          const t = document.createElement("i");
+          t.innerHTML = "<b></b><b></b><b></b><b></b>";          // 4 层边框三角叠出「越靠近光源越亮」
+          t.style.transform = "matrix3d(" + m.map(n => +n.toFixed(4)).join(",") + ")";
+          g.appendChild(t);
+        });
+        frag.appendChild(g);
+      }
+      /* 重建时只换 <i>,不换 .holo-beams 本身 —— 它身上正在跑的 ringspin 不能被打断,
+         否则光线会从 0° 重新开始转,和照片对不上。 */
+      host.replaceChildren(frag);
+      /* 🔴 v202h —— 开场演完之后再重算(转手机、拉窗口)的新光线,直接是最后的样子。
+         不然新换上的 20 片会从头跑一遍「一道道亮起 → 调暗」,光线会消失 2 秒再冒出来(WebKit 截图抓到的)。 */
+      host.classList.toggle("hb-static", hero.classList.contains("text-on"));
+    }
+    buildHoloBeams();
+    /* 顶栏逐个出场:按屏幕上从左到右的顺序给看得见的元素排延迟(每个 70ms) */
+    function tagHeader(){
+      /* DOM 顺序本来就是从左到右。跳过被 CSS 藏起来的(手机上中间那排链接),
+         但**保留** [hidden] 的音乐按钮:它要等 mp3 确认存在才露出来,不先藏好的话会在开场中途突然冒出来。 */
+      const items = [...document.querySelectorAll("#hdr .brand, #hdr .links > a, #hdr .nav > div > *")]
+        .filter(el => el.hidden || el.getClientRects().length > 0);
+      items.forEach((el, i) => { el.classList.add("hdr-item"); el.style.animationDelay = (i * 70) + "ms"; });
+    }
+    tagHeader();
+    let rs;
+    window.addEventListener("resize", () => { clearTimeout(rs); rs = setTimeout(buildHoloBeams, 150); });
+
+    let started = false;
+    const start = () => {
+      if (started) return; started = true;
+      buildHoloBeams();                                        // loader 期间字体/图片可能改了尺寸,开场前再量一次
+      hero.classList.add("intro-go");
+      setTimeout(reveal, TEXT_AT);
+    };
+    /* 照片出齐:标题、按钮、三条事实(.text-on)和顶栏(html.intro-done)一起出来 */
+    function reveal(){ hero.classList.add("text-on"); root.classList.add("intro-done"); }
+    /* 客人没等开场演完就往下滑 → 顶栏立刻出来,不然往下滑的时候整页没有菜单 */
+    const onScroll = () => { if (window.scrollY > 40) { root.classList.add("intro-done"); window.removeEventListener("scroll", onScroll); } };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    /* 开场时刻 = loader 加上 .done 的那一刻。不管是正常路径(首图载好)、3 秒上限、
+       还是 <body> 开头的 failsafe 把它关掉的,都从这里接上。 */
+    const loader = document.getElementById("loader");
+    if (!loader || loader.classList.contains("done")) start();
+    else new MutationObserver((_, o) => {
+      if (loader.classList.contains("done")) { o.disconnect(); start(); }
+    }).observe(loader, { attributes: true, attributeFilter: ["class"] });
+  } catch (e) {
+    root.classList.remove("intro");
+  }
 })();
 
 /* ---------- hero: silk parallax + magnetic CTA ---------- */
@@ -5908,7 +6209,7 @@ function applyLang(lang){
   /* theme button label depends on current theme */
   const tspan = document.querySelector('#themeBtn span');
   if (tspan) { const noir = document.documentElement.dataset.theme === 'noir';
-    tspan.textContent = noir ? T('Ivory mode', '日间模式', 'Mod Ivory') : T('Noir mode', '夜间模式', 'Mod Noir'); }
+    tspan.textContent = noir ? T('Noir mode', '夜间模式', 'Mod Noir') : T('Ivory mode', '日间模式', 'Mod Ivory'); }   /* v202e:显示当前模式 */
   /* The toggle reads as a status light, not an instruction: it shows the language the
      page is in right now. Tapping it still switches. The aria-label carries the action
      so screen readers aren't left guessing what the button does. */
