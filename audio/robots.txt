@@ -1,0 +1,15 @@
+# lafemmegown.com
+# 公开目录随便爬 —— 我们要 Google 收录礼服和西装。
+User-agent: *
+Allow: /
+
+# ⚠️ 这里**故意不写** Disallow: /admin.html 和 /stats.html。
+#    两个原因:
+#      1. Disallow 会挡住爬虫读那两页,于是页面里的 <meta name="robots" content="noindex">
+#         根本没人看到 —— 已经被收录的反而删不掉。要让它消失,得让爬虫进去看到 noindex。
+#      2. robots.txt 是公开文件,写进去等于把后台地址主动贴出来。
+#    那两页的 noindex 写在各自的 <head> 里(admin.html / stats.html)。
+#    真正保护数据的是登录密码 + Supabase RLS,不是这个文件。
+
+# 站点没有 sitemap.xml(2026-08-19 确认过,raw 拉是 404),所以这里不写 Sitemap 行 ——
+# 指向一个 404 只会让爬虫白跑一趟。整站就一个 index.html,也不太需要 sitemap。
