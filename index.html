@@ -3240,7 +3240,8 @@ function renderCatalogue(styles){
   SUGGEST_CORPUS = buildCorpus();
   grid.innerHTML = "";
   if (!ITEMS.length) {
-    grid.innerHTML = '<p style="color:var(--muted);grid-column:1/-1">Catalogue could not load. Please refresh the page.</p>';
+    /* v205 —— 这句是渲染时才插进去的,tagLeaves() 早就跑完了,挂不上翻译;直接用 T()。 */
+    grid.innerHTML = '<p style="color:var(--muted);grid-column:1/-1">' + T("Catalogue could not load. Please refresh the page.", "系列无法加载，请刷新页面。", "Katalog tidak dapat dimuatkan. Sila muat semula halaman.") + '</p>';
     return;
   }
   ITEMS.forEach((it, i) => {
@@ -4993,7 +4994,10 @@ document.getElementById("bookForm").addEventListener("submit", e=>{
     if (lbl) lbl.textContent = LBL[LANG] ? LBL[LANG][v ? 1 : 0] : LBL.en[v ? 1 : 0];
   }
   const LBL = { en:["Tap to see the shopfront","Tap to close"],
-                zh:["点一下看店面","点一下收起"] };
+                zh:["点一下看店面","点一下收起"],
+                /* v205 —— v194 加马来文时漏了这一组:applyLang() 末尾会调 __syncMapPeek,
+                   查不到 ms 就退回英文,把通用翻译刚写上的马来文又盖回英文。 */
+                ms:["Ketik untuk lihat kedai","Ketik untuk tutup"] };
   /* applyLang() 的通用 [data-en] 那一趟会把这颗按钮的文字写回「静止态」的那句 ——
      tagLeaves() 在页面还没打开照片时把它标成了 data-en="Tap to see the shopfront",
      之后不管当前是不是打开状态,切一次语言就被改回去。
@@ -5943,6 +5947,8 @@ const I18N = {
   "Tap any piece for details — rental prices are shared on WhatsApp.":"点击任意款式查看详情——租金通过 WhatsApp 告知。",
   "Evening Gowns":"晚礼服","Men Suits":"男士西装","Nothing in that combination":"该组合暂无款式",
   "Style":"款式","Fabric":"材质","Colour":"颜色","Brand":"品牌",
+  /* v205 —— 这两句一直没有字典条目:预约表单两个日期栏的占位字、About 第三个数字「4-day」 */
+  "Select a date":"选择日期","4-day":"4 天",
   "Filters":"筛选","Clear all":"清除全部",
   /* The two display slogans — the hero h1 and the About h2 — are deliberately NOT in
      here. --serif and --script are both Cormorant Garamond, a Latin-only face: Chinese
@@ -5975,7 +5981,9 @@ const I18N = {
   "Message us directly and we'll help you pick a date — or send a photo of the style you're looking for.":"直接联系我们，帮你挑选日期——或发一张你想找的款式照片。",
   "Good to Know":"须知",
   "Fitting fee: RM10 per person, per hour.":"试穿费：每人每小时 RM10。",
-  "Walk-ins welcome, but booked sessions get the fitting room to themselves. Rentals are 4 days with a refundable deposit — dry-cleaning is on us. Fittings are RM10 per person, per hour.":"欢迎到店，但预约的时段可独享试穿室。租期 4 天，收取可退按金——干洗由我们负责。试穿每人每小时 RM10。",
+  /* v205 —— 这句页面上在 v109 删掉了最后的 RM10(价格只留在条款清单里),字典的 key 却没跟着改,
+     中文 / 马来文页面这一段从 v109 起一直是英文(Ben 2026-10-01 截图发现)。 */
+  "Walk-ins welcome, but booked sessions get the fitting room to themselves. Rentals are 4 days with a refundable deposit — dry-cleaning is on us.":"欢迎到店，但预约的时段可独享试穿室。租期 4 天，收取可退按金——干洗由我们负责。",
   "Fittings are by appointment — WhatsApp us before dropping by. Parking available around Pusat Bandar Bukit Jalil.":"试穿采预约制——到访前请先 WhatsApp 我们。Pusat Bandar Bukit Jalil 一带有停车位。",
   /* T&C */
   "Appointment terms & conditions":"预约条款",
@@ -6008,7 +6016,7 @@ const I18N = {
   "4 days · dry-cleaning included · refundable deposit":"4 天 · 含干洗 · 可退按金",
   /* footer / misc */
   "Evening gowns & men suits — rental studio · Bukit Jalil, Kuala Lumpur.":"晚礼服 & 男士西装 — 租赁工作室 · 吉隆坡 Bukit Jalil。",
-  "Catalogue could not load. Unzip the whole folder first, then open index.html from inside it — catalogue.js and the images folder must sit next to it.":"系列无法加载。请先解压整个文件夹，再从中打开 index.html——catalogue.js 与 images 文件夹须与它在同一目录。"
+  "Catalogue could not load. Please refresh the page.":"系列无法加载，请刷新页面。"
 };
 
 /* v194 —— Bahasa Melayu。
@@ -6045,6 +6053,8 @@ const I18N_MS = {
   "Fabric":"Kain",
   "Colour":"Warna",
   "Brand":"Jenama",
+  "Select a date":"Pilih tarikh",
+  "4-day":"4\u00a0hari",
   "Filters":"Tapisan",
   "Clear all":"Kosongkan",
   "About the Studio":"Tentang Studio",
@@ -6098,7 +6108,7 @@ const I18N_MS = {
   "Message us directly and we'll help you pick a date — or send a photo of the style you're looking for.":"Mesej kami terus dan kami bantu anda pilih tarikh — atau hantar gambar gaya yang anda cari.",
   "Good to Know":"Perlu Tahu",
   "Fitting fee: RM10 per person, per hour.":"Yuran cubaan: RM10 seorang, sejam.",
-  "Walk-ins welcome, but booked sessions get the fitting room to themselves. Rentals are 4 days with a refundable deposit — dry-cleaning is on us. Fittings are RM10 per person, per hour.":"Datang terus dialu-alukan, tetapi sesi yang ditempah mendapat bilik cubaan sendiri. Sewa adalah 4 hari dengan deposit boleh dikembalikan — dobi atas kami. Cubaan RM10 seorang, sejam.",
+  "Walk-ins welcome, but booked sessions get the fitting room to themselves. Rentals are 4 days with a refundable deposit — dry-cleaning is on us.":"Datang terus dialu-alukan, tetapi sesi yang ditempah mendapat bilik cubaan sendiri. Sewa adalah 4 hari dengan deposit boleh dikembalikan — dobi atas kami.",
   "Fittings are by appointment — WhatsApp us before dropping by. Parking available around Pusat Bandar Bukit Jalil.":"Sesi cubaan adalah dengan temujanji — WhatsApp kami sebelum datang. Tempat letak kereta ada di sekitar Pusat Bandar Bukit Jalil.",
   "Appointment terms & conditions":"Terma & syarat temujanji",
   "Please WhatsApp us to book your fitting appointment. We will confirm your date and time via WhatsApp.":"Sila WhatsApp kami untuk menempah sesi cubaan anda. Kami akan sahkan tarikh dan masa anda melalui WhatsApp.",
@@ -6134,7 +6144,7 @@ const I18N_MS = {
   "Rental":"Sewa",
   "4 days · dry-cleaning included · refundable deposit":"4 hari · termasuk dobi · deposit boleh dikembalikan",
   "Evening gowns & men suits — rental studio · Bukit Jalil, Kuala Lumpur.":"Gaun malam & sut lelaki — studio sewaan · Bukit Jalil, Kuala Lumpur.",
-  "Catalogue could not load. Unzip the whole folder first, then open index.html from inside it — catalogue.js and the images folder must sit next to it.":"Katalog tidak dapat dimuatkan. Nyahzip keseluruhan folder dahulu, kemudian buka index.html dari dalamnya — catalogue.js dan folder images mesti berada di sebelahnya."
+  "Catalogue could not load. Please refresh the page.":"Katalog tidak dapat dimuatkan. Sila muat semula halaman."
 };
 const ATTR_I18N = [
   {sel:'#fName',  attr:'placeholder', en:'e.g. Amelia Tan', zh:'例如 Amelia Tan', ms:'cth. Amelia Tan'},
