@@ -3106,6 +3106,14 @@ function suitDesc(st){
   return parts.join(" · ") || T("Men suit", "男装", "Sut lelaki");
 }
 function pieceName(st){ return isSuit(st) ? suitDesc(st) : st.n; }
+/* v206 —— 卡片的读屏名字(aria-label)跟着语言走。以前写死英文「View … — 颜色」,
+   中文 / 马来文页面上读屏软件仍念英文。款名和颜色名本身保持原样(那是店里的命名,三语都不翻)。
+   ⚠️ 切语言时 applyLang() 会对每张卡重算一次 —— 卡片不重建,只换这个属性。 */
+function cardAria(name, colour){
+  const nm = String(name || "").trim(), c = String(colour || "").trim();
+  const what = nm ? (c ? nm + " — " + c : nm) : c;            // 没名字的款(例如 al)只念颜色,不念出一个空格加破折号
+  return T("View " + what, "查看 " + what, "Lihat " + what);
+}
 
 function catLabel(g){ return (g === "m") ? T("Men Suit", "男士西装", "Sut Lelaki") : T("Evening Gown", "晚礼服", "Gaun Malam"); }
 /* small label above a card: the active category when one is filtered, else the piece's first category */
@@ -3264,7 +3272,7 @@ function renderCatalogue(styles){
   /* 色点那一排没有了 —— 这张卡本身就是一个颜色。款名(h3)保持原样,
      所以同款的九张卡会是同一个名字、九个不同的颜色名,一眼看得出是一家人。 */
   card.innerHTML = `
-    <div class="ph" role="button" tabindex="0" aria-label="View ${altName} — ${vcur.c}">
+    <div class="ph" role="button" tabindex="0" aria-label="${cardAria(altName, vcur.c)}">
       <div class="tilt">
         <img class="cardimg" loading="lazy" decoding="async" src="${vcur.img}" alt="${altName} — ${vcur.c}">
         <div class="glare"></div>
@@ -3573,7 +3581,8 @@ function renderSwatches(){
     b.dataset.color = c;
     b.style.background = COLOR_HEX[c];
     b.title = COLOR_LABELS[c];
-    b.setAttribute("aria-label", "Filter by " + COLOR_LABELS[c]);
+    /* v206 —— 色点的读屏名字跟着语言走(颜色名本身三语都保持英文,跟页面上一致) */
+    b.setAttribute("aria-label", T("Filter by ", "按颜色筛选：", "Tapis ikut warna: ") + COLOR_LABELS[c]);
     swatchBox.appendChild(b);
   });
 }
@@ -4650,7 +4659,7 @@ function openLb(i, vi){
     if (lbShare){
       const lbl = document.getElementById("lbShareLbl");
       if (lbl && !lbl.dataset.busy) lbl.textContent = PSHL().idle;
-      lbShare.setAttribute("aria-label", PSHL().idle);
+      lbShare.setAttribute("aria-label", T("Share this piece", "分享这一件", "Kongsi gaun ini"));   /* v206:跟 ATTR_I18N 那条同一句 */
       lbShare.onclick = async () => {
         const url = pieceShareURL(st, v);
         track("share_view", Object.assign({ filter_key: "piece", filter_value: st.i }, meta));
@@ -4892,7 +4901,7 @@ function renderFittingFor(){
   list.innerHTML = fittingList.map(p =>
     `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
        <span>${pieceLabel(p.name, p.colour, p.desc)}</span>
-       <button type="button" class="fit-rm" data-ref="${p.ref}" aria-label="Remove ${p.name} ${p.colour}" style="background:none;border:0;font-size:20px;line-height:1;cursor:pointer;color:var(--muted);padding:0 4px">×</button>
+       <button type="button" class="fit-rm" data-ref="${p.ref}" aria-label="${T("Remove ", "移除 ", "Buang ")}${p.name} ${p.colour}" style="background:none;border:0;font-size:20px;line-height:1;cursor:pointer;color:var(--muted);padding:0 4px">×</button>
      </div>`).join("");
 }
 document.getElementById("fittingForList").addEventListener("click", e => {
@@ -6158,8 +6167,23 @@ const ATTR_I18N = [
   {sel:'#searchClear', attr:'aria-label',   en:'Clear search', zh:'清除搜索', ms:'Kosongkan carian'},
   {sel:'#lbPrev', attr:'aria-label',  en:'Previous colour', zh:'上一个颜色', ms:'Warna sebelumnya'},
   {sel:'#lbNext', attr:'aria-label',  en:'Next colour', zh:'下一个颜色', ms:'Warna seterusnya'},
-  {sel:'[aria-label="Filter by colour"]',   attr:'aria-label', en:'Filter by colour', zh:'按颜色筛选', ms:'Tapis ikut warna'},
-  {sel:'[aria-label="Filter by occasion"]', attr:'aria-label', en:'Filter by occasion', zh:'按场合筛选', ms:'Tapis ikut majlis'}
+  /* v206 —— 原来这一条的选择器是 '[aria-label="Filter by colour"]':切到中文之后属性已经变成中文,
+     再切马来文就**找不到**它了,马来文页面上一直停在中文。改成按 id 找。
+     (原来还有一条「Filter by occasion」,页面上早就没有那个元素了,删掉。) */
+  {sel:'#swatches', attr:'aria-label', en:'Filter by colour', zh:'按颜色筛选', ms:'Tapis ikut warna'},
+  /* v206 —— 下面这些读屏名字以前写死英文,中文 / 马来文页面上读屏软件仍念英文 */
+  {sel:'#hdr .brand',     attr:'aria-label', en:'LaFemme Gowns by Nee — home', zh:'LaFemme Gowns by Nee — 回到页首', ms:'LaFemme Gowns by Nee — ke atas'},
+  {sel:'#hdr nav.links',  attr:'aria-label', en:'Main', zh:'主导航', ms:'Navigasi utama'},
+  {sel:'#mobileMenu',     attr:'aria-label', en:'Mobile', zh:'手机菜单', ms:'Menu telefon'},
+  {sel:'.tabs[role="tablist"]', attr:'aria-label', en:'Choose evening gowns or men suits', zh:'选择晚礼服或男士西装', ms:'Pilih gaun malam atau sut lelaki'},
+  {sel:'#filterClose',    attr:'aria-label', en:'Close filters', zh:'关闭筛选', ms:'Tutup tapisan'},
+  {sel:'#chips',          attr:'aria-label', en:'Filter by style', zh:'按款式筛选', ms:'Tapis ikut gaya'},
+  {sel:'#materialChips',  attr:'aria-label', en:'Filter by fabric', zh:'按材质筛选', ms:'Tapis ikut kain'},
+  {sel:'#brandChips',     attr:'aria-label', en:'Filter by brand', zh:'按品牌筛选', ms:'Tapis ikut jenama'},
+  {sel:'#sortSel',        attr:'aria-label', en:'Sort pieces', zh:'排序', ms:'Susun gaun'},
+  {sel:'#shareBtn',       attr:'aria-label', en:'Copy a link to this filtered view', zh:'复制这个筛选结果的链接', ms:'Salin pautan paparan ini'},
+  {sel:'#lbShare',        attr:'aria-label', en:'Share this piece', zh:'分享这一件', ms:'Kongsi gaun ini'},
+  {sel:'.mapshot',        attr:'alt',        en:'LaFemme shopfront signage at Pusat Bandar Bukit Jalil', zh:'LaFemme 店面招牌,位于 Pusat Bandar Bukit Jalil', ms:'Papan tanda kedai LaFemme di Pusat Bandar Bukit Jalil'}
 ];
 const MIXED = {
   fitNote:{
@@ -6260,6 +6284,12 @@ function applyLang(lang){
     if (!st) return;
     const catEl = card.querySelector('.cat');
     if (catEl) catEl.textContent = catLabelFor(st, card);
+    const ph = card.querySelector('.ph'), vv = st.v && st.v[+card.dataset.v];
+    if (ph && vv) ph.setAttribute('aria-label', cardAria(pieceName(st), vv.c));   /* v206 */
+    /* v206 —— 图片说明也重算:男装的「款名」其实是「Two-Piece · 材质」这种描述,会跟着语言变;
+       礼服的款名是店里起的名字,三语一样 */
+    const im = card.querySelector('.cardimg');
+    if (im && vv) { const nm = pieceName(st); im.setAttribute('alt', nm ? nm + ' — ' + vv.c : vv.c); }
   });
   /* re-render dynamic filter chips / swatches, refresh WhatsApp links, redraw fitting list */
   if (typeof renderCategoryChips === 'function') renderCategoryChips();
