@@ -365,13 +365,16 @@
           loads, not people — a visit id is random each time the page opens and is never stored
           on the device, so one person returning tomorrow counts as two. Started being recorded
           the day it was published; earlier dates show nothing, which is not the same as nobody
-          clicking.</dd>
+          clicking. Since 30 Sep 2026 the website opens in Noir by default, so a switch to Ivory is
+          now the deliberate choice — before that date it was the other way round.</dd>
 
         <dt>How they heard about us</dt>
         <dd>What customers picked in the booking form's "How did you hear about us?" question.
           It only counts forms actually sent, and the question is optional — so this total is
           normally smaller than "Booking forms sent". Started being recorded on 3 Sep 2026;
-          before that date it shows nothing, which is not the same as nobody answering.</dd>
+          before that date it shows nothing, which is not the same as nobody answering.
+          Answers sent from the Chinese or Malay page before 1 Oct 2026 were saved in that language;
+          they are counted under the English name here, so each channel has one row.</dd>
 
         <dt>Rental questions opened</dt>
         <dd>Which rental FAQ questions customers expanded — deposit, fitting fee, cleaning, and so on. Heavy interest in one question tells you what's on people's minds before they book.</dd>
@@ -387,8 +390,12 @@
              · tab_click 也一直在记 —— 只是**看板里没有任何地方显示它**
            这段是在那两个埋点加进来之前写的,之后没人回来改。
            ⛔ 「不计入什么」这种话最容易过期 —— 加新埋点时必须回来核对这一段。 -->
-      <p class="gnote"><b>Not counted:</b> scrolling past pieces, switching language or Noir mode,
-         and hovering. Only deliberate actions are recorded — a tap, a search, a send.</p>
+      <!-- stats v134(2026-10-01)—— 原来写「switching language or Noir mode」不计入。
+           Noir 那半句从 v197 起就是错的:theme_toggle 一直在记,而且上面有「Header toggles」面板。
+           切换语言仍然不记。 -->
+      <p class="gnote"><b>Not counted:</b> scrolling past pieces, switching language, and hovering.
+         Only deliberate actions are recorded — a tap, a search, a send. (Switching Noir / Ivory
+         <i>is</i> recorded — see "Header toggles".)</p>
       <p class="gnote"><b>Recorded but not shown here:</b> switching between the Gowns and Suits
          tabs, changing the sort order, and tapping the map to see the shopfront. Those three are
          written to the database but have no panel on this dashboard yet — so the shopfront tap in
@@ -923,10 +930,13 @@ async function loadSearchAndFilters(r){
       if (e.filter_value === "ivory") THEME.ivory++;
       if (e.visit_id) THEME.visits.add(e.visit_id);
     });
-    /* 只认 filter_key='heard' 的那些行 —— book_submit 里其余的行是没填这一题的。 */
+    /* 只认 filter_key='heard' 的那些行 —— book_submit 里其余的行是没填这一题的。
+       stats v134 —— 先过 heardKey() 把中文 / 马来文的旧记录并回英文那一行(见 HEARD_ALIAS)。 */
     bookRows.forEach(e => {
-      if (e.filter_key === "heard" && e.filter_value)
-        HEARD[e.filter_value] = (HEARD[e.filter_value] || 0) + 1;
+      if (e.filter_key === "heard" && e.filter_value){
+        const k = heardKey(e.filter_value);
+        HEARD[k] = (HEARD[k] || 0) + 1;
+      }
     });
     const terms = {}, faqs = {};
     searchRows.forEach(e => {
@@ -1295,6 +1305,23 @@ function renderFilterUse(){
   }).join("") + truncNote("filter_use");
 }
 
+/* stats v134(配合网站 v204)—— 网站 v204 之前,预约表单「How did you hear about us?」的选项没写 value,
+   中文 / 马来文页面存进去的是**翻译后的文字**,同一个渠道在这里分成英 / 中 / 马三行。
+   v204 起网站一律存英文;这张表把 v204 之前存进去的旧写法并回英文那一行。
+   ⛔ 这张表是从 index.html 的 I18N / I18N_MS 照抄的(2026-10-01)。以后改了选项的中文 / 马来文翻译,
+      **旧的写法要留在这里**(数据库里的旧记录不会变),新的写法不用加 —— v204 起存的都是英文 value。 */
+const HEARD_ALIAS = {
+  "小红书": "XiaoHongShu (RED)",
+  "Google 搜索": "Google Search",       "Carian Google": "Google Search",
+  "Google 地图": "Google Maps",
+  "朋友 / 家人": "Friend / Family",      "Kawan / Keluarga": "Friend / Family",
+  "摄影师 / 化妆师 / 策划": "Photographer / Make-up artist / Planner",
+  "Jurugambar / Mekap / Perancang": "Photographer / Make-up artist / Planner",
+  "路过 / 顺道": "Walk in / Passed by",  "Datang terus / Lalu": "Walk in / Passed by",
+  "其他": "Others",                      "Lain-lain": "Others"
+};
+function heardKey(v){ const t = String(v).trim(); return HEARD_ALIAS[t] || t; }
+
 /* v187 —— 「他们从哪里得知我们」。数据来自预约表单里那一题,
    写在 book_submit 的 filter_key='heard' / filter_value=<答案> 上(见 index.html)。
    ⚠️ 这一题**不是必填**,所以这里的总数通常小于「预约表单已发」那个数字 ——
@@ -1312,7 +1339,7 @@ function renderHeard(){
         <span class="termbar"><i style="width:${(n / max * 100).toFixed(1)}%"></i></span>
         <span class="termc">${n} · ${(n / total * 100).toFixed(0)}%</span>
       </div>`).join("")
-    + `<div class="ph" style="margin-top:10px">共 ${total} 份预约填了这一题。</div>`
+    + `<div class="ph" style="margin-top:10px">${total} booking form${total === 1 ? "" : "s"} answered this question.</div>`
     + truncNote("book_submit");
 }
 

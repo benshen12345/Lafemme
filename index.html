@@ -2095,7 +2095,7 @@ try { if (!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").
        1.50  第一道光射向 1 号照片 → 照片像全息投影一样闪现;之后 5 → 4 → 3 → 2 号每 0.25 秒一张
        3.95  最后一张照片出齐 → 这时才给 .hero 加 .text-on,标题、按钮、三条事实才出现
        4.10  五道光调暗到 45%,之后**一直跟着照片转**(Ben:「一直跟着转」)
-     设计与取舍的完整记录:vault `_decisions/LaFemme-v202-首屏全息投影入场与默认Noir.md`
+     设计与取舍的完整记录:vault `_decisions/LaFemme-2026-09-29-封面入场选B全息投影.md`
 
      ⛔ 整段只在 `html.intro` 下生效。这个 class 由 <head> 里的一小段脚本加上,
         而且**系统开了「减少动画」就不加**。所以:
@@ -2452,21 +2452,25 @@ try { if (!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").
               收起来是 JS 在手机上**主动做的**(见 wireFacets),这是渐进增强的方向。
            ⚠️ class="facet" 必须留在 <details> 上:renderBrands() 用
               `brandChips.closest(".facet")` 找它来隐藏整组,换个标签名它就找不到了。 -->
+      <!-- 🔴 v204 —— 标题文字单独包在 <span class="facet-t"> 里。
+           tagLeaves() 只给**没有子元素**的节点挂翻译;v198 把徽章 .facet-n 放进 <summary> 之后,
+           summary 不再是叶子,四个标题在中文 / 马来文下一直是英文(2026-10-01 查到)。
+           ⛔ 以后「标题 + 徽章」这种结构,文字一律自己包一层叶子。 -->
       <div class="filter-panel-body">
         <details class="facet" open>
-          <summary class="facet-h">Style<span class="facet-n" hidden></span></summary>
+          <summary class="facet-h"><span class="facet-t">Style</span><span class="facet-n" hidden></span></summary>
           <div class="filters" id="chips" role="group" aria-label="Filter by style"></div>
         </details>
         <details class="facet" open>
-          <summary class="facet-h">Fabric<span class="facet-n" hidden></span></summary>
+          <summary class="facet-h"><span class="facet-t">Fabric</span><span class="facet-n" hidden></span></summary>
           <div class="filters" id="materialChips" role="group" aria-label="Filter by fabric"></div>
         </details>
         <details class="facet" open>
-          <summary class="facet-h">Colour<span class="facet-n" hidden></span></summary>
+          <summary class="facet-h"><span class="facet-t">Colour</span><span class="facet-n" hidden></span></summary>
           <div class="swatches" id="swatches" role="group" aria-label="Filter by colour"></div>
         </details>
         <details class="facet" open>
-          <summary class="facet-h">Brand<span class="facet-n" hidden></span></summary>
+          <summary class="facet-h"><span class="facet-t">Brand</span><span class="facet-n" hidden></span></summary>
           <div class="filters" id="brandChips" role="group" aria-label="Filter by brand"></div>
         </details>
       </div>
@@ -2642,17 +2646,23 @@ try { if (!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").
 
           <div class="field">
             <label for="fHeard">How did you hear about us?</label>
+            <!-- 🔴 v204 —— 每个选项都写死英文 value。
+                 以前没写 value,浏览器就拿**显示的文字**当值;切到中文 / 马来文之后,
+                 applyLang() 把文字换成「朋友 / 家人」「Kawan / Keluarga」,存进 book_submit 的
+                 也就跟着变成翻译文字 —— 看板上同一个渠道分成英 / 中 / 马三行(2026-10-01 查到)。
+                 ⛔ value 永远是英文,只给埋点用;WhatsApp 讯息里写的是客人看到的那个文字(见 submit 处的 heardText)。
+                 ⛔ 改选项文字时 value 不要跟着改,否则看板上新旧两行对不上;要改就去 stats.html 的 HEARD_ALIAS 加一条。 -->
             <select id="fHeard" name="heard">
               <option value="">Select…</option>
-              <option>Instagram</option>
-              <option>TikTok</option>
-              <option>XiaoHongShu (RED)</option>
-              <option>Google Search</option>
-              <option>Google Maps</option>
-              <option>Friend / Family</option>
-              <option>Photographer / Make-up artist / Planner</option>
-              <option>Walk in / Passed by</option>
-              <option>Others</option>
+              <option value="Instagram">Instagram</option>
+              <option value="TikTok">TikTok</option>
+              <option value="XiaoHongShu (RED)">XiaoHongShu (RED)</option>
+              <option value="Google Search">Google Search</option>
+              <option value="Google Maps">Google Maps</option>
+              <option value="Friend / Family">Friend / Family</option>
+              <option value="Photographer / Make-up artist / Planner">Photographer / Make-up artist / Planner</option>
+              <option value="Walk in / Passed by">Walk in / Passed by</option>
+              <option value="Others">Others</option>
             </select>
           </div>
         </div>
@@ -3361,7 +3371,9 @@ function syncGenderTabs(){
 /* ---------- 排序 ---------- */
 const SORT_LABELS = {
   en: { new:"Newest first", az:"Name A\u2013Z", colour:"By colour", views:"Most viewed" },
-  zh: { new:"\u6700\u65b0\u4e0a\u67b6", az:"\u540d\u79f0 A\u2013Z", colour:"\u6309\u989c\u8272\u6392", views:"\u6700\u591a\u4eba\u770b" }
+  zh: { new:"\u6700\u65b0\u4e0a\u67b6", az:"\u540d\u79f0 A\u2013Z", colour:"\u6309\u989c\u8272\u6392", views:"\u6700\u591a\u4eba\u770b" },
+  /* v204 —— v194 加马来文时漏了这一组,马来文页面的排序下拉一直是英文。措辞待店里校对(马来文校对表 #214–217)。 */
+  ms: { new:"Terbaru dahulu", az:"Nama A\u2013Z", colour:"Ikut warna", views:"Paling banyak dilihat" }
 };
 /* v177 —— 「最多人看」这一项**只有在真的拿到浏览数之后才加进下拉框**。
    浏览数不在 products 表里(那张表只有款式资料),它是 events 表里 card_open 事件的
@@ -4902,6 +4914,9 @@ document.getElementById("bookForm").addEventListener("submit", e=>{
   if(!ok) return;
   const dateLine  = v("fDate")  ? `${msg("visit")}: ${v("fDate")}${v("fSlot") ? T(" at ", " ", " jam ") + v("fSlot") : ""}` : "";
   const eventLine = v("fEvent") ? `${msg("event")}: ${v("fEvent")}${v("fEventDate") ? T(" on ", " ", " pada ") + v("fEventDate") : ""}` : "";
+  /* v204 —— 讯息里写客人看到的那个文字(中文页就是中文),埋点用的是 value(永远英文,见下面 heard)。 */
+  const heardSel  = document.getElementById("fHeard");
+  const heardText = heardSel && heardSel.value ? heardSel.options[heardSel.selectedIndex].text.trim() : "";
   const lines = [
     msg("bookGreet"),
     ...(fittingList.length ? [
@@ -4917,7 +4932,7 @@ document.getElementById("bookForm").addEventListener("submit", e=>{
     eventLine,
     v("fSize")  && `${msg("size")}: ${v("fSize")}`,
     v("fNotes") && `${msg("notes")}: ${v("fNotes")}`,
-    v("fHeard") && `${msg("heard")}: ${v("fHeard")}`,
+    heardText   && `${msg("heard")}: ${heardText}`,
   ].filter(Boolean);
   /* Fires only past the required-field check, on the line before WhatsApp opens — so one
      row here means one filled-in form actually sent, not an abandoned attempt. Renamed so
@@ -5312,7 +5327,8 @@ if(!REDUCED && moods.length){
     const HOLO_YA = 0.77;      // ⛔ 金环中心 = 卡片高 × 0.77,必须和 CSS `.holo-dev` 的 translate3d 同一个数
     const TEXT_AT = 3950;      // 最后一张(2 号)1.3 秒的闪现从 2.65 秒开始 → 3.95 秒出齐,文字这时才出来
 
-    /* 每一面是一个 100×100 的方块,clip-path 剪成 (0,0)(100,0)(0,100) 三角形,
+    /* 每一面是一个 100×100 的方块,里面 4 层 <b> 用 border 画成 (0,0)(100,0)(0,100) 三角形
+       (v202g 起;⛔ 不要改回 clip-path —— 3D 里 20 片 clip-path 让画面掉到 2 fps),
        再用 matrix3d 把这三个角分别送到 P1、P2(照片的一条边)和光源 A。
        尺寸全部现量:卡片宽高用 offsetWidth/Height(不受 transform 影响),
        转盘半径用 .holo-probe(它的宽度就是 var(--ring-r)),所以断点改了尺寸这里自动跟着变。 */
@@ -5926,7 +5942,7 @@ const I18N = {
   "The Collection":"礼服系列",
   "Tap any piece for details — rental prices are shared on WhatsApp.":"点击任意款式查看详情——租金通过 WhatsApp 告知。",
   "Evening Gowns":"晚礼服","Men Suits":"男士西装","Nothing in that combination":"该组合暂无款式",
-  "Style":"款式","Fabric":"材质","Colour":"颜色",
+  "Style":"款式","Fabric":"材质","Colour":"颜色","Brand":"品牌",
   "Filters":"筛选","Clear all":"清除全部",
   /* The two display slogans — the hero h1 and the About h2 — are deliberately NOT in
      here. --serif and --script are both Cormorant Garamond, a Latin-only face: Chinese
@@ -6028,6 +6044,7 @@ const I18N_MS = {
   "Style":"Gaya",
   "Fabric":"Kain",
   "Colour":"Warna",
+  "Brand":"Jenama",
   "Filters":"Tapisan",
   "Clear all":"Kosongkan",
   "About the Studio":"Tentang Studio",
