@@ -1,0 +1,22 @@
+Copyright (c) 2026 LaFemme Gowns by Nee (SSM 202603042038). All rights reserved.
+
+This repository holds the website lafemmegown.com: its source code, text,
+photographs, graphics and design.
+
+No licence is granted. You may view these files on GitHub and in your web
+browser, as anyone visiting a public website can. You may not copy, modify,
+republish, distribute or reuse any part of them, in whole or in part,
+without prior written permission from the copyright holder.
+
+The name "LaFemme Gowns" and its logo identify this business and may not be
+used for any other website, shop or product.
+
+Third-party files keep their own licences and are not covered by the
+paragraphs above:
+
+  - vendor/supabase.js  — supabase-js, MIT License, (c) Supabase
+  - audio/lafemme.mp3   — "Summer (Piano)" by Zight, Creative Commons
+                          Attribution 4.0 (CC BY 4.0), via Free Music Archive
+
+Permission requests: please contact the business through the WhatsApp link
+on lafemmegown.com.
